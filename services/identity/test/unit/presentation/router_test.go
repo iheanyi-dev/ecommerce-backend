@@ -6,11 +6,24 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
 )
 
+meHandler := handlers.NewMeHandler()
+
+authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+	&mockTokenService{},
+)
+
+// mockRouterRegisterUserService is a test double for the registration
+// application service.
+//
+// The router test does not need the real registration use case because
+// the purpose of this test is only to verify HTTP route registration.
 type mockRouterRegisterUserService struct{}
 
 func (m *mockRouterRegisterUserService) Execute(
@@ -26,12 +39,39 @@ func (m *mockRouterRegisterUserService) Execute(
 	}, nil
 }
 
+// mockRouterAuthenticateUserService is a test double for the authentication
+// application service.
+//
+// The router only needs an implementation of the application port so that
+// the login handler can be constructed.
+type mockRouterAuthenticateUserService struct{}
+
+func (m *mockRouterAuthenticateUserService) Authenticate(
+	ctx context.Context,
+	command dto.LoginUserCommand,
+) (dto.LoginUserResult, error) {
+	return dto.LoginUserResult{
+		ID:          "550e8400-e29b-41d4-a716-446655440000",
+		Email:       "john@example.com",
+		Role:        "user",
+		Status:      "active",
+		AccessToken: "test-access-token",
+	}, nil
+}
+
 func TestNewRouter_RegisterUser(t *testing.T) {
 	service := &mockRouterRegisterUserService{}
 
 	registerUserHandler := handlers.NewRegisterUserHandler(service)
 
-	router := presentation.NewRouter(registerUserHandler)
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+	)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -59,7 +99,14 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 
 	registerUserHandler := handlers.NewRegisterUserHandler(service)
 
-	router := presentation.NewRouter(registerUserHandler)
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+	)
 
 	request := httptest.NewRequest(
 		http.MethodGet,
@@ -78,4 +125,37 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 			recorder.Code,
 		)
 	}
+}
+
+// TestNewRouter_LoginUser verifies that the login endpoint is registered
+// and that the request reaches the login handler rather than returning 404.
+func TestNewRouter_LoginUser(t *testing.T) {
+	t.Parallel()
+
+	registerUserHandler := handlers.NewRegisterUserHandler(
+		&mockRouterRegisterUserService{},
+	)
+
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/users/login",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	// The empty body is invalid JSON, so the login handler should return
+	// 400. A 404 would indicate that the route was not registered.
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 }

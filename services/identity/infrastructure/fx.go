@@ -14,17 +14,31 @@ var Module = fx.Module(
 	"infrastructure",
 
 	fx.Provide(
+		// PostgreSQL connection pool.
 		postgres.NewPool,
+
+		// SQLC query implementation.
 		postgres.NewQueries,
 
+		// User repository implementation exposed through the
+		// application-layer UserRepository port.
 		fx.Annotate(
 			postgres.NewUserRepository,
 			fx.As(new(ports.UserRepository)),
 		),
 
+		// Bcrypt password hashing implementation exposed through
+		// the application-layer PasswordHasher port.
 		fx.Annotate(
 			security.NewBcryptPasswordHasher,
 			fx.As(new(ports.PasswordHasher)),
+		),
+
+		// JWT access-token implementation exposed through the
+		// application-layer TokenService port.
+		fx.Annotate(
+			security.NewJWTTokenServiceFromConfig,
+			fx.As(new(ports.TokenService)),
 		),
 	),
 

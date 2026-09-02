@@ -39,3 +39,17 @@ SELECT EXISTS (
     FROM users
     WHERE email = $1
 );
+
+-- name: FindUserByEmail :one
+SELECT
+    id,
+    full_name,
+    email,
+    password_hash,
+    role,
+    status,
+    created_at,
+    updated_at
+FROM users
+WHERE email = $1
+LIMIT 1;

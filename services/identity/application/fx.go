@@ -15,6 +15,10 @@ var Module = fx.Module(
 	"application",
 
 	fx.Provide(
+		// RegisterUserUseCase coordinates the user registration workflow.
+		//
+		// Its dependencies are application ports, keeping the application
+		// layer independent of concrete infrastructure implementations.
 		fx.Annotate(
 			func(
 				userRepository ports.UserRepository,
@@ -26,6 +30,30 @@ var Module = fx.Module(
 				)
 			},
 			fx.As(new(ports.RegisterUserService)),
+		),
+
+		// AuthenticateUserUseCase coordinates the authentication workflow.
+		//
+		// Authentication requires:
+		//   - UserRepository to find the user.
+		//   - PasswordHasher to verify the password.
+		//   - TokenService to generate the access token.
+		//
+		// All three are application ports, so this use case remains
+		// independent of PostgreSQL, bcrypt, JWT, and other infrastructure.
+		fx.Annotate(
+			func(
+				userRepository ports.UserRepository,
+				passwordHasher ports.PasswordHasher,
+				tokenService ports.TokenService,
+			) *use_cases.AuthenticateUserUseCase {
+				return use_cases.NewAuthenticateUserUseCase(
+					userRepository,
+					passwordHasher,
+					tokenService,
+				)
+			},
+			fx.As(new(ports.AuthenticateUserService)),
 		),
 	),
 )

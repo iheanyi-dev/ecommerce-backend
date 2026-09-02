@@ -2,11 +2,11 @@ package postgres_tests
 
 import (
 	"context"
-	"testing"
-
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
 	generated "github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres/generated"
+	"testing"
+	"time"
 )
 
 // newTestUser creates a valid domain User for repository tests.
@@ -139,5 +139,113 @@ func TestUserRepository_ExistsByEmail_UserExists(t *testing.T) {
 
 	if !exists {
 		t.Fatal("expected existing user to return true")
+	}
+}
+
+// TestUserRepository_FindByEmail_UserExists verifies that the repository
+// retrieves an existing user and correctly reconstructs the domain
+// aggregate from the raw values returned by PostgreSQL.
+func TestUserRepository_FindByEmail_UserExists(t *testing.T) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+	repository := postgres.NewUserRepository(queries)
+
+	newUser := newTestUser(t, "find@example.com")
+
+	if err := repository.Create(
+		context.Background(),
+		newUser,
+	); err != nil {
+		t.Fatalf("Create() returned an error: %v", err)
+	}
+
+	reconstitutedUser, err := repository.FindByEmail(
+		context.Background(),
+		newUser.Email(),
+	)
+	if err != nil {
+		t.Fatalf("FindByEmail() returned an error: %v", err)
+	}
+
+	if reconstitutedUser == nil {
+		t.Fatal("expected user, got nil")
+	}
+
+	// Verify that the repository preserved the complete domain identity.
+	if reconstitutedUser.ID() != newUser.ID() {
+		t.Fatalf("expected ID %s, got %s",
+			newUser.ID().String(),
+			reconstitutedUser.ID().String(),
+		)
+	}
+
+	// Verify that the persisted FullName was reconstructed into the
+	// domain FullName value object correctly.
+	if reconstitutedUser.FullName() != newUser.FullName() {
+		t.Fatalf("full name changed during reconstruction")
+	}
+
+	// Verify that the persisted Email was reconstructed into the
+	// domain Email value object correctly.
+	if reconstitutedUser.Email() != newUser.Email() {
+		t.Fatalf("email changed during reconstruction")
+	}
+
+	// Verify that the persisted PasswordHash was reconstructed without
+	// modifying the stored hash.
+	if reconstitutedUser.PasswordHash() != newUser.PasswordHash() {
+		t.Fatalf("password hash changed during reconstruction")
+	}
+
+	// Verify that role and status were reconstructed from their
+	// persisted string representations.
+	if reconstitutedUser.Role() != newUser.Role() {
+		t.Fatalf("role changed during reconstruction")
+	}
+
+	if reconstitutedUser.Status() != newUser.Status() {
+		t.Fatalf("status changed during reconstruction")
+	}
+
+	// PostgreSQL TIMESTAMPTZ stores timestamps with microsecond precision.
+	// time.Now() may contain nanoseconds, so compare at the same precision
+	// used by PostgreSQL.
+	if !reconstitutedUser.CreatedAt().Truncate(time.Microsecond).Equal(
+		newUser.CreatedAt().Truncate(time.Microsecond),
+	) {
+		t.Fatalf("created_at changed during reconstruction")
+	}
+
+	if !reconstitutedUser.UpdatedAt().Truncate(time.Microsecond).Equal(
+		newUser.UpdatedAt().Truncate(time.Microsecond),
+	) {
+		t.Fatalf("updated_at changed during reconstruction")
+	}
+}
+
+// TestUserRepository_FindByEmail_UserDoesNotExist verifies that the
+// repository returns the appropriate error when no user exists with
+// the requested email.
+func TestUserRepository_FindByEmail_UserDoesNotExist(t *testing.T) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+	repository := postgres.NewUserRepository(queries)
+
+	email, err := user.NewEmail("missing-find@example.com")
+	if err != nil {
+		t.Fatalf("failed to create Email: %v", err)
+	}
+
+	_, err = repository.FindByEmail(
+		context.Background(),
+		email,
+	)
+
+	if err == nil {
+		t.Fatal("expected FindByEmail() to return an error")
 	}
 }

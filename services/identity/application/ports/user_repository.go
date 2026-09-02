@@ -15,6 +15,9 @@ import (
 type UserRepository interface {
 	// ExistsByEmail checks whether a user with the supplied email already
 	// exists in persistent storage.
+	//
+	// Registration only needs a boolean answer, so the complete User
+	// aggregate is not loaded.
 	ExistsByEmail(
 		ctx context.Context,
 		email user.Email,
@@ -29,4 +32,18 @@ type UserRepository interface {
 		ctx context.Context,
 		newUser *user.User,
 	) error
+
+	// FindByEmail retrieves a complete User aggregate using its email.
+	//
+	// Unlike ExistsByEmail, authentication needs the complete persisted
+	// user because it must verify the password, account status, role,
+	// and eventually use the user's identity when issuing tokens.
+	//
+	// The infrastructure implementation is responsible for translating
+	// raw database values into domain value objects and then rebuilding
+	// the aggregate through user.ReconstituteUser().
+	FindByEmail(
+		ctx context.Context,
+		email user.Email,
+	) (*user.User, error)
 }

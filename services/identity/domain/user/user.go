@@ -57,6 +57,41 @@ func NewUser(
 	}, nil
 }
 
+// ReconstituteUser rebuilds an existing User aggregate from persisted state.
+//
+// Reconstitution is different from creating a new User. A new user receives
+// a newly generated ID, default role, default status, and current timestamps.
+// An existing user must retain the exact identity and lifecycle state that
+// was previously persisted.
+//
+// The infrastructure layer is responsible for converting database values
+// into validated domain value objects before calling this function.
+//
+// Keeping reconstitution here preserves the aggregate's encapsulation while
+// preventing the infrastructure layer from directly manipulating the
+// aggregate's private fields.
+func ReconstituteUser(
+	id UserID,
+	fullName FullName,
+	email Email,
+	passwordHash PasswordHash,
+	role Role,
+	status Status,
+	createdAt time.Time,
+	updatedAt time.Time,
+) *User {
+	return &User{
+		id:           id,
+		fullName:     fullName,
+		email:        email,
+		passwordHash: passwordHash,
+		role:         role,
+		status:       status,
+		createdAt:    createdAt,
+		updatedAt:    updatedAt,
+	}
+}
+
 // ID returns the user's unique identity.
 func (u *User) ID() UserID {
 	return u.id

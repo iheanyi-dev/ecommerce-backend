@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
+
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/security"
@@ -17,7 +20,76 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/shared/config"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 )
+
+// mockIntegrationAuthenticateUserService is a lightweight authentication
+// service used only because the Identity router now contains both
+// registration and login routes.
+//
+// These registration integration tests are not testing authentication,
+// so we deliberately do not connect the login handler to the real
+// authentication use case here.
+type mockIntegrationAuthenticateUserService struct{}
+
+func (m *mockIntegrationAuthenticateUserService) Authenticate(
+	ctx context.Context,
+	command dto.LoginUserCommand,
+) (dto.LoginUserResult, error) {
+	return dto.LoginUserResult{}, errors.New(
+		"authentication is not part of this integration test",
+	)
+}
+
+type mockIntegrationTokenService struct{}
+
+func (m *mockIntegrationTokenService) GenerateAccessToken(
+	ctx context.Context,
+	userID user.UserID,
+	role user.Role,
+) (string, error) {
+	return "integration-test-token", nil
+}
+
+func (m *mockIntegrationTokenService) ValidateAccessToken(
+	ctx context.Context,
+	token string,
+) (ports.AuthenticatedIdentity, error) {
+	return ports.AuthenticatedIdentity{}, errors.New(
+		"authentication is not part of this integration test",
+	)
+}
+
+// newRegistrationIntegrationRouter creates the real Identity HTTP router
+// for registration integration tests.
+//
+// The registration handler is real and connected to PostgreSQL, sqlc,
+// bcrypt, and the registration use case.
+//
+// The login handler only exists to satisfy the router's dependency because
+// authentication is tested separately.
+func newRegistrationIntegrationRouter(
+	registerUserHandler *handlers.RegisterUserHandler,
+) http.Handler {
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockIntegrationAuthenticateUserService{},
+	)
+
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockIntegrationTokenService{},
+	)
+
+	return presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		meHandler,
+		authenticationMiddleware,
+	)
+}
 
 func TestRegisterUserIntegration(t *testing.T) {
 	ctx := context.Background()
@@ -33,7 +105,6 @@ func TestRegisterUserIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create PostgreSQL pool: %v", err)
 	}
-	//defer pool.Close()
 
 	// Build the real SQLC query executor.
 	queries := postgres.NewQueries(pool)
@@ -56,7 +127,11 @@ func TestRegisterUserIntegration(t *testing.T) {
 	)
 
 	// Build the real HTTP router.
-	router := presentation.NewRouter(
+	//
+	// The registration handler is real. The login handler is a lightweight
+	// test dependency because this integration test is specifically testing
+	// registration.
+	router := newRegistrationIntegrationRouter(
 		registerUserHandler,
 	)
 
@@ -80,6 +155,7 @@ func TestRegisterUserIntegration(t *testing.T) {
 				err,
 			)
 		}
+
 		pool.Close()
 	})
 
@@ -196,7 +272,7 @@ func TestRegisterUserIntegration_DuplicateEmail(t *testing.T) {
 		registerUserUseCase,
 	)
 
-	router := presentation.NewRouter(
+	router := newRegistrationIntegrationRouter(
 		registerUserHandler,
 	)
 
@@ -329,8 +405,6 @@ func TestRegisterUserIntegration_DuplicateEmail(t *testing.T) {
 }
 
 func TestRegisterUserIntegration_InvalidEmail(t *testing.T) {
-	//ctx := context.Background()
-
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("failed to load configuration: %v", err)
@@ -354,7 +428,9 @@ func TestRegisterUserIntegration_InvalidEmail(t *testing.T) {
 		registerUserUseCase,
 	)
 
-	router := presentation.NewRouter(registerUserHandler)
+	router := newRegistrationIntegrationRouter(
+		registerUserHandler,
+	)
 
 	t.Cleanup(func() {
 		pool.Close()
@@ -394,8 +470,6 @@ func TestRegisterUserIntegration_InvalidEmail(t *testing.T) {
 }
 
 func TestRegisterUserIntegration_InvalidFullName(t *testing.T) {
-	//ctx := context.Background()
-
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("failed to load configuration: %v", err)
@@ -419,7 +493,9 @@ func TestRegisterUserIntegration_InvalidFullName(t *testing.T) {
 		registerUserUseCase,
 	)
 
-	router := presentation.NewRouter(registerUserHandler)
+	router := newRegistrationIntegrationRouter(
+		registerUserHandler,
+	)
 
 	t.Cleanup(func() {
 		pool.Close()
@@ -478,8 +554,6 @@ func TestRegisterUserIntegration_InvalidFullName(t *testing.T) {
 }
 
 func TestRegisterUserIntegration_InvalidJSON(t *testing.T) {
-	//ctx := context.Background()
-
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("failed to load configuration: %v", err)
@@ -507,7 +581,9 @@ func TestRegisterUserIntegration_InvalidJSON(t *testing.T) {
 		registerUserUseCase,
 	)
 
-	router := presentation.NewRouter(registerUserHandler)
+	router := newRegistrationIntegrationRouter(
+		registerUserHandler,
+	)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -551,8 +627,6 @@ func TestRegisterUserIntegration_InvalidJSON(t *testing.T) {
 }
 
 func TestRegisterUserIntegration_MethodNotAllowed(t *testing.T) {
-	//ctx := context.Background()
-
 	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("failed to load configuration: %v", err)
@@ -580,7 +654,9 @@ func TestRegisterUserIntegration_MethodNotAllowed(t *testing.T) {
 		registerUserUseCase,
 	)
 
-	router := presentation.NewRouter(registerUserHandler)
+	router := newRegistrationIntegrationRouter(
+		registerUserHandler,
+	)
 
 	request := httptest.NewRequest(
 		http.MethodGet,
@@ -653,7 +729,9 @@ func TestRegisterUserIntegration_Route(t *testing.T) {
 		registerUserUseCase,
 	)
 
-	router := presentation.NewRouter(registerUserHandler)
+	router := newRegistrationIntegrationRouter(
+		registerUserHandler,
+	)
 
 	email := fmt.Sprintf(
 		"route-%s@example.com",

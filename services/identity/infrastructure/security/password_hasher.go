@@ -53,6 +53,30 @@ func (h *BcryptPasswordHasher) Hash(
 	return string(hash), nil
 }
 
+// Verify checks whether the supplied plaintext password matches the
+// persisted bcrypt password hash.
+func (h *BcryptPasswordHasher) Verify(
+	ctx context.Context,
+	plainPassword string,
+	passwordHash string,
+) error {
+	// Respect request cancellation before performing the verification.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if plainPassword == "" {
+		return ErrEmptyPassword
+	}
+
+	// bcrypt.CompareHashAndPassword returns an error when the password
+	// does not match the stored hash.
+	return bcrypt.CompareHashAndPassword(
+		[]byte(passwordHash),
+		[]byte(plainPassword),
+	)
+}
+
 // Compile-time assertion.
 //
 // If BcryptPasswordHasher ever stops implementing PasswordHasher, the

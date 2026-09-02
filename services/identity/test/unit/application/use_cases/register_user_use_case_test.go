@@ -32,6 +32,18 @@ func (f *fakePasswordHasher) Hash(
 	return "hashed:" + plainPassword, nil
 }
 
+// Verify satisfies the PasswordHasher interface.
+//
+// Registration does not perform password verification, so this method
+// is intentionally unused by the registration tests.
+func (f *fakePasswordHasher) Verify(
+	ctx context.Context,
+	plainPassword string,
+	passwordHash string,
+) error {
+	return nil
+}
+
 // fakeUserRepository is a test implementation of the UserRepository port.
 //
 // The fake records the User aggregate passed to Create so tests can inspect
@@ -65,6 +77,17 @@ func (f *fakeUserRepository) Create(
 	f.createdUser = newUser
 
 	return nil
+}
+
+// FindByEmail is implemented to satisfy the UserRepository contract.
+//
+// Registration does not use this operation, so the fake returns nil.
+// Authentication tests will provide their own behavior for this method.
+func (f *fakeUserRepository) FindByEmail(
+	ctx context.Context,
+	email user.Email,
+) (*user.User, error) {
+	return nil, nil
 }
 
 func TestRegisterUserUseCase_RegistersUserSuccessfully(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"net/url"
+	"time"
 	"github.com/joho/godotenv"
 )
 
@@ -17,6 +18,10 @@ type Config struct {
 	DatabasePassword string
 	DatabaseName     string
 	DatabaseSSLMode  string
+	// JWT configuration.
+	JWTSecret           string
+	JWTIssuer           string
+	JWTAccessTokenTTL   time.Duration
 }
 
 func Load() (*Config, error) {
@@ -24,6 +29,15 @@ func Load() (*Config, error) {
 	// In Docker/production, environment variables can be supplied
 	// directly by the runtime.
 	_ = godotenv.Load("services/identity/.env")
+	jwtAccessTokenTTL, err := time.ParseDuration(
+		os.Getenv("JWT_ACCESS_TOKEN_TTL"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"invalid JWT_ACCESS_TOKEN_TTL: %w",
+			err,
+		)
+	}
 
 	cfg := &Config{
 		AppEnv:           getEnv("APP_ENV", "development"),
@@ -35,6 +49,9 @@ func Load() (*Config, error) {
 		DatabasePassword: os.Getenv("DATABASE_PASSWORD"),
 		DatabaseName:     os.Getenv("DATABASE_NAME"),
 		DatabaseSSLMode:  getEnv("DATABASE_SSLMODE", "disable"),
+		JWTSecret:         os.Getenv("JWT_SECRET"),
+		JWTIssuer:         os.Getenv("JWT_ISSUER"),
+		JWTAccessTokenTTL: jwtAccessTokenTTL,
 	}
 
 	if cfg.DatabaseUser == "" {
