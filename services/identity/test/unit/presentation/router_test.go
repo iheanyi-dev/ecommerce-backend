@@ -6,17 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
-)
-
-meHandler := handlers.NewMeHandler()
-
-authenticationMiddleware := middleware.NewAuthenticationMiddleware(
-	&mockTokenService{},
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
+	"github.com/stretchr/testify/assert"
 )
 
 // mockRouterRegisterUserService is a test double for the registration
@@ -59,6 +55,31 @@ func (m *mockRouterAuthenticateUserService) Authenticate(
 	}, nil
 }
 
+// mockTokenService is a test double for the application's TokenService.
+//
+// The router tests do not need the real JWT implementation. They only need
+// a TokenService implementation so the authentication middleware can be
+// constructed without depending on infrastructure.
+type mockTokenService struct{}
+
+func (m *mockTokenService) GenerateAccessToken(
+	ctx context.Context,
+	userID user.UserID,
+	role user.Role,
+) (string, error) {
+	return "test-access-token", nil
+}
+
+func (m *mockTokenService) ValidateAccessToken(
+	ctx context.Context,
+	token string,
+) (ports.AuthenticatedIdentity, error) {
+	return ports.AuthenticatedIdentity{
+		UserID: "550e8400-e29b-41d4-a716-446655440000",
+		Role:   "user",
+	}, nil
+}
+
 func TestNewRouter_RegisterUser(t *testing.T) {
 	service := &mockRouterRegisterUserService{}
 
@@ -68,9 +89,17 @@ func TestNewRouter_RegisterUser(t *testing.T) {
 		&mockRouterAuthenticateUserService{},
 	)
 
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
+		meHandler,
+		authenticationMiddleware,
 	)
 
 	request := httptest.NewRequest(
@@ -103,9 +132,17 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 		&mockRouterAuthenticateUserService{},
 	)
 
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
+		meHandler,
+		authenticationMiddleware,
 	)
 
 	request := httptest.NewRequest(
@@ -140,9 +177,17 @@ func TestNewRouter_LoginUser(t *testing.T) {
 		&mockRouterAuthenticateUserService{},
 	)
 
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
+		meHandler,
+		authenticationMiddleware,
 	)
 
 	req := httptest.NewRequest(
