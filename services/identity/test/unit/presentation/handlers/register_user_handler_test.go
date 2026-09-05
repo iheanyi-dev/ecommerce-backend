@@ -1,4 +1,4 @@
-package presentation_test
+package handlers_test
 
 import (
 	"context"

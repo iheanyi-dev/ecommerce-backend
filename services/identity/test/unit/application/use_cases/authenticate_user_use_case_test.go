@@ -65,6 +65,26 @@ func (f *fakeAuthenticationUserRepository) FindByEmail(
 	return f.user, nil
 }
 
+// FindByID returns the configured user when the ID matches.
+func (f *fakeAuthenticationUserRepository) FindByID(
+	ctx context.Context,
+	id user.UserID,
+) (*user.User, error) {
+	if f.findErr != nil {
+		return nil, f.findErr
+	}
+
+	if f.user == nil {
+		return nil, nil
+	}
+
+	if f.user.ID() != id {
+		return nil, nil
+	}
+
+	return f.user, nil
+}
+
 // -----------------------------------------------------------------------------
 // Fake Password Hasher
 // -----------------------------------------------------------------------------

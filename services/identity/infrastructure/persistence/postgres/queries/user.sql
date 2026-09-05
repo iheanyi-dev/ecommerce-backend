@@ -53,3 +53,22 @@ SELECT
 FROM users
 WHERE email = $1
 LIMIT 1;
+
+-- name: FindUserByID :one
+--
+-- Retrieves a complete user aggregate using the user's unique identifier.
+--
+-- The repository translates the returned persistence values into the
+-- corresponding domain value objects.
+SELECT
+    id,
+    full_name,
+    email,
+    password_hash,
+    role,
+    status,
+    created_at,
+    updated_at
+FROM users
+WHERE id = $1
+LIMIT 1;

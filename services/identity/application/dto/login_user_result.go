@@ -7,11 +7,11 @@ import "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 //
 // Password information is deliberately excluded.
 type LoginUserResult struct {
-	ID           string
-	Email        string
-	Role         string
-	Status       string
-	AccessToken  string
+	ID          string
+	Email       string
+	Role        string
+	Status      string
+	AccessToken string
 }
 
 // NewLoginUserResult converts the authenticated User aggregate into

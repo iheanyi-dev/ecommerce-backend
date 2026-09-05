@@ -21,8 +21,14 @@ var Module = fx.Module(
 		// Login endpoint handler.
 		handlers.NewLoginUserHandler,
 
+		// Refresh-token endpoint handler.
+		handlers.NewRefreshUserHandler,
+
 		// Authenticated-user endpoint handler.
 		handlers.NewMeHandler,
+
+		// Logout endpoint handler.
+		handlers.NewLogoutUserHandler,
 
 		// Authentication middleware validates Bearer access tokens
 		// before protected handlers are executed.

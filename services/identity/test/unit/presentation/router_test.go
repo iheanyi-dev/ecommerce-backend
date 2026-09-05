@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
@@ -55,12 +56,33 @@ func (m *mockRouterAuthenticateUserService) Authenticate(
 	}, nil
 }
 
+// mockRouterRefreshUserService is a test double for the refresh-token
+// application service.
+//
+// The router test only needs a concrete RefreshUserHandler so that the
+// refresh route can be registered. The actual refresh behavior is tested
+// separately by the refresh handler and application tests.
+type mockRouterRefreshUserService struct{}
+
+func (m *mockRouterRefreshUserService) Refresh(
+	ctx context.Context,
+	command dto.RefreshTokenCommand,
+) (dto.RefreshTokenResult, error) {
+	return dto.RefreshTokenResult{
+		AccessToken:  "test-access-token",
+		RefreshToken: "test-refresh-token",
+	}, nil
+}
+
 // mockTokenService is a test double for the application's TokenService.
 //
 // The router tests do not need the real JWT implementation. They only need
 // a TokenService implementation so the authentication middleware can be
 // constructed without depending on infrastructure.
-type mockTokenService struct{}
+type mockTokenService struct {
+	role string
+	err  error
+}
 
 func (m *mockTokenService) GenerateAccessToken(
 	ctx context.Context,
@@ -74,11 +96,38 @@ func (m *mockTokenService) ValidateAccessToken(
 	ctx context.Context,
 	token string,
 ) (ports.AuthenticatedIdentity, error) {
+	if m.err != nil {
+		return ports.AuthenticatedIdentity{}, m.err
+	}
+
 	return ports.AuthenticatedIdentity{
 		UserID: "550e8400-e29b-41d4-a716-446655440000",
-		Role:   "user",
+		Role:   m.role,
 	}, nil
 }
+
+// mockRouterLogoutUserService is a test double for the logout
+// application service.
+//
+// The router tests only need a LogoutUserHandler that can be
+// constructed. The actual logout behavior is tested separately.
+type mockRouterLogoutUserService struct {
+	logoutToken  string
+	logoutCalled bool
+	err          error
+}
+
+func (m *mockRouterLogoutUserService) Logout(
+	ctx context.Context,
+	refreshToken string,
+) error {
+	m.logoutCalled = true
+	m.logoutToken = refreshToken
+
+	return m.err
+}
+
+var _ ports.LogoutUserService = (*mockRouterLogoutUserService)(nil)
 
 func TestNewRouter_RegisterUser(t *testing.T) {
 	service := &mockRouterRegisterUserService{}
@@ -89,17 +138,29 @@ func TestNewRouter_RegisterUser(t *testing.T) {
 		&mockRouterAuthenticateUserService{},
 	)
 
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
 	meHandler := handlers.NewMeHandler()
 
 	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
-		&mockTokenService{},
+		&mockTokenService{
+			role: "user",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
 	)
 
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
+		refreshUserHandler,
 		meHandler,
 		authenticationMiddleware,
+		logoutUserHandler,
 	)
 
 	request := httptest.NewRequest(
@@ -132,19 +193,30 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 		&mockRouterAuthenticateUserService{},
 	)
 
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
 	meHandler := handlers.NewMeHandler()
 
 	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
-		&mockTokenService{},
+		&mockTokenService{
+			role: "user",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
 	)
 
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
+		refreshUserHandler,
 		meHandler,
 		authenticationMiddleware,
+		logoutUserHandler,
 	)
-
 	request := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v1/unknown",
@@ -177,19 +249,30 @@ func TestNewRouter_LoginUser(t *testing.T) {
 		&mockRouterAuthenticateUserService{},
 	)
 
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
 	meHandler := handlers.NewMeHandler()
 
 	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
-		&mockTokenService{},
+		&mockTokenService{
+			role: "user",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
 	)
 
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
+		refreshUserHandler,
 		meHandler,
 		authenticationMiddleware,
+		logoutUserHandler,
 	)
-
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/users/login",
@@ -203,4 +286,458 @@ func TestNewRouter_LoginUser(t *testing.T) {
 	// The empty body is invalid JSON, so the login handler should return
 	// 400. A 404 would indicate that the route was not registered.
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
+// TestNewRouter_MeRequiresAuthentication verifies that the /me endpoint
+// rejects requests that do not contain an access token.
+func TestNewRouter_MeRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	registerUserHandler := handlers.NewRegisterUserHandler(
+		&mockRouterRegisterUserService{},
+	)
+
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "user",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+	)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/users/me",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusUnauthorized,
+		recorder.Code,
+	)
+}
+
+// TestNewRouter_MeAllowsAuthenticatedUser verifies that an authenticated
+// user can access their own profile.
+func TestNewRouter_MeAllowsAuthenticatedUser(t *testing.T) {
+	t.Parallel()
+
+	registerUserHandler := handlers.NewRegisterUserHandler(
+		&mockRouterRegisterUserService{},
+	)
+
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "user",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+	)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/users/me",
+		nil,
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer test-access-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusOK,
+		recorder.Code,
+	)
+}
+
+// TestNewRouter_MeAllowsAuthenticatedVendor verifies that a vendor can
+// access the authenticated user's endpoint.
+func TestNewRouter_MeAllowsAuthenticatedVendor(t *testing.T) {
+	t.Parallel()
+
+	registerUserHandler := handlers.NewRegisterUserHandler(
+		&mockRouterRegisterUserService{},
+	)
+
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "vendor",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+	)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/users/me",
+		nil,
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer test-access-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusOK,
+		recorder.Code,
+	)
+}
+
+// TestNewRouter_MeAllowsAuthenticatedAdmin verifies that an admin can
+// access the authenticated user's endpoint.
+func TestNewRouter_MeAllowsAuthenticatedAdmin(t *testing.T) {
+	t.Parallel()
+
+	registerUserHandler := handlers.NewRegisterUserHandler(
+		&mockRouterRegisterUserService{},
+	)
+
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "admin",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+	)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/users/me",
+		nil,
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer test-access-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusOK,
+		recorder.Code,
+	)
+}
+
+// TestNewRouter_MeRejectsUnknownRole verifies that authentication alone is
+// not sufficient when the caller has a role that is not authorized by the
+// route.
+func TestNewRouter_MeRejectsUnknownRole(t *testing.T) {
+	t.Parallel()
+
+	registerUserHandler := handlers.NewRegisterUserHandler(
+		&mockRouterRegisterUserService{},
+	)
+
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "unknown",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+	)
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/users/me",
+		nil,
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer test-access-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusForbidden,
+		recorder.Code,
+	)
+}
+
+// TestNewRouter_RefreshUser verifies that the refresh endpoint is registered
+// and that the request reaches the refresh handler rather than returning 404.
+func TestNewRouter_RefreshUser(t *testing.T) {
+	t.Parallel()
+
+	registerUserHandler := handlers.NewRegisterUserHandler(
+		&mockRouterRegisterUserService{},
+	)
+
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "user",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+	)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/users/refresh",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	// The empty body is invalid JSON, so the refresh handler should return
+	// 400. A 404 would indicate that the route was not registered.
+	assert.Equal(
+		t,
+		http.StatusBadRequest,
+		recorder.Code,
+	)
+}
+
+func TestNewRouter_LogoutUserRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	logoutService := &mockRouterLogoutUserService{}
+	logoutHandler := handlers.NewLogoutUserHandler(logoutService)
+
+	tokenService := &mockTokenService{
+		role: "user",
+	}
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		tokenService,
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		authenticationMiddleware,
+		logoutHandler,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/users/logout",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf(
+			"expected status %d, got %d",
+			http.StatusUnauthorized,
+			recorder.Code,
+		)
+	}
+
+	if logoutService.logoutCalled {
+		t.Fatal("expected logout service not to be called")
+	}
+}
+
+func TestNewRouter_LogoutUserAllowsAuthenticatedRequest(t *testing.T) {
+	t.Parallel()
+
+	logoutService := &mockRouterLogoutUserService{}
+	logoutHandler := handlers.NewLogoutUserHandler(logoutService)
+
+	tokenService := &mockTokenService{
+		role: "user",
+	}
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		tokenService,
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		authenticationMiddleware,
+		logoutHandler,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/users/logout",
+		strings.NewReader(
+			`{"refresh_token":"valid-refresh-token"}`,
+		),
+	)
+
+	request.Header.Set(
+		"Authorization",
+		"Bearer valid-access-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf(
+			"expected status %d, got %d",
+			http.StatusNoContent,
+			recorder.Code,
+		)
+	}
+
+	if !logoutService.logoutCalled {
+		t.Fatal("expected logout service to be called")
+	}
+
+	if logoutService.logoutToken != "valid-refresh-token" {
+		t.Fatalf(
+			"expected refresh token %q, got %q",
+			"valid-refresh-token",
+			logoutService.logoutToken,
+		)
+	}
 }

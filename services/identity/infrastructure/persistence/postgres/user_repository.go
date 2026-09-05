@@ -210,6 +210,91 @@ func (r *UserRepository) FindByEmail(
 	return reconstitutedUser, nil
 }
 
+// FindByID retrieves a persisted User aggregate by UserID.
+//
+// SQLC returns primitive persistence values. This method translates those
+// values back into domain value objects before reconstructing the User
+// aggregate.
+//
+// The repository performs this translation at the infrastructure boundary
+// so the application layer never depends on PostgreSQL or SQLC types.
+func (r *UserRepository) FindByID(
+	ctx context.Context,
+	id user.UserID,
+) (*user.User, error) {
+	row, err := r.queries.FindUserByID(
+		ctx,
+		toPgUUID(id.Value()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"find user by ID: %w",
+			err,
+		)
+	}
+
+	userID, err := user.UserIDFromString(row.ID.String())
+	if err != nil {
+		return nil, fmt.Errorf(
+			"reconstruct user ID: %w",
+			err,
+		)
+	}
+
+	fullName, err := user.NewFullName(row.FullName)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"reconstruct full name: %w",
+			err,
+		)
+	}
+
+	email, err := user.NewEmail(row.Email)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"reconstruct email: %w",
+			err,
+		)
+	}
+
+	passwordHash, err := user.NewPasswordHash(row.PasswordHash)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"reconstruct password hash: %w",
+			err,
+		)
+	}
+
+	role, err := user.NewRole(row.Role)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"reconstruct user role: %w",
+			err,
+		)
+	}
+
+	status, err := user.NewStatus(row.Status)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"reconstruct user status: %w",
+			err,
+		)
+	}
+
+	reconstitutedUser := user.ReconstituteUser(
+		userID,
+		fullName,
+		email,
+		passwordHash,
+		role,
+		status,
+		row.CreatedAt.Time,
+		row.UpdatedAt.Time,
+	)
+
+	return reconstitutedUser, nil
+}
+
 // Compile-time assertion.
 //
 // This guarantees that the infrastructure implementation always satisfies

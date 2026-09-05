@@ -46,4 +46,16 @@ type UserRepository interface {
 		ctx context.Context,
 		email user.Email,
 	) (*user.User, error)
+
+	// FindByID retrieves a complete User aggregate using its unique UserID.
+	//
+	// Authentication workflows such as refresh-token rotation need the current
+	// user state, including the current role and account status. Loading the
+	// user by ID ensures that a previously issued refresh token does not preserve
+	// stale authorization information.
+	FindByID(
+		ctx context.Context,
+		id user.UserID,
+	) (*user.User, error)
 }
+

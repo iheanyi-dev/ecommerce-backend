@@ -27,6 +27,13 @@ var Module = fx.Module(
 			fx.As(new(ports.UserRepository)),
 		),
 
+		// Refresh-token repository implementation exposed through
+		// the application-layer RefreshTokenRepository port.
+		fx.Annotate(
+			postgres.NewRefreshTokenRepository,
+			fx.As(new(ports.RefreshTokenRepository)),
+		),
+
 		// Bcrypt password hashing implementation exposed through
 		// the application-layer PasswordHasher port.
 		fx.Annotate(
@@ -39,6 +46,13 @@ var Module = fx.Module(
 		fx.Annotate(
 			security.NewJWTTokenServiceFromConfig,
 			fx.As(new(ports.TokenService)),
+		),
+
+		// Refresh-token implementation exposed through the
+		// application-layer RefreshTokenService port.
+		fx.Annotate(
+			security.NewRefreshTokenService,
+			fx.As(new(ports.RefreshTokenService)),
 		),
 	),
 

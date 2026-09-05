@@ -55,5 +55,47 @@ var Module = fx.Module(
 			},
 			fx.As(new(ports.AuthenticateUserService)),
 		),
+		// RefreshUserUseCase coordinates refresh-token rotation.
+		//
+		// It depends exclusively on application ports:
+		//   - RefreshTokenRepository
+		//   - UserRepository
+		//   - RefreshTokenService
+		//   - TokenService
+		//
+		// Infrastructure details remain outside the application layer.
+		fx.Annotate(
+			func(
+				refreshTokenRepository ports.RefreshTokenRepository,
+				userRepository ports.UserRepository,
+				refreshTokenService ports.RefreshTokenService,
+				tokenService ports.TokenService,
+			) *use_cases.RefreshUserUseCase {
+				return use_cases.NewRefreshUserUseCase(
+					refreshTokenRepository,
+					userRepository,
+					refreshTokenService,
+					tokenService,
+				)
+			},
+			fx.As(new(ports.RefreshUserService)),
+		),
+		// LogoutUserUseCase coordinates revocation of the specific
+		// refresh-token session being logged out.
+		//
+		// It depends only on application ports, keeping the use case
+		// independent of HTTP and infrastructure details.
+		fx.Annotate(
+			func(
+				refreshTokenRepository ports.RefreshTokenRepository,
+				refreshTokenService ports.RefreshTokenService,
+			) *use_cases.LogoutUserUseCase {
+				return use_cases.NewLogoutUserUseCase(
+					refreshTokenRepository,
+					refreshTokenService,
+				)
+			},
+			fx.As(new(ports.LogoutUserService)),
+		),
 	),
 )

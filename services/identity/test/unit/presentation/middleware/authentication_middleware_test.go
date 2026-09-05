@@ -301,3 +301,107 @@ func TestAuthenticatedIdentity_ReturnsFalseWhenMissing(
 		)
 	}
 }
+
+func TestAuthenticationMiddleware_RejectsBearerWithoutToken(
+	t *testing.T,
+) {
+	tokenService := &mockTokenService{
+		validateFunc: func(
+			ctx context.Context,
+			token string,
+		) (ports.AuthenticatedIdentity, error) {
+			t.Fatal("token validation should not be called")
+			return ports.AuthenticatedIdentity{}, nil
+		},
+	}
+
+	authMiddleware := middleware.NewAuthenticationMiddleware(
+		tokenService,
+	)
+
+	next := http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		t.Fatal("protected handler should not be called")
+	})
+
+	handler := authMiddleware.RequireAuthentication(next)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/protected",
+		nil,
+	)
+
+	request.Header.Set(
+		"Authorization",
+		"Bearer",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(
+		recorder,
+		request,
+	)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf(
+			"expected status 401, got %d",
+			recorder.Code,
+		)
+	}
+}
+
+func TestAuthenticationMiddleware_RejectsAuthorizationHeaderWithExtraFields(
+	t *testing.T,
+) {
+	tokenService := &mockTokenService{
+		validateFunc: func(
+			ctx context.Context,
+			token string,
+		) (ports.AuthenticatedIdentity, error) {
+			t.Fatal("token validation should not be called")
+			return ports.AuthenticatedIdentity{}, nil
+		},
+	}
+
+	authMiddleware := middleware.NewAuthenticationMiddleware(
+		tokenService,
+	)
+
+	next := http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		t.Fatal("protected handler should not be called")
+	})
+
+	handler := authMiddleware.RequireAuthentication(next)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/protected",
+		nil,
+	)
+
+	request.Header.Set(
+		"Authorization",
+		"Bearer valid-token extra-value",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(
+		recorder,
+		request,
+	)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf(
+			"expected status 401, got %d",
+			recorder.Code,
+		)
+	}
+}

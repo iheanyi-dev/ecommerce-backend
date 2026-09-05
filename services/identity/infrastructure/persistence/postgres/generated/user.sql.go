@@ -114,3 +114,38 @@ func (q *Queries) FindUserByEmail(ctx context.Context, email string) (User, erro
 	)
 	return i, err
 }
+
+const findUserByID = `-- name: FindUserByID :one
+SELECT
+    id,
+    full_name,
+    email,
+    password_hash,
+    role,
+    status,
+    created_at,
+    updated_at
+FROM users
+WHERE id = $1
+LIMIT 1
+`
+
+// Retrieves a complete user aggregate using the user's unique identifier.
+//
+// The repository translates the returned persistence values into the
+// corresponding domain value objects.
+func (q *Queries) FindUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, findUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FullName,
+		&i.Email,
+		&i.PasswordHash,
+		&i.Role,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

@@ -13,16 +13,16 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/security"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/shared/config"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 )
 
 // mockIntegrationAuthenticateUserService is a lightweight authentication
@@ -77,18 +77,31 @@ func newRegistrationIntegrationRouter(
 		&mockIntegrationAuthenticateUserService{},
 	)
 
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockIntegrationRefreshUserService{},
+	)
+
 	meHandler := handlers.NewMeHandler()
 
 	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
 		&mockIntegrationTokenService{},
 	)
 
-	return presentation.NewRouter(
+	// Create the logout handler required by the router.
+	// This test does not exercise the logout endpoint yet.
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
+	)
+
+	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
+		refreshUserHandler,
 		meHandler,
 		authenticationMiddleware,
+		logoutUserHandler,
 	)
+	return router
 }
 
 func TestRegisterUserIntegration(t *testing.T) {

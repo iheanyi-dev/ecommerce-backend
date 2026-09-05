@@ -9,15 +9,33 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/security"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/shared/config"
 )
+
+// mockIntegrationRefreshUserService is a lightweight refresh service used
+// only because the Identity router now contains the refresh route.
+//
+// The login integration tests do not test refresh-token behavior, so this
+// mock only exists to satisfy the router dependency.
+type mockIntegrationRefreshUserService struct{}
+
+func (m *mockIntegrationRefreshUserService) Refresh(
+	ctx context.Context,
+	command dto.RefreshTokenCommand,
+) (dto.RefreshTokenResult, error) {
+	return dto.RefreshTokenResult{
+		AccessToken:  "integration-test-access-token",
+		RefreshToken: "integration-test-refresh-token",
+	}, nil
+}
 
 func newLoginIntegrationRouter(
 	registerUserHandler *handlers.RegisterUserHandler,
@@ -29,12 +47,45 @@ func newLoginIntegrationRouter(
 		&mockIntegrationTokenService{},
 	)
 
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockIntegrationRefreshUserService{},
+	)
+
+	// Create the logout handler required by the router.
+// The integration test does not exercise logout yet.
+logoutUserHandler := handlers.NewLogoutUserHandler(
+	&mockRouterLogoutUserService{},
+)
+
 	return presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
+		refreshUserHandler,
 		meHandler,
 		authenticationMiddleware,
+		logoutUserHandler,
 	)
+}
+
+// mockRouterLogoutUserService is a test double for the logout
+// application service.
+//
+// The router tests only need a LogoutUserHandler that can be
+// constructed. The actual logout behavior is tested separately.
+type mockRouterLogoutUserService struct {
+	logoutToken  string
+	logoutCalled bool
+	err          error
+}
+
+func (m *mockRouterLogoutUserService) Logout(
+	ctx context.Context,
+	refreshToken string,
+) error {
+	m.logoutCalled = true
+	m.logoutToken = refreshToken
+
+	return m.err
 }
 
 // TestLoginUserIntegration verifies the complete authentication flow.

@@ -66,6 +66,16 @@ func (f *fakeUserRepository) ExistsByEmail(
 	return f.existingEmail, nil
 }
 
+// FindByID is implemented to satisfy the UserRepository contract.
+//
+// Registration does not use this operation, so the fake returns nil.
+func (f *fakeUserRepository) FindByID(
+	ctx context.Context,
+	id user.UserID,
+) (*user.User, error) {
+	return nil, nil
+}
+
 func (f *fakeUserRepository) Create(
 	_ context.Context,
 	newUser *user.User,

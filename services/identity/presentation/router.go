@@ -16,8 +16,10 @@ import (
 func NewRouter(
 	registerUserHandler *handlers.RegisterUserHandler,
 	loginUserHandler *handlers.LoginUserHandler,
+	refreshUserHandler *handlers.RefreshUserHandler,
 	meHandler *handlers.MeHandler,
 	authenticationMiddleware *middleware.AuthenticationMiddleware,
+	logoutUserHandler *handlers.LogoutUserHandler,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -44,6 +46,18 @@ func NewRouter(
 		loginUserHandler,
 	)
 
+	// Refresh authentication tokens:
+	//
+	// POST /api/v1/users/refresh
+	//
+	// This endpoint intentionally remains public because the caller does
+	// not present an access token. Instead, the refresh token itself is
+	// supplied in the request body and validated by the application layer.
+	mux.Handle(
+		"/api/v1/users/refresh",
+		refreshUserHandler,
+	)
+
 	// ---------------------------------------------------------------------
 	// Protected endpoints
 	// ---------------------------------------------------------------------
@@ -52,14 +66,33 @@ func NewRouter(
 	//
 	// GET /api/v1/users/me
 	//
-	// AuthenticationMiddleware executes before MeHandler.
+	// The middleware chain is intentionally ordered:
 	//
-	// If the access token is missing, malformed, expired, invalid, or has
-	// an invalid signature, the request never reaches MeHandler.
+	//      Authentication → Authorization → Handler
+	//
+	// Authentication first establishes WHO the caller is.
+	// Authorization then determines WHETHER the caller's role is allowed.
+	//
+	// All valid application roles can access their own profile.
 	mux.Handle(
 		"/api/v1/users/me",
 		authenticationMiddleware.RequireAuthentication(
-			meHandler,
+			middleware.RequireRoles(
+				"admin",
+				"vendor",
+				"user",
+			)(
+				meHandler,
+			),
+		),
+	)
+
+	// Logout requires a valid access token, but does not require
+	// a specific role because every authenticated user can log out.
+	mux.Handle(
+		"/api/v1/users/logout",
+		authenticationMiddleware.RequireAuthentication(
+			logoutUserHandler,
 		),
 	)
 

@@ -249,3 +249,84 @@ func TestUserRepository_FindByEmail_UserDoesNotExist(t *testing.T) {
 		t.Fatal("expected FindByEmail() to return an error")
 	}
 }
+
+// TestUserRepository_FindByID_UserExists verifies that the repository
+// retrieves an existing user by its domain UserID and correctly
+// reconstructs the complete domain aggregate.
+func TestUserRepository_FindByID_UserExists(t *testing.T) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+	repository := postgres.NewUserRepository(queries)
+
+	newUser := newTestUser(t, "find-by-id@example.com")
+
+	if err := repository.Create(
+		context.Background(),
+		newUser,
+	); err != nil {
+		t.Fatalf("Create() returned an error: %v", err)
+	}
+
+	reconstitutedUser, err := repository.FindByID(
+		context.Background(),
+		newUser.ID(),
+	)
+	if err != nil {
+		t.Fatalf("FindByID() returned an error: %v", err)
+	}
+
+	if reconstitutedUser == nil {
+		t.Fatal("expected user, got nil")
+	}
+
+	if reconstitutedUser.ID() != newUser.ID() {
+		t.Fatalf(
+			"expected ID %s, got %s",
+			newUser.ID().String(),
+			reconstitutedUser.ID().String(),
+		)
+	}
+
+	if reconstitutedUser.FullName() != newUser.FullName() {
+		t.Fatalf("full name changed during reconstruction")
+	}
+
+	if reconstitutedUser.Email() != newUser.Email() {
+		t.Fatalf("email changed during reconstruction")
+	}
+
+	if reconstitutedUser.PasswordHash() != newUser.PasswordHash() {
+		t.Fatalf("password hash changed during reconstruction")
+	}
+
+	if reconstitutedUser.Role() != newUser.Role() {
+		t.Fatalf("role changed during reconstruction")
+	}
+
+	if reconstitutedUser.Status() != newUser.Status() {
+		t.Fatalf("status changed during reconstruction")
+	}
+}
+
+// TestUserRepository_FindByID_UserDoesNotExist verifies that the repository
+// returns an error when no user exists with the requested UserID.
+func TestUserRepository_FindByID_UserDoesNotExist(t *testing.T) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+	repository := postgres.NewUserRepository(queries)
+
+	nonExistentID := user.NewUserID()
+
+	_, err := repository.FindByID(
+		context.Background(),
+		nonExistentID,
+	)
+
+	if err == nil {
+		t.Fatal("expected FindByID() to return an error")
+	}
+}

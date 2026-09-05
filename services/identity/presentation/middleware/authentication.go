@@ -31,6 +31,22 @@ type AuthenticationMiddleware struct {
 	tokenService ports.TokenService
 }
 
+// WithAuthenticatedIdentity stores an authenticated identity in the request
+// context.
+//
+// This helper keeps context-key access inside the middleware package
+// instead of exposing the private context key to other packages.
+func WithAuthenticatedIdentity(
+	ctx context.Context,
+	identity ports.AuthenticatedIdentity,
+) context.Context {
+	return context.WithValue(
+		ctx,
+		authenticatedIdentityKey,
+		identity,
+	)
+}
+
 // NewAuthenticationMiddleware creates the authentication middleware.
 func NewAuthenticationMiddleware(
 	tokenService ports.TokenService,
@@ -108,9 +124,8 @@ func (m *AuthenticationMiddleware) RequireAuthentication(
 		//
 		// The handler does not need to know that the identity originated
 		// from a JWT.
-		ctx := context.WithValue(
+		ctx := WithAuthenticatedIdentity(
 			r.Context(),
-			authenticatedIdentityKey,
 			identity,
 		)
 
