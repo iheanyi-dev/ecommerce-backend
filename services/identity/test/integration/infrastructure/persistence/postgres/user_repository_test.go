@@ -330,3 +330,70 @@ func TestUserRepository_FindByID_UserDoesNotExist(t *testing.T) {
 		t.Fatal("expected FindByID() to return an error")
 	}
 }
+
+// TestUserRepository_UpdateFullName verifies that the repository can persist
+// a user's changed full name without changing immutable account information.
+func TestUserRepository_UpdateFullName(t *testing.T) {
+	t.Helper()
+
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	// SQLC uses the transaction as the query executor.
+	queries := generated.New(tx)
+
+	// The repository translates between the domain and PostgreSQL layers.
+	repository := postgres.NewUserRepository(queries)
+
+	// Create the initial persisted user using the existing test helper.
+	testUser := newTestUser(t, "update-full-name@example.com")
+
+	if err := repository.Create(
+		context.Background(),
+		testUser,
+	); err != nil {
+		t.Fatalf("Create() returned an error: %v", err)
+	}
+
+	// Construct the new name through the domain value object so the test
+	// exercises the same validation boundary used by the application.
+	newFullName, err := user.NewFullName("Updated Test User")
+	if err != nil {
+		t.Fatalf("failed to create updated FullName: %v", err)
+	}
+
+	// Update only the mutable profile field.
+	if err := repository.UpdateFullName(
+		context.Background(),
+		testUser.ID(),
+		newFullName,
+	); err != nil {
+		t.Fatalf("UpdateFullName() returned an error: %v", err)
+	}
+
+	// Read the aggregate back from PostgreSQL to verify actual persistence.
+	updatedUser, err := repository.FindByID(
+		context.Background(),
+		testUser.ID(),
+	)
+	if err != nil {
+		t.Fatalf("FindByID() returned an error: %v", err)
+	}
+
+	if updatedUser == nil {
+		t.Fatal("expected updated user, got nil")
+	}
+
+	if updatedUser.FullName().String() != "Updated Test User" {
+		t.Fatalf(
+			"expected full name %q, got %q",
+			"Updated Test User",
+			updatedUser.FullName().String(),
+		)
+	}
+
+	// Email is immutable in Phase 7 and must remain unchanged.
+	if updatedUser.Email() != testUser.Email() {
+		t.Fatal("expected email to remain unchanged")
+	}
+}

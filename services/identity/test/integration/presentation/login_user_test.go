@@ -57,14 +57,20 @@ logoutUserHandler := handlers.NewLogoutUserHandler(
 	&mockRouterLogoutUserService{},
 )
 
+updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+	&mockRouterUpdateUserProfileService{},
+)
+
 	return presentation.NewRouter(
-		registerUserHandler,
-		loginUserHandler,
-		refreshUserHandler,
-		meHandler,
-		authenticationMiddleware,
-		logoutUserHandler,
-	)
+	registerUserHandler,
+	loginUserHandler,
+	refreshUserHandler,
+	meHandler,
+	updateUserProfileHandler,
+	authenticationMiddleware,
+	logoutUserHandler,
+)
+
 }
 
 // mockRouterLogoutUserService is a test double for the logout

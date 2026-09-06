@@ -85,6 +85,18 @@ func (f *fakeAuthenticationUserRepository) FindByID(
 	return f.user, nil
 }
 
+// UpdateFullName satisfies the UserRepository interface.
+//
+// Authentication tests do not exercise profile updates, so this fake
+// intentionally performs no operation.
+func (f *fakeAuthenticationUserRepository) UpdateFullName(
+	ctx context.Context,
+	id user.UserID,
+	fullName user.FullName,
+) error {
+	return nil
+}
+
 // -----------------------------------------------------------------------------
 // Fake Password Hasher
 // -----------------------------------------------------------------------------

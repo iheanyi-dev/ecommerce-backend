@@ -97,5 +97,21 @@ var Module = fx.Module(
 			},
 			fx.As(new(ports.LogoutUserService)),
 		),
+
+		// UpdateUserProfileUseCase coordinates self-service profile updates.
+		//
+		// It depends only on the UserRepository application port.
+		// The authenticated user ID is supplied by the presentation/request
+		// context boundary, while the use case remains independent of HTTP and JWT.
+		fx.Annotate(
+			func(
+				userRepository ports.UserRepository,
+			) *use_cases.UpdateUserProfileUseCase {
+				return use_cases.NewUpdateUserProfileUseCase(
+					userRepository,
+				)
+			},
+			fx.As(new(ports.UpdateUserProfileService)),
+		),
 	),
 )

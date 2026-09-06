@@ -24,6 +24,31 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/shared/config"
 )
 
+// mockIntegrationUpdateUserProfileService is a test double for the
+// profile-update application service.
+//
+// The logout integration tests do not exercise profile updates. The mock
+// exists only so the real router can be constructed with all of its
+// required handlers.
+type mockIntegrationUpdateUserProfileService struct{}
+
+func (m *mockIntegrationUpdateUserProfileService) Execute(
+	ctx context.Context,
+	userID string,
+	command dto.UpdateUserProfileCommand,
+) (dto.UpdateUserProfileResult, error) {
+	return dto.UpdateUserProfileResult{
+		UserID:    userID,
+		FullName:  command.FullName,
+		Email:     "integration@example.com",
+		Role:      "user",
+		Status:    "active",
+		UpdatedAt: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),
+	}, nil
+}
+
+var _ ports.UpdateUserProfileService = (*mockIntegrationUpdateUserProfileService)(nil)
+
 // newLogoutIntegrationRouter creates the real Identity HTTP router
 // with the real logout handler, authentication middleware, and
 // application dependencies.
@@ -52,11 +77,16 @@ func newLogoutIntegrationRouter(
 		tokenService,
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockIntegrationUpdateUserProfileService{},
+	)
+
 	return presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)

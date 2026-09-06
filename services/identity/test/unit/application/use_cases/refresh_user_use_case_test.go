@@ -210,6 +210,18 @@ func (f *fakeRefreshUserRepository) FindByID(
 	return f.user, nil
 }
 
+// UpdateFullName satisfies the UserRepository interface.
+//
+// Refresh-token tests do not exercise profile updates, so this fake
+// intentionally performs no operation.
+func (f *fakeRefreshUserRepository) UpdateFullName(
+	ctx context.Context,
+	id user.UserID,
+	fullName user.FullName,
+) error {
+	return nil
+}
+
 var _ ports.UserRepository = (*fakeRefreshUserRepository)(nil)
 
 // -----------------------------------------------------------------------------

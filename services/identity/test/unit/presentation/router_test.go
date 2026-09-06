@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const mockRouterAuthenticatedUserID = "550e8400-e29b-41d4-a716-446655440000"
+
 // mockRouterRegisterUserService is a test double for the registration
 // application service.
 //
@@ -35,6 +37,38 @@ func (m *mockRouterRegisterUserService) Execute(
 		Status:   "pending_verification",
 	}, nil
 }
+
+// mockRouterUpdateUserProfileService is a test double for the profile-update
+// application service.
+//
+// The router tests only need a concrete UpdateUserProfileHandler so that
+// the PATCH /api/v1/users/me route can be registered.
+type mockRouterUpdateUserProfileService struct {
+	called   bool
+	userID   string
+	command  dto.UpdateUserProfileCommand
+}
+
+func (m *mockRouterUpdateUserProfileService) Execute(
+	ctx context.Context,
+	userID string,
+	command dto.UpdateUserProfileCommand,
+) (dto.UpdateUserProfileResult, error) {
+	m.called = true
+	m.userID = userID
+	m.command = command
+
+	return dto.UpdateUserProfileResult{
+		UserID:    userID,
+		FullName:  command.FullName,
+		Email:     "john@example.com",
+		Role:      "user",
+		Status:    "active",
+		UpdatedAt: "2026-09-06T12:00:00.000Z",
+	}, nil
+}
+
+var _ ports.UpdateUserProfileService = (*mockRouterUpdateUserProfileService)(nil)
 
 // mockRouterAuthenticateUserService is a test double for the authentication
 // application service.
@@ -144,6 +178,10 @@ func TestNewRouter_RegisterUser(t *testing.T) {
 
 	meHandler := handlers.NewMeHandler()
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
 	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
 		&mockTokenService{
 			role: "user",
@@ -159,6 +197,7 @@ func TestNewRouter_RegisterUser(t *testing.T) {
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)
@@ -209,14 +248,20 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)
+
 	request := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v1/unknown",
@@ -265,14 +310,20 @@ func TestNewRouter_LoginUser(t *testing.T) {
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)
+
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/users/login",
@@ -317,14 +368,20 @@ func TestNewRouter_MeRequiresAuthentication(t *testing.T) {
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)
+
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v1/users/me",
@@ -371,14 +428,20 @@ func TestNewRouter_MeAllowsAuthenticatedUser(t *testing.T) {
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)
+
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v1/users/me",
@@ -430,14 +493,20 @@ func TestNewRouter_MeAllowsAuthenticatedVendor(t *testing.T) {
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)
+
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v1/users/me",
@@ -489,14 +558,20 @@ func TestNewRouter_MeAllowsAuthenticatedAdmin(t *testing.T) {
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)
+
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v1/users/me",
@@ -549,14 +624,20 @@ func TestNewRouter_MeRejectsUnknownRole(t *testing.T) {
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)
+
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v1/users/me",
@@ -608,14 +689,20 @@ func TestNewRouter_RefreshUser(t *testing.T) {
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
 		refreshUserHandler,
 		meHandler,
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
 	)
+
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/users/refresh",
@@ -649,11 +736,15 @@ func TestNewRouter_LogoutUserRequiresAuthentication(t *testing.T) {
 		tokenService,
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
 	router := presentation.NewRouter(
 		&handlers.RegisterUserHandler{},
 		&handlers.LoginUserHandler{},
 		&handlers.RefreshUserHandler{},
 		&handlers.MeHandler{},
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutHandler,
 	)
@@ -695,15 +786,18 @@ func TestNewRouter_LogoutUserAllowsAuthenticatedRequest(t *testing.T) {
 		tokenService,
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
 	router := presentation.NewRouter(
 		&handlers.RegisterUserHandler{},
 		&handlers.LoginUserHandler{},
 		&handlers.RefreshUserHandler{},
 		&handlers.MeHandler{},
+		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutHandler,
 	)
-
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/users/logout",
@@ -738,6 +832,93 @@ func TestNewRouter_LogoutUserAllowsAuthenticatedRequest(t *testing.T) {
 			"expected refresh token %q, got %q",
 			"valid-refresh-token",
 			logoutService.logoutToken,
+		)
+	}
+}
+
+func TestRouter_PatchMe_UsesAuthenticatedIdentity(t *testing.T) {
+	t.Parallel()
+	updateService := &mockRouterUpdateUserProfileService{}
+
+	registerUserHandler := handlers.NewRegisterUserHandler(
+		&mockRouterRegisterUserService{},
+	)
+
+	loginUserHandler := handlers.NewLoginUserHandler(
+		&mockRouterAuthenticateUserService{},
+	)
+
+	refreshUserHandler := handlers.NewRefreshUserHandler(
+		&mockRouterRefreshUserService{},
+	)
+
+	meHandler := handlers.NewMeHandler()
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "user",
+		},
+	)
+
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
+	)
+
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		updateService,
+	)
+
+	router := presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		updateUserProfileHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+	)
+
+	body := strings.NewReader(`{
+		"user_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+		"full_name": "Updated User"
+	}`)
+
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/users/me",
+		body,
+	)
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer valid-token")
+
+	rec := httptest.NewRecorder()
+
+	// Act.
+	router.ServeHTTP(rec, req)
+
+	// Assert.
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+
+	if !updateService.called {
+		t.Fatal("expected update user profile service to be called")
+	}
+
+	if updateService.userID != mockRouterAuthenticatedUserID {
+		t.Fatalf(
+			"expected authenticated user ID %q, got %q",
+			mockRouterAuthenticatedUserID,
+			updateService.userID,
+		)
+	}
+
+	if updateService.command.FullName != "Updated User" {
+		t.Fatalf(
+			"expected full name %q, got %q",
+			"Updated User",
+			updateService.command.FullName,
 		)
 	}
 }

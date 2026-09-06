@@ -89,6 +89,18 @@ func (f *fakeUserRepository) Create(
 	return nil
 }
 
+// UpdateFullName satisfies the UserRepository interface.
+//
+// Registration tests do not exercise profile updates, so this fake
+// intentionally performs no operation.
+func (f *fakeUserRepository) UpdateFullName(
+	ctx context.Context,
+	id user.UserID,
+	fullName user.FullName,
+) error {
+	return nil
+}
+
 // FindByEmail is implemented to satisfy the UserRepository contract.
 //
 // Registration does not use this operation, so the fake returns nil.

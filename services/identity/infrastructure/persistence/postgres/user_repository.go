@@ -295,6 +295,25 @@ func (r *UserRepository) FindByID(
 	return reconstitutedUser, nil
 }
 
+// UpdateFullName persists only the user's changed full name.
+//
+// Email, password, role, and account status are intentionally excluded.
+// Those fields are not mutable through the Phase 7 self-service profile
+// update operation.
+func (r *UserRepository) UpdateFullName(
+	ctx context.Context,
+	id user.UserID,
+	fullName user.FullName,
+) error {
+	return r.queries.UpdateUserFullName(
+		ctx,
+		generated.UpdateUserFullNameParams{
+			ID:       toPgUUID(id.Value()),
+			FullName: fullName.String(),
+		},
+	)
+}
+
 // Compile-time assertion.
 //
 // This guarantees that the infrastructure implementation always satisfies

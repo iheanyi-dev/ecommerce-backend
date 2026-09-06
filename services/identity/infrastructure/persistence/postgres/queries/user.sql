@@ -72,3 +72,15 @@ SELECT
 FROM users
 WHERE id = $1
 LIMIT 1;
+
+-- UpdateUserFullName updates only the mutable full-name field.
+--
+-- Email, password, role, and account status are intentionally excluded
+-- because they are not part of the self-service profile update operation.
+-- The database timestamp is updated whenever the profile name changes.
+-- name: UpdateUserFullName :exec
+UPDATE users
+SET
+    full_name = $2,
+    updated_at = NOW()
+WHERE id = $1;

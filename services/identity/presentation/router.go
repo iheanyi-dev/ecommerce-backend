@@ -18,6 +18,7 @@ func NewRouter(
 	loginUserHandler *handlers.LoginUserHandler,
 	refreshUserHandler *handlers.RefreshUserHandler,
 	meHandler *handlers.MeHandler,
+	updateUserProfileHandler *handlers.UpdateUserProfileHandler,
 	authenticationMiddleware *middleware.AuthenticationMiddleware,
 	logoutUserHandler *handlers.LogoutUserHandler,
 ) http.Handler {
@@ -75,15 +76,16 @@ func NewRouter(
 	//
 	// All valid application roles can access their own profile.
 	mux.Handle(
-		"/api/v1/users/me",
+		"GET /api/v1/users/me",
 		authenticationMiddleware.RequireAuthentication(
-			middleware.RequireRoles(
-				"admin",
-				"vendor",
-				"user",
-			)(
-				meHandler,
-			),
+			middleware.RequireRoles("admin", "vendor", "user")(meHandler),
+		),
+	)
+
+	mux.Handle(
+		"PATCH /api/v1/users/me",
+		authenticationMiddleware.RequireAuthentication(
+			middleware.RequireRoles("admin", "vendor", "user")(updateUserProfileHandler),
 		),
 	)
 

@@ -149,3 +149,26 @@ func (q *Queries) FindUserByID(ctx context.Context, id pgtype.UUID) (User, error
 	)
 	return i, err
 }
+
+const updateUserFullName = `-- name: UpdateUserFullName :exec
+UPDATE users
+SET
+    full_name = $2,
+    updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateUserFullNameParams struct {
+	ID       pgtype.UUID `json:"id"`
+	FullName string      `json:"full_name"`
+}
+
+// UpdateUserFullName updates only the mutable full-name field.
+//
+// Email, password, role, and account status are intentionally excluded
+// because they are not part of the self-service profile update operation.
+// The database timestamp is updated whenever the profile name changes.
+func (q *Queries) UpdateUserFullName(ctx context.Context, arg UpdateUserFullNameParams) error {
+	_, err := q.db.Exec(ctx, updateUserFullName, arg.ID, arg.FullName)
+	return err
+}

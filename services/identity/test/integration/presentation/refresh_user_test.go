@@ -52,14 +52,19 @@ func newRefreshIntegrationRouter(
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+	&mockRouterUpdateUserProfileService{},
+)
+
 	router := presentation.NewRouter(
-		registerUserHandler,
-		loginUserHandler,
-		refreshUserHandler,
-		meHandler,
-		authenticationMiddleware,
-		logoutUserHandler,
-	)
+	registerUserHandler,
+	loginUserHandler,
+	refreshUserHandler,
+	meHandler,
+	updateUserProfileHandler,
+	authenticationMiddleware,
+	logoutUserHandler,
+)
 	return router
 }
 

@@ -42,7 +42,29 @@ func (m *mockIntegrationAuthenticateUserService) Authenticate(
 		"authentication is not part of this integration test",
 	)
 }
+// mockRouterUpdateUserProfileService is a test double for the profile-update
+// application service.
+//
+// The router tests only need a concrete UpdateUserProfileHandler so that
+// the PATCH /api/v1/users/me route can be registered.
+type mockRouterUpdateUserProfileService struct{}
 
+func (m *mockRouterUpdateUserProfileService) Execute(
+	ctx context.Context,
+	userID string,
+	command dto.UpdateUserProfileCommand,
+) (dto.UpdateUserProfileResult, error) {
+	return dto.UpdateUserProfileResult{
+		UserID:    userID,
+		FullName:  command.FullName,
+		Email:     "john@example.com",
+		Role:      "user",
+		Status:    "active",
+		UpdatedAt: "2026-09-06T12:00:00.000Z",
+	}, nil
+}
+
+var _ ports.UpdateUserProfileService = (*mockRouterUpdateUserProfileService)(nil)
 type mockIntegrationTokenService struct{}
 
 func (m *mockIntegrationTokenService) GenerateAccessToken(
@@ -93,14 +115,19 @@ func newRegistrationIntegrationRouter(
 		&mockRouterLogoutUserService{},
 	)
 
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+	&mockRouterUpdateUserProfileService{},
+)
+
 	router := presentation.NewRouter(
-		registerUserHandler,
-		loginUserHandler,
-		refreshUserHandler,
-		meHandler,
-		authenticationMiddleware,
-		logoutUserHandler,
-	)
+	registerUserHandler,
+	loginUserHandler,
+	refreshUserHandler,
+	meHandler,
+	updateUserProfileHandler,
+	authenticationMiddleware,
+	logoutUserHandler,
+)
 	return router
 }
 
