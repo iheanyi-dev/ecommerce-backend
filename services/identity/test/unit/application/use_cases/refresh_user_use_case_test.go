@@ -210,14 +210,24 @@ func (f *fakeRefreshUserRepository) FindByID(
 	return f.user, nil
 }
 
+// UpdatePasswordHash satisfies the UserRepository interface.
+//
+// These refresh-token tests do not exercise password persistence,
+// so the fake intentionally performs no operation.
+func (f *fakeRefreshUserRepository) UpdatePasswordHash(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 // UpdateFullName satisfies the UserRepository interface.
 //
-// Refresh-token tests do not exercise profile updates, so this fake
-// intentionally performs no operation.
+// These refresh-token tests do not exercise profile updates,
+// so the fake intentionally performs no operation.
 func (f *fakeRefreshUserRepository) UpdateFullName(
 	ctx context.Context,
-	id user.UserID,
-	fullName user.FullName,
+	existingUser *user.User,
 ) error {
 	return nil
 }

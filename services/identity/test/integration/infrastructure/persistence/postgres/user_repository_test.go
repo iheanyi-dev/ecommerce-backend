@@ -2,11 +2,12 @@ package postgres_tests
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
 	generated "github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres/generated"
-	"testing"
-	"time"
 )
 
 // newTestUser creates a valid domain User for repository tests.
@@ -362,11 +363,12 @@ func TestUserRepository_UpdateFullName(t *testing.T) {
 		t.Fatalf("failed to create updated FullName: %v", err)
 	}
 
+	testUser.ChangeFullName(newFullName)
+
 	// Update only the mutable profile field.
 	if err := repository.UpdateFullName(
 		context.Background(),
-		testUser.ID(),
-		newFullName,
+		testUser,
 	); err != nil {
 		t.Fatalf("UpdateFullName() returned an error: %v", err)
 	}
@@ -395,5 +397,99 @@ func TestUserRepository_UpdateFullName(t *testing.T) {
 	// Email is immutable in Phase 7 and must remain unchanged.
 	if updatedUser.Email() != testUser.Email() {
 		t.Fatal("expected email to remain unchanged")
+	}
+}
+
+// TestUserRepository_UpdatePasswordHash verifies that an existing user's
+// password hash can be updated through the repository and subsequently
+// reconstructed correctly from PostgreSQL.
+func TestUserRepository_UpdatePasswordHash(t *testing.T) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+	repository := postgres.NewUserRepository(queries)
+
+	// Create the user with the original password hash first.
+	newUser := newTestUser(t, "update-password@example.com")
+
+	if err := repository.Create(
+		context.Background(),
+		newUser,
+	); err != nil {
+		t.Fatalf("Create() returned an error: %v", err)
+	}
+
+	// Create the new password hash that should replace the existing hash.
+	newPasswordHash, err := user.NewPasswordHash(
+		"hashed-new-password",
+	)
+	if err != nil {
+		t.Fatalf("failed to create new PasswordHash: %v", err)
+	}
+	newUser.ChangePassword(newPasswordHash)
+
+	// Act: update only the persisted password hash.
+	err = repository.UpdatePasswordHash(
+		context.Background(),
+		newUser,
+	)
+	if err != nil {
+		t.Fatalf(
+			"UpdatePasswordHash() returned an error: %v",
+			err,
+		)
+	}
+
+	// Verify the update through the repository's public contract.
+	updatedUser, err := repository.FindByID(
+		context.Background(),
+		newUser.ID(),
+	)
+	if err != nil {
+		t.Fatalf(
+			"FindByID() returned an error after UpdatePasswordHash(): %v",
+			err,
+		)
+	}
+
+	if updatedUser == nil {
+		t.Fatal("expected updated user, got nil")
+	}
+
+	// The user's identity must remain unchanged.
+	if updatedUser.ID() != newUser.ID() {
+		t.Fatalf(
+			"expected ID %s, got %s",
+			newUser.ID().String(),
+			updatedUser.ID().String(),
+		)
+	}
+
+	// The repository must persist the new password hash exactly as
+	// supplied by the application layer.
+	if updatedUser.PasswordHash() != newPasswordHash {
+		t.Fatalf(
+			"expected password hash %q, got %q",
+			newPasswordHash.String(),
+			updatedUser.PasswordHash().String(),
+		)
+	}
+
+	// Other user properties must remain unchanged by a password update.
+	if updatedUser.FullName() != newUser.FullName() {
+		t.Fatal("full name changed during password update")
+	}
+
+	if updatedUser.Email() != newUser.Email() {
+		t.Fatal("email changed during password update")
+	}
+
+	if updatedUser.Role() != newUser.Role() {
+		t.Fatal("role changed during password update")
+	}
+
+	if updatedUser.Status() != newUser.Status() {
+		t.Fatal("status changed during password update")
 	}
 }

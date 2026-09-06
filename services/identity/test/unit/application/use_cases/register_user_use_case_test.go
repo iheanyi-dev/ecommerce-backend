@@ -90,13 +90,16 @@ func (f *fakeUserRepository) Create(
 }
 
 // UpdateFullName satisfies the UserRepository interface.
-//
-// Registration tests do not exercise profile updates, so this fake
-// intentionally performs no operation.
 func (f *fakeUserRepository) UpdateFullName(
 	ctx context.Context,
-	id user.UserID,
-	fullName user.FullName,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
+func (f *fakeUserRepository) UpdatePasswordHash(
+	ctx context.Context,
+	existingUser *user.User,
 ) error {
 	return nil
 }

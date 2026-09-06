@@ -82,5 +82,12 @@ LIMIT 1;
 UPDATE users
 SET
     full_name = $2,
-    updated_at = NOW()
+    updated_at = $3
+WHERE id = $1;
+
+-- name: UpdateUserPasswordHash :exec
+UPDATE users
+SET
+    password_hash = $2,
+    updated_at = $3
 WHERE id = $1;

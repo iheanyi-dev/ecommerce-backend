@@ -91,8 +91,14 @@ func (f *fakeAuthenticationUserRepository) FindByID(
 // intentionally performs no operation.
 func (f *fakeAuthenticationUserRepository) UpdateFullName(
 	ctx context.Context,
-	id user.UserID,
-	fullName user.FullName,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
+func (f *fakeAuthenticationUserRepository) UpdatePasswordHash(
+	ctx context.Context,
+	existingUser *user.User,
 ) error {
 	return nil
 }

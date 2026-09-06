@@ -154,13 +154,14 @@ const updateUserFullName = `-- name: UpdateUserFullName :exec
 UPDATE users
 SET
     full_name = $2,
-    updated_at = NOW()
+    updated_at = $3
 WHERE id = $1
 `
 
 type UpdateUserFullNameParams struct {
-	ID       pgtype.UUID `json:"id"`
-	FullName string      `json:"full_name"`
+	ID        pgtype.UUID        `json:"id"`
+	FullName  string             `json:"full_name"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 // UpdateUserFullName updates only the mutable full-name field.
@@ -169,6 +170,25 @@ type UpdateUserFullNameParams struct {
 // because they are not part of the self-service profile update operation.
 // The database timestamp is updated whenever the profile name changes.
 func (q *Queries) UpdateUserFullName(ctx context.Context, arg UpdateUserFullNameParams) error {
-	_, err := q.db.Exec(ctx, updateUserFullName, arg.ID, arg.FullName)
+	_, err := q.db.Exec(ctx, updateUserFullName, arg.ID, arg.FullName, arg.UpdatedAt)
+	return err
+}
+
+const updateUserPasswordHash = `-- name: UpdateUserPasswordHash :exec
+UPDATE users
+SET
+    password_hash = $2,
+    updated_at = $3
+WHERE id = $1
+`
+
+type UpdateUserPasswordHashParams struct {
+	ID           pgtype.UUID        `json:"id"`
+	PasswordHash string             `json:"password_hash"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error {
+	_, err := q.db.Exec(ctx, updateUserPasswordHash, arg.ID, arg.PasswordHash, arg.UpdatedAt)
 	return err
 }

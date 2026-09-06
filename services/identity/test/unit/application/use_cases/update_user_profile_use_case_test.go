@@ -22,15 +22,28 @@ type fakeUpdateProfileRepository struct {
 }
 
 // UpdateFullName records the requested profile update.
+//
+// The complete aggregate is supplied so the fake can verify that the
+// domain-generated UpdatedAt value travels through the persistence boundary.
 func (f *fakeUpdateProfileRepository) UpdateFullName(
 	ctx context.Context,
-	id user.UserID,
-	fullName user.FullName,
+	existingUser *user.User,
 ) error {
 	f.updateFullNameCalled = true
-	f.updatedUserID = id
-	f.updatedFullName = fullName
+	f.updatedUserID = existingUser.ID()
+	f.updatedFullName = existingUser.FullName()
 
+	return nil
+}
+
+// UpdatePasswordHash satisfies the UserRepository interface.
+//
+// These profile-update tests do not exercise password persistence,
+// so the fake intentionally performs no operation.
+func (f *fakeUpdateProfileRepository) UpdatePasswordHash(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
 	return nil
 }
 

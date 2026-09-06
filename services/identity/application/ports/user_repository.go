@@ -23,11 +23,14 @@ type UserRepository interface {
 
 	// UpdateFullName persists a user's changed full name.
 	//
-	// The email, role, password, and account status are deliberately not
-	// included because this operation is limited to profile-name changes.
-	UpdateFullName(
-		ctx context.Context,
-		id user.UserID,
-		fullName user.FullName,
-	) error
+	// The aggregate is passed so persistence can store the domain-generated
+	// UpdatedAt timestamp without allowing persistence to generate its own
+	// timestamp.
+	UpdateFullName(ctx context.Context, existingUser *user.User) error
+	// UpdatePasswordHash persists a user's changed password hash.
+	//
+	// The aggregate is passed so persistence can store the domain-generated
+	// UpdatedAt timestamp without allowing persistence to generate its own
+	// timestamp. Plaintext passwords never cross the persistence boundary.
+	UpdatePasswordHash(ctx context.Context, existingUser *user.User) error
 }
