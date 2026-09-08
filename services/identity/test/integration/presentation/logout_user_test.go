@@ -81,6 +81,17 @@ func newLogoutIntegrationRouter(
 		&mockIntegrationUpdateUserProfileService{},
 	)
 
+	listUsersHandler := handlers.NewListUsersHandler(
+		&mockRouterListUsersService{},
+	)
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
+
+	newUpdateUserStatusHandler := handlers.NewUpdateUserStatusHandler(
+		&mockIntegrationUpdateUserStatusService{},
+	)
+
 	return presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -89,6 +100,9 @@ func newLogoutIntegrationRouter(
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newUpdateUserStatusHandler,
 	)
 }
 

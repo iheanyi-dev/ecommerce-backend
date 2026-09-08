@@ -97,11 +97,28 @@ func (f *fakeUserRepository) UpdateFullName(
 	return nil
 }
 
+// UpdateStatus satisfies the UserRepository interface.
+//
+// These profile-update tests do not exercise account-status persistence.
+func (f *fakeUserRepository) UpdateStatus(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 func (f *fakeUserRepository) UpdatePasswordHash(
 	ctx context.Context,
 	existingUser *user.User,
 ) error {
 	return nil
+}
+func (f *fakeUserRepository) List(
+	ctx context.Context,
+	limit int,
+	offset int,
+) ([]*user.User, error) {
+	return nil, nil
 }
 
 // FindByEmail is implemented to satisfy the UserRepository contract.

@@ -221,6 +221,16 @@ func (f *fakeRefreshUserRepository) UpdatePasswordHash(
 	return nil
 }
 
+// UpdateStatus satisfies the UserRepository interface.
+//
+// These tests do not exercise account-status persistence.
+func (f *fakeRefreshUserRepository) UpdateStatus(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 // UpdateFullName satisfies the UserRepository interface.
 //
 // These refresh-token tests do not exercise profile updates,
@@ -230,6 +240,13 @@ func (f *fakeRefreshUserRepository) UpdateFullName(
 	existingUser *user.User,
 ) error {
 	return nil
+}
+func (f *fakeRefreshUserRepository) List(
+	ctx context.Context,
+	limit int,
+	offset int,
+) ([]*user.User, error) {
+	return nil, nil
 }
 
 var _ ports.UserRepository = (*fakeRefreshUserRepository)(nil)

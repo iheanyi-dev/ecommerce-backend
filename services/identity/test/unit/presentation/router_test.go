@@ -44,9 +44,9 @@ func (m *mockRouterRegisterUserService) Execute(
 // The router tests only need a concrete UpdateUserProfileHandler so that
 // the PATCH /api/v1/users/me route can be registered.
 type mockRouterUpdateUserProfileService struct {
-	called   bool
-	userID   string
-	command  dto.UpdateUserProfileCommand
+	called  bool
+	userID  string
+	command dto.UpdateUserProfileCommand
 }
 
 func (m *mockRouterUpdateUserProfileService) Execute(
@@ -93,9 +93,9 @@ func (m *mockRouterAuthenticateUserService) Authenticate(
 // mockRouterRefreshUserService is a test double for the refresh-token
 // application service.
 //
-// The router test only needs a concrete RefreshUserHandler so that the
-// refresh route can be registered. The actual refresh behavior is tested
-// separately by the refresh handler and application tests.
+// The router test only needs a concrete RefreshUserHandler so that
+// the refresh route can be registered. The actual refresh behavior is
+// tested separately by the refresh handler and application tests.
 type mockRouterRefreshUserService struct{}
 
 func (m *mockRouterRefreshUserService) Refresh(
@@ -140,6 +140,27 @@ func (m *mockTokenService) ValidateAccessToken(
 	}, nil
 }
 
+// mockIntegrationGetUserService is a lightweight get-user service used
+// only because the Identity router now contains the administrative
+// single-user route.
+//
+// These integration tests do not exercise Get User behavior, so this
+// mock only exists to satisfy the router dependency.
+type mockIntegrationGetUserService struct{}
+
+func (m *mockIntegrationGetUserService) Execute(
+	ctx context.Context,
+	userID string,
+) (*dto.GetUserResult, error) {
+	return &dto.GetUserResult{
+		ID:       userID,
+		FullName: "Integration Test User",
+		Email:    "integration@example.com",
+		Role:     "user",
+		Status:   "active",
+	}, nil
+}
+
 // mockRouterLogoutUserService is a test double for the logout
 // application service.
 //
@@ -163,6 +184,93 @@ func (m *mockRouterLogoutUserService) Logout(
 
 var _ ports.LogoutUserService = (*mockRouterLogoutUserService)(nil)
 
+// mockRouterListUsersService is a test double for the administrative
+// user-listing application service.
+//
+// The router tests do not test pagination or user mapping. Those concerns
+// are tested by the ListUsersHandler and ListUsersUseCase tests.
+//
+// This mock exists so the real ListUsersHandler can be attached to the
+// router and the tests can verify authentication and authorization at the
+// routing boundary.
+type mockRouterListUsersService struct {
+	called bool
+	limit  int
+	offset int
+	result *dto.ListUsersResult
+	err    error
+}
+
+func (m *mockRouterListUsersService) Execute(
+	ctx context.Context,
+	limit int,
+	offset int,
+) (*dto.ListUsersResult, error) {
+	m.called = true
+	m.limit = limit
+	m.offset = offset
+
+	if m.err != nil {
+		return nil, m.err
+	}
+
+	if m.result != nil {
+		return m.result, nil
+	}
+
+	return &dto.ListUsersResult{
+		Users: []dto.UserSummary{},
+	}, nil
+}
+
+var _ ports.ListUsersService = (*mockRouterListUsersService)(nil)
+
+type mockRouterUpdateUserStatusService struct {
+	called bool
+}
+
+func (m *mockRouterUpdateUserStatusService) Execute(
+	ctx context.Context,
+	userID string,
+	command dto.UpdateUserStatusCommand,
+) (dto.UpdateUserStatusResult, error) {
+	m.called = true
+
+	return dto.UpdateUserStatusResult{
+		UserID: userID,
+		Status: command.Status,
+	}, nil
+}
+
+var _ ports.UpdateUserStatusService = (*mockRouterUpdateUserStatusService)(nil)
+
+func newMockUpdateUserStatusHandler() *handlers.UpdateUserStatusHandler {
+	return handlers.NewUpdateUserStatusHandler(
+		&mockRouterUpdateUserStatusService{},
+	)
+}
+
+// newMockListUsersHandler creates a concrete ListUsersHandler for router
+// tests.
+//
+// Keeping this construction in one helper prevents every existing router
+// test from having to duplicate the mock service setup.
+func newMockListUsersHandler() *handlers.ListUsersHandler {
+	return handlers.NewListUsersHandler(
+		&mockRouterListUsersService{},
+	)
+}
+
+// newMockGetUserHandler creates a concrete GetUserHandler for router tests.
+//
+// The ListUsers router tests do not exercise Get User behavior. This
+// handler exists only because the Identity router contains the
+// administrative Get User route and therefore requires the dependency.
+func newMockGetUserHandler() *handlers.GetUserHandler {
+	return handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
+}
 func TestNewRouter_RegisterUser(t *testing.T) {
 	service := &mockRouterRegisterUserService{}
 
@@ -192,6 +300,10 @@ func TestNewRouter_RegisterUser(t *testing.T) {
 		&mockRouterLogoutUserService{},
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -200,6 +312,9 @@ func TestNewRouter_RegisterUser(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	request := httptest.NewRequest(
@@ -252,6 +367,11 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 		&mockRouterUpdateUserProfileService{},
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -260,6 +380,9 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	request := httptest.NewRequest(
@@ -314,6 +437,11 @@ func TestNewRouter_LoginUser(t *testing.T) {
 		&mockRouterUpdateUserProfileService{},
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -322,6 +450,9 @@ func TestNewRouter_LoginUser(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	req := httptest.NewRequest(
@@ -372,6 +503,11 @@ func TestNewRouter_MeRequiresAuthentication(t *testing.T) {
 		&mockRouterUpdateUserProfileService{},
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -380,6 +516,9 @@ func TestNewRouter_MeRequiresAuthentication(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	req := httptest.NewRequest(
@@ -432,6 +571,11 @@ func TestNewRouter_MeAllowsAuthenticatedUser(t *testing.T) {
 		&mockRouterUpdateUserProfileService{},
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -440,6 +584,9 @@ func TestNewRouter_MeAllowsAuthenticatedUser(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	req := httptest.NewRequest(
@@ -497,6 +644,11 @@ func TestNewRouter_MeAllowsAuthenticatedVendor(t *testing.T) {
 		&mockRouterUpdateUserProfileService{},
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -505,6 +657,9 @@ func TestNewRouter_MeAllowsAuthenticatedVendor(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	req := httptest.NewRequest(
@@ -562,6 +717,11 @@ func TestNewRouter_MeAllowsAuthenticatedAdmin(t *testing.T) {
 		&mockRouterUpdateUserProfileService{},
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -570,6 +730,9 @@ func TestNewRouter_MeAllowsAuthenticatedAdmin(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	req := httptest.NewRequest(
@@ -628,6 +791,11 @@ func TestNewRouter_MeRejectsUnknownRole(t *testing.T) {
 		&mockRouterUpdateUserProfileService{},
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -636,6 +804,9 @@ func TestNewRouter_MeRejectsUnknownRole(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	req := httptest.NewRequest(
@@ -693,6 +864,11 @@ func TestNewRouter_RefreshUser(t *testing.T) {
 		&mockRouterUpdateUserProfileService{},
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -701,6 +877,9 @@ func TestNewRouter_RefreshUser(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	req := httptest.NewRequest(
@@ -739,6 +918,9 @@ func TestNewRouter_LogoutUserRequiresAuthentication(t *testing.T) {
 	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
 		&mockRouterUpdateUserProfileService{},
 	)
+
+	listUsersHandler := newMockListUsersHandler()
+
 	router := presentation.NewRouter(
 		&handlers.RegisterUserHandler{},
 		&handlers.LoginUserHandler{},
@@ -747,6 +929,9 @@ func TestNewRouter_LogoutUserRequiresAuthentication(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutHandler,
+		listUsersHandler,
+		newMockGetUserHandler(),
+		newMockUpdateUserStatusHandler(),
 	)
 
 	request := httptest.NewRequest(
@@ -789,6 +974,9 @@ func TestNewRouter_LogoutUserAllowsAuthenticatedRequest(t *testing.T) {
 	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
 		&mockRouterUpdateUserProfileService{},
 	)
+
+	listUsersHandler := newMockListUsersHandler()
+
 	router := presentation.NewRouter(
 		&handlers.RegisterUserHandler{},
 		&handlers.LoginUserHandler{},
@@ -797,7 +985,11 @@ func TestNewRouter_LogoutUserAllowsAuthenticatedRequest(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutHandler,
+		listUsersHandler,
+		newMockGetUserHandler(),
+		newMockUpdateUserStatusHandler(),
 	)
+
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v1/users/logout",
@@ -838,6 +1030,7 @@ func TestNewRouter_LogoutUserAllowsAuthenticatedRequest(t *testing.T) {
 
 func TestRouter_PatchMe_UsesAuthenticatedIdentity(t *testing.T) {
 	t.Parallel()
+
 	updateService := &mockRouterUpdateUserProfileService{}
 
 	registerUserHandler := handlers.NewRegisterUserHandler(
@@ -868,6 +1061,11 @@ func TestRouter_PatchMe_UsesAuthenticatedIdentity(t *testing.T) {
 		updateService,
 	)
 
+	listUsersHandler := newMockListUsersHandler()
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
 	router := presentation.NewRouter(
 		registerUserHandler,
 		loginUserHandler,
@@ -876,6 +1074,9 @@ func TestRouter_PatchMe_UsesAuthenticatedIdentity(t *testing.T) {
 		updateUserProfileHandler,
 		authenticationMiddleware,
 		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newMockUpdateUserStatusHandler(),
 	)
 
 	body := strings.NewReader(`{
@@ -899,7 +1100,11 @@ func TestRouter_PatchMe_UsesAuthenticatedIdentity(t *testing.T) {
 
 	// Assert.
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+		t.Fatalf(
+			"expected status %d, got %d",
+			http.StatusOK,
+			rec.Code,
+		)
 	}
 
 	if !updateService.called {
@@ -921,4 +1126,470 @@ func TestRouter_PatchMe_UsesAuthenticatedIdentity(t *testing.T) {
 			updateService.command.FullName,
 		)
 	}
+}
+
+// TestNewRouter_ListUsersAllowsAdmin verifies that an authenticated
+// administrator can access the administrative user-listing endpoint.
+func TestNewRouter_ListUsersAllowsAdmin(t *testing.T) {
+	t.Parallel()
+
+	listUsersService := &mockRouterListUsersService{}
+
+	listUsersHandler := handlers.NewListUsersHandler(
+		listUsersService,
+	)
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "admin",
+		},
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		&handlers.UpdateUserProfileHandler{},
+		authenticationMiddleware,
+		&handlers.LogoutUserHandler{},
+		listUsersHandler,
+		newMockGetUserHandler(),
+		newMockUpdateUserStatusHandler(),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/admin/users",
+		nil,
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer valid-admin-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusOK,
+		recorder.Code,
+	)
+
+	assert.True(
+		t,
+		listUsersService.called,
+		"expected ListUsersService to be called",
+	)
+}
+
+// TestNewRouter_ListUsersRequiresAuthentication verifies that an
+// unauthenticated request cannot access the administrative user-listing
+// endpoint.
+func TestNewRouter_ListUsersRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	listUsersService := &mockRouterListUsersService{}
+
+	listUsersHandler := handlers.NewListUsersHandler(
+		listUsersService,
+	)
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "admin",
+		},
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		&handlers.UpdateUserProfileHandler{},
+		authenticationMiddleware,
+		&handlers.LogoutUserHandler{},
+		listUsersHandler,
+		newMockGetUserHandler(),
+		newMockUpdateUserStatusHandler(),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/admin/users",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusUnauthorized,
+		recorder.Code,
+	)
+
+	assert.False(
+		t,
+		listUsersService.called,
+		"expected ListUsersService not to be called",
+	)
+}
+
+// TestNewRouter_ListUsersRejectsVendor verifies that an authenticated
+// vendor cannot access an administrator-only endpoint.
+func TestNewRouter_ListUsersRejectsVendor(t *testing.T) {
+	t.Parallel()
+
+	listUsersService := &mockRouterListUsersService{}
+
+	listUsersHandler := handlers.NewListUsersHandler(
+		listUsersService,
+	)
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "vendor",
+		},
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		&handlers.UpdateUserProfileHandler{},
+		authenticationMiddleware,
+		&handlers.LogoutUserHandler{},
+		listUsersHandler,
+		newMockGetUserHandler(),
+		newMockUpdateUserStatusHandler(),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/admin/users",
+		nil,
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer valid-vendor-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusForbidden,
+		recorder.Code,
+	)
+
+	assert.False(
+		t,
+		listUsersService.called,
+		"expected ListUsersService not to be called",
+	)
+}
+
+// TestNewRouter_ListUsersRejectsRegularUser verifies that an authenticated
+// regular user cannot access an administrator-only endpoint.
+func TestNewRouter_ListUsersRejectsRegularUser(t *testing.T) {
+	t.Parallel()
+
+	listUsersService := &mockRouterListUsersService{}
+
+	listUsersHandler := handlers.NewListUsersHandler(
+		listUsersService,
+	)
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "user",
+		},
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		&handlers.UpdateUserProfileHandler{},
+		authenticationMiddleware,
+		&handlers.LogoutUserHandler{},
+		listUsersHandler,
+		newMockGetUserHandler(),
+		newMockUpdateUserStatusHandler(),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/admin/users",
+		nil,
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer valid-user-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusForbidden,
+		recorder.Code,
+	)
+
+	assert.False(
+		t,
+		listUsersService.called,
+		"expected ListUsersService not to be called",
+	)
+}
+
+// TestNewRouter_ListUsersRejectsUnknownRole verifies that an authenticated
+// identity with an unknown role cannot access the administrator-only
+// endpoint.
+func TestNewRouter_ListUsersRejectsUnknownRole(t *testing.T) {
+	t.Parallel()
+
+	listUsersService := &mockRouterListUsersService{}
+
+	listUsersHandler := handlers.NewListUsersHandler(
+		listUsersService,
+	)
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "unknown",
+		},
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		&handlers.UpdateUserProfileHandler{},
+		authenticationMiddleware,
+		&handlers.LogoutUserHandler{},
+		listUsersHandler,
+		newMockGetUserHandler(),
+		newMockUpdateUserStatusHandler(),
+	)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/admin/users",
+		nil,
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer valid-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(
+		t,
+		http.StatusForbidden,
+		recorder.Code,
+	)
+
+	assert.False(
+		t,
+		listUsersService.called,
+		"expected ListUsersService not to be called",
+	)
+}
+
+// TestNewRouter_UpdateUserStatusAllowsAdmin verifies that an authenticated
+// administrator can access the administrative status-update endpoint.
+func TestNewRouter_UpdateUserStatusAllowsAdmin(t *testing.T) {
+	t.Parallel()
+
+	service := &mockRouterUpdateUserStatusService{}
+	handler := handlers.NewUpdateUserStatusHandler(service)
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "admin",
+		},
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		&handlers.UpdateUserProfileHandler{},
+		authenticationMiddleware,
+		&handlers.LogoutUserHandler{},
+		newMockListUsersHandler(),
+		newMockGetUserHandler(),
+		handler,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/admin/users/user-123/status",
+		strings.NewReader(`{"status":"suspended"}`),
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer valid-admin-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.True(t, service.called, "expected UpdateUserStatusService to be called")
+}
+
+// TestNewRouter_UpdateUserStatusRequiresAuthentication verifies that an
+// unauthenticated request cannot access the status-update endpoint.
+func TestNewRouter_UpdateUserStatusRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	service := &mockRouterUpdateUserStatusService{}
+	handler := handlers.NewUpdateUserStatusHandler(service)
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "admin",
+		},
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		&handlers.UpdateUserProfileHandler{},
+		authenticationMiddleware,
+		&handlers.LogoutUserHandler{},
+		newMockListUsersHandler(),
+		newMockGetUserHandler(),
+		handler,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/admin/users/user-123/status",
+		strings.NewReader(`{"status":"suspended"}`),
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+	assert.False(t, service.called)
+}
+
+// TestNewRouter_UpdateUserStatusRejectsVendor verifies that a vendor cannot
+// access the administrator-only status-update endpoint.
+func TestNewRouter_UpdateUserStatusRejectsVendor(t *testing.T) {
+	t.Parallel()
+
+	service := &mockRouterUpdateUserStatusService{}
+	handler := handlers.NewUpdateUserStatusHandler(service)
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "vendor",
+		},
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		&handlers.UpdateUserProfileHandler{},
+		authenticationMiddleware,
+		&handlers.LogoutUserHandler{},
+		newMockListUsersHandler(),
+		newMockGetUserHandler(),
+		handler,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/admin/users/user-123/status",
+		strings.NewReader(`{"status":"suspended"}`),
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer valid-vendor-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.False(t, service.called)
+}
+
+// TestNewRouter_UpdateUserStatusRejectsRegularUser verifies that a regular
+// user cannot access the administrator-only status-update endpoint.
+func TestNewRouter_UpdateUserStatusRejectsRegularUser(t *testing.T) {
+	t.Parallel()
+
+	service := &mockRouterUpdateUserStatusService{}
+	handler := handlers.NewUpdateUserStatusHandler(service)
+
+	authenticationMiddleware := middleware.NewAuthenticationMiddleware(
+		&mockTokenService{
+			role: "user",
+		},
+	)
+
+	router := presentation.NewRouter(
+		&handlers.RegisterUserHandler{},
+		&handlers.LoginUserHandler{},
+		&handlers.RefreshUserHandler{},
+		&handlers.MeHandler{},
+		&handlers.UpdateUserProfileHandler{},
+		authenticationMiddleware,
+		&handlers.LogoutUserHandler{},
+		newMockListUsersHandler(),
+		newMockGetUserHandler(),
+		handler,
+	)
+
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/admin/users/user-123/status",
+		strings.NewReader(`{"status":"suspended"}`),
+	)
+
+	req.Header.Set(
+		"Authorization",
+		"Bearer valid-user-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.False(t, service.called)
 }

@@ -30,9 +30,15 @@ var Module = fx.Module(
 		// Logout endpoint handler.
 		handlers.NewLogoutUserHandler,
 
+		// Administrative user-listing endpoint handler.
+		handlers.NewListUsersHandler,
+
 		// Authentication middleware validates Bearer access tokens
 		// before protected handlers are executed.
 		middleware.NewAuthenticationMiddleware,
+
+		// Administrative single-user retrieval endpoint handler.
+		handlers.NewGetUserHandler,
 
 		// HTTP router.
 		NewRouter,

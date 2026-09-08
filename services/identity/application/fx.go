@@ -18,7 +18,7 @@ var Module = fx.Module(
 		// RegisterUserUseCase coordinates the user registration workflow.
 		//
 		// Its dependencies are application ports, keeping the application
-		// layer independent of concrete infrastructure implementations.
+		// layer independent of infrastructure details.
 		fx.Annotate(
 			func(
 				userRepository ports.UserRepository,
@@ -55,6 +55,7 @@ var Module = fx.Module(
 			},
 			fx.As(new(ports.AuthenticateUserService)),
 		),
+
 		// RefreshUserUseCase coordinates refresh-token rotation.
 		//
 		// It depends exclusively on application ports:
@@ -80,6 +81,7 @@ var Module = fx.Module(
 			},
 			fx.As(new(ports.RefreshUserService)),
 		),
+
 		// LogoutUserUseCase coordinates revocation of the specific
 		// refresh-token session being logged out.
 		//
@@ -112,6 +114,37 @@ var Module = fx.Module(
 				)
 			},
 			fx.As(new(ports.UpdateUserProfileService)),
+		),
+
+		// ListUsersUseCase coordinates administrative user listing.
+		//
+		// It depends only on the UserRepository application port.
+		// Pagination is handled at the application boundary through limit
+		// and offset values supplied by the presentation layer.
+		fx.Annotate(
+			func(
+				userRepository ports.UserRepository,
+			) *use_cases.ListUsersUseCase {
+				return use_cases.NewListUsersUseCase(
+					userRepository,
+				)
+			},
+			fx.As(new(ports.ListUsersService)),
+		),
+		// GetUserUseCase coordinates administrative retrieval of a single user.
+		//
+		// It depends only on the UserRepository application port.
+		// Authorization is intentionally handled by the presentation middleware,
+		// not by the use case.
+		fx.Annotate(
+			func(
+				userRepository ports.UserRepository,
+			) *use_cases.GetUserUseCase {
+				return use_cases.NewGetUserUseCase(
+					userRepository,
+				)
+			},
+			fx.As(new(ports.GetUserService)),
 		),
 	),
 )

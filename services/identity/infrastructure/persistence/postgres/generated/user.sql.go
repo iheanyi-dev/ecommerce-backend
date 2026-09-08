@@ -150,6 +150,56 @@ func (q *Queries) FindUserByID(ctx context.Context, id pgtype.UUID) (User, error
 	return i, err
 }
 
+const listUsers = `-- name: ListUsers :many
+SELECT
+    id,
+    full_name,
+    email,
+    password_hash,
+    role,
+    status,
+    created_at,
+    updated_at
+FROM users
+ORDER BY created_at DESC, id DESC
+LIMIT $1
+OFFSET $2
+`
+
+type ListUsersParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.FullName,
+			&i.Email,
+			&i.PasswordHash,
+			&i.Role,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateUserFullName = `-- name: UpdateUserFullName :exec
 UPDATE users
 SET
@@ -190,5 +240,26 @@ type UpdateUserPasswordHashParams struct {
 
 func (q *Queries) UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error {
 	_, err := q.db.Exec(ctx, updateUserPasswordHash, arg.ID, arg.PasswordHash, arg.UpdatedAt)
+	return err
+}
+
+const updateUserStatus = `-- name: UpdateUserStatus :exec
+UPDATE users
+SET
+    status = $2,
+    updated_at = $3
+WHERE id = $1
+`
+
+type UpdateUserStatusParams struct {
+	ID        pgtype.UUID        `json:"id"`
+	Status    string             `json:"status"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Updates only the account status and the domain-generated UpdatedAt value.
+// Role, email, password, and profile fields are intentionally untouched.
+func (q *Queries) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) error {
+	_, err := q.db.Exec(ctx, updateUserStatus, arg.ID, arg.Status, arg.UpdatedAt)
 	return err
 }

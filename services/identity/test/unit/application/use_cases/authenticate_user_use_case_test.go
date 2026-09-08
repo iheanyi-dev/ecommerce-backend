@@ -103,6 +103,23 @@ func (f *fakeAuthenticationUserRepository) UpdatePasswordHash(
 	return nil
 }
 
+// UpdateStatus satisfies the UserRepository interface.
+//
+// These tests do not exercise account-status persistence.
+func (f *fakeAuthenticationUserRepository) UpdateStatus(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+func (f *fakeAuthenticationUserRepository) List(
+	ctx context.Context,
+	limit int,
+	offset int,
+) ([]*user.User, error) {
+	return nil, nil
+}
+
 // -----------------------------------------------------------------------------
 // Fake Password Hasher
 // -----------------------------------------------------------------------------

@@ -21,6 +21,9 @@ func NewRouter(
 	updateUserProfileHandler *handlers.UpdateUserProfileHandler,
 	authenticationMiddleware *middleware.AuthenticationMiddleware,
 	logoutUserHandler *handlers.LogoutUserHandler,
+	listUsersHandler *handlers.ListUsersHandler,
+	getUserHandler *handlers.GetUserHandler,
+	updateUserStatusHandler *handlers.UpdateUserStatusHandler,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -95,6 +98,62 @@ func NewRouter(
 		"/api/v1/users/logout",
 		authenticationMiddleware.RequireAuthentication(
 			logoutUserHandler,
+		),
+	)
+
+	// ---------------------------------------------------------------------
+	// Administrative endpoints
+	// ---------------------------------------------------------------------
+
+	// List users:
+	//
+	// GET /api/v1/admin/users
+	//
+	// Only administrators may access this endpoint.
+	//
+	// The middleware chain is intentionally:
+	//
+	//      Authentication → Authorization → Handler
+	//
+	// Authentication establishes the caller's identity.
+	// Authorization then restricts access to the admin role.
+	mux.Handle(
+		"GET /api/v1/admin/users",
+		authenticationMiddleware.RequireAuthentication(
+			middleware.RequireRoles("admin")(listUsersHandler),
+		),
+	)
+	// Get a single user:
+	//
+	// GET /api/v1/admin/users/{id}
+	//
+	// Only administrators may access this endpoint.
+	//
+	// Authentication establishes the caller's identity.
+	// Authorization then restricts access to the admin role.
+	mux.Handle(
+		"GET /api/v1/admin/users/{id}",
+		authenticationMiddleware.RequireAuthentication(
+			middleware.RequireRoles("admin")(getUserHandler),
+		),
+	)
+
+	// Update a user's account status:
+	//
+	// PATCH /api/v1/admin/users/{id}/status
+	//
+	// Only administrators may access this endpoint.
+	//
+	// Authentication establishes the caller's identity.
+	// Authorization then restricts access to the admin role.
+	//
+	// The handler itself only receives the target user ID and requested
+	// account status. Role, email, password, and profile fields are not
+	// part of this administrative operation.
+	mux.Handle(
+		"PATCH /api/v1/admin/users/{id}/status",
+		authenticationMiddleware.RequireAuthentication(
+			middleware.RequireRoles("admin")(updateUserStatusHandler),
 		),
 	)
 

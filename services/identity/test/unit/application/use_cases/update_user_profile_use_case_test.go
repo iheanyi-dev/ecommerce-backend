@@ -36,6 +36,16 @@ func (f *fakeUpdateProfileRepository) UpdateFullName(
 	return nil
 }
 
+// UpdateStatus satisfies the UserRepository interface.
+//
+// These profile-update tests do not exercise account-status persistence.
+func (f *fakeUpdateProfileRepository) UpdateStatus(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 // UpdatePasswordHash satisfies the UserRepository interface.
 //
 // These profile-update tests do not exercise password persistence,
@@ -45,6 +55,13 @@ func (f *fakeUpdateProfileRepository) UpdatePasswordHash(
 	existingUser *user.User,
 ) error {
 	return nil
+}
+func (f *fakeUpdateProfileRepository) List(
+	ctx context.Context,
+	limit int,
+	offset int,
+) ([]*user.User, error) {
+	return nil, nil
 }
 
 // ExistsByEmail satisfies the UserRepository interface.

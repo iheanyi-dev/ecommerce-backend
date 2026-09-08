@@ -493,3 +493,100 @@ func TestUserRepository_UpdatePasswordHash(t *testing.T) {
 		t.Fatal("status changed during password update")
 	}
 }
+
+// TestUserRepository_List verifies that the repository can retrieve
+// multiple users from PostgreSQL in deterministic creation order.
+//
+// The repository returns domain User aggregates rather than exposing
+// SQLC-generated persistence models to the application layer.
+func TestUserRepository_List(t *testing.T) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+	repository := postgres.NewUserRepository(queries)
+
+	// Create multiple users through the domain API so the test exercises
+	// the same persistence boundary used by the application.
+	firstUser := newTestUser(t, "list-first@example.com")
+	secondUser := newTestUser(t, "list-second@example.com")
+	thirdUser := newTestUser(t, "list-third@example.com")
+
+	if err := repository.Create(
+		context.Background(),
+		firstUser,
+	); err != nil {
+		t.Fatalf("Create() returned an error for first user: %v", err)
+	}
+
+	if err := repository.Create(
+		context.Background(),
+		secondUser,
+	); err != nil {
+		t.Fatalf("Create() returned an error for second user: %v", err)
+	}
+
+	if err := repository.Create(
+		context.Background(),
+		thirdUser,
+	); err != nil {
+		t.Fatalf("Create() returned an error for third user: %v", err)
+	}
+
+	// Act: retrieve the users through the repository.
+	users, err := repository.List(
+		context.Background(),
+		10,
+		0,
+	)
+	if err != nil {
+		t.Fatalf("List() returned an error: %v", err)
+	}
+
+	if len(users) != 3 {
+		t.Fatalf(
+			"expected 3 users, got %d",
+			len(users),
+		)
+	}
+
+	// Verify that the repository reconstructed the complete domain
+	// aggregates rather than returning persistence models.
+	if users[0].ID() != thirdUser.ID() {
+		t.Fatalf(
+			"expected first user to be %s, got %s",
+			thirdUser.ID().String(),
+			users[0].ID().String(),
+		)
+	}
+
+	if users[1].ID() != secondUser.ID() {
+		t.Fatalf(
+			"expected second user to be %s, got %s",
+			secondUser.ID().String(),
+			users[1].ID().String(),
+		)
+	}
+
+	if users[2].ID() != firstUser.ID() {
+		t.Fatalf(
+			"expected third user to be %s, got %s",
+			firstUser.ID().String(),
+			users[2].ID().String(),
+		)
+	}
+
+	// Verify that important domain state survived persistence and
+	// reconstruction.
+	if users[0].Email() != thirdUser.Email() {
+		t.Fatal("third user's email changed during reconstruction")
+	}
+
+	if users[1].Email() != secondUser.Email() {
+		t.Fatal("second user's email changed during reconstruction")
+	}
+
+	if users[2].Email() != firstUser.Email() {
+		t.Fatal("first user's email changed during reconstruction")
+	}
+}

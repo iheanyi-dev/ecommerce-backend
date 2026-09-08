@@ -53,19 +53,33 @@ func newRefreshIntegrationRouter(
 	)
 
 	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
-	&mockRouterUpdateUserProfileService{},
-)
+		&mockRouterUpdateUserProfileService{},
+	)
 
-	router := presentation.NewRouter(
-	registerUserHandler,
-	loginUserHandler,
-	refreshUserHandler,
-	meHandler,
-	updateUserProfileHandler,
-	authenticationMiddleware,
-	logoutUserHandler,
-)
-	return router
+	listUsersHandler := handlers.NewListUsersHandler(
+		&mockRouterListUsersService{},
+	)
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
+
+	newUpdateUserStatusHandler := handlers.NewUpdateUserStatusHandler(
+		&mockIntegrationUpdateUserStatusService{},
+	)
+
+	return presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		updateUserProfileHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newUpdateUserStatusHandler,
+	)
 }
 
 // mockIntegrationRegisterUserService exists only to satisfy the router

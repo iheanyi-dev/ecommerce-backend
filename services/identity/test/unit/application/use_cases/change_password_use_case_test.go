@@ -93,6 +93,23 @@ func (f *fakeChangePasswordRepository) UpdatePasswordHash(
 	return f.updatePasswordHashError
 }
 
+// UpdateStatus satisfies the UserRepository interface.
+//
+// These tests do not exercise account-status persistence.
+func (f *fakeChangePasswordRepository) UpdateStatus(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+func (f *fakeChangePasswordRepository) List(
+	ctx context.Context,
+	limit int,
+	offset int,
+) ([]*user.User, error) {
+	return nil, nil
+}
+
 // fakeChangePasswordHasher allows the tests to verify the password hashing
 // workflow independently from bcrypt or another concrete algorithm.
 type fakeChangePasswordHasher struct {

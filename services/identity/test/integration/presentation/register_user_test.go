@@ -42,6 +42,7 @@ func (m *mockIntegrationAuthenticateUserService) Authenticate(
 		"authentication is not part of this integration test",
 	)
 }
+
 // mockRouterUpdateUserProfileService is a test double for the profile-update
 // application service.
 //
@@ -65,6 +66,7 @@ func (m *mockRouterUpdateUserProfileService) Execute(
 }
 
 var _ ports.UpdateUserProfileService = (*mockRouterUpdateUserProfileService)(nil)
+
 type mockIntegrationTokenService struct{}
 
 func (m *mockIntegrationTokenService) GenerateAccessToken(
@@ -116,19 +118,33 @@ func newRegistrationIntegrationRouter(
 	)
 
 	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
-	&mockRouterUpdateUserProfileService{},
-)
+		&mockRouterUpdateUserProfileService{},
+	)
 
-	router := presentation.NewRouter(
-	registerUserHandler,
-	loginUserHandler,
-	refreshUserHandler,
-	meHandler,
-	updateUserProfileHandler,
-	authenticationMiddleware,
-	logoutUserHandler,
-)
-	return router
+	listUsersHandler := handlers.NewListUsersHandler(
+		&mockRouterListUsersService{},
+	)
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
+
+	newUpdateUserStatusHandler := handlers.NewUpdateUserStatusHandler(
+		&mockIntegrationUpdateUserStatusService{},
+	)
+
+	return presentation.NewRouter(
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		updateUserProfileHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newUpdateUserStatusHandler,
+	)
 }
 
 func TestRegisterUserIntegration(t *testing.T) {

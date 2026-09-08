@@ -37,6 +37,27 @@ func (m *mockIntegrationRefreshUserService) Refresh(
 	}, nil
 }
 
+// mockIntegrationGetUserService is a lightweight get-user service used
+// only because the Identity router now contains the administrative
+// single-user route.
+//
+// These integration tests do not exercise Get User behavior, so this
+// mock only exists to satisfy the router dependency.
+type mockIntegrationGetUserService struct{}
+
+func (m *mockIntegrationGetUserService) Execute(
+	ctx context.Context,
+	userID string,
+) (*dto.GetUserResult, error) {
+	return &dto.GetUserResult{
+		ID:       userID,
+		FullName: "Integration Test User",
+		Email:    "integration@example.com",
+		Role:     "user",
+		Status:   "active",
+	}, nil
+}
+
 func newLoginIntegrationRouter(
 	registerUserHandler *handlers.RegisterUserHandler,
 	loginUserHandler *handlers.LoginUserHandler,
@@ -52,24 +73,39 @@ func newLoginIntegrationRouter(
 	)
 
 	// Create the logout handler required by the router.
-// The integration test does not exercise logout yet.
-logoutUserHandler := handlers.NewLogoutUserHandler(
-	&mockRouterLogoutUserService{},
-)
+	// The integration test does not exercise logout yet.
+	logoutUserHandler := handlers.NewLogoutUserHandler(
+		&mockRouterLogoutUserService{},
+	)
 
-updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
-	&mockRouterUpdateUserProfileService{},
-)
+	updateUserProfileHandler := handlers.NewUpdateUserProfileHandler(
+		&mockRouterUpdateUserProfileService{},
+	)
+
+	listUsersHandler := handlers.NewListUsersHandler(
+		&mockRouterListUsersService{},
+	)
+
+	getUserHandler := handlers.NewGetUserHandler(
+		&mockIntegrationGetUserService{},
+	)
+
+	newUpdateUserStatusHandler := handlers.NewUpdateUserStatusHandler(
+		&mockIntegrationUpdateUserStatusService{},
+	)
 
 	return presentation.NewRouter(
-	registerUserHandler,
-	loginUserHandler,
-	refreshUserHandler,
-	meHandler,
-	updateUserProfileHandler,
-	authenticationMiddleware,
-	logoutUserHandler,
-)
+		registerUserHandler,
+		loginUserHandler,
+		refreshUserHandler,
+		meHandler,
+		updateUserProfileHandler,
+		authenticationMiddleware,
+		logoutUserHandler,
+		listUsersHandler,
+		getUserHandler,
+		newUpdateUserStatusHandler,
+	)
 
 }
 

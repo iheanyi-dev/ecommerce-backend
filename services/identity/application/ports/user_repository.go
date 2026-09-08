@@ -33,4 +33,19 @@ type UserRepository interface {
 	// UpdatedAt timestamp without allowing persistence to generate its own
 	// timestamp. Plaintext passwords never cross the persistence boundary.
 	UpdatePasswordHash(ctx context.Context, existingUser *user.User) error
+
+	// UpdateStatus persists an administrator-approved account-status change.
+	//
+	// The aggregate is passed so persistence stores the status and the
+	// domain-generated UpdatedAt timestamp.
+	UpdateStatus(ctx context.Context, existingUser *user.User) error
+	// List retrieves users using limit/offset pagination.
+	//
+	// Users are returned as domain aggregates so the application layer
+	// remains independent of PostgreSQL and SQLC-generated models.
+	List(
+		ctx context.Context,
+		limit int,
+		offset int,
+	) ([]*user.User, error)
 }

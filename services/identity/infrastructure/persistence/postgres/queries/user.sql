@@ -91,3 +91,28 @@ SET
     password_hash = $2,
     updated_at = $3
 WHERE id = $1;
+
+-- name: ListUsers :many
+SELECT
+    id,
+    full_name,
+    email,
+    password_hash,
+    role,
+    status,
+    created_at,
+    updated_at
+FROM users
+ORDER BY created_at DESC, id DESC
+LIMIT $1
+OFFSET $2;
+
+-- name: UpdateUserStatus :exec
+--
+-- Updates only the account status and the domain-generated UpdatedAt value.
+-- Role, email, password, and profile fields are intentionally untouched.
+UPDATE users
+SET
+    status = $2,
+    updated_at = $3
+WHERE id = $1;
