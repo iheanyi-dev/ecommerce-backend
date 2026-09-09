@@ -1,12 +1,11 @@
 package user
 
 import (
-	"errors"
 	"net/mail"
 	"strings"
-)
 
-var ErrInvalidEmail = errors.New("invalid email address")
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
+)
 
 // Email represents a normalized and validated email address.
 //
@@ -21,12 +20,12 @@ func NewEmail(value string) (Email, error) {
 	value = strings.ToLower(strings.TrimSpace(value))
 
 	if value == "" {
-		return Email{}, ErrInvalidEmail
+		return Email{}, domain_errors.ErrInvalidEmail
 	}
 
 	parsed, err := mail.ParseAddress(value)
 	if err != nil || parsed.Address != value {
-		return Email{}, ErrInvalidEmail
+		return Email{}, domain_errors.ErrInvalidEmail
 	}
 
 	return Email{value: value}, nil

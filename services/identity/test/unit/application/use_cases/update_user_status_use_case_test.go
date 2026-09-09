@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
@@ -270,7 +271,7 @@ func TestUpdateUserStatusUseCase_ReturnsUserNotFound(t *testing.T) {
 			Status: string(user.StatusActive),
 		},
 	)
-	if err != use_cases.ErrUserNotFound {
+	if err != application_errors.ErrUserNotFound {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }

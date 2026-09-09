@@ -3,6 +3,7 @@ package use_cases_test
 import (
 	"context"
 	"errors"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"testing"
 	"time"
 
@@ -549,7 +550,7 @@ func TestRefreshUser_InvalidRefreshToken(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidRefreshToken) {
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
 		t.Fatalf(
 			"expected ErrInvalidRefreshToken, got %v",
 			err,
@@ -624,7 +625,7 @@ func TestRefreshUser_RejectsRevokedToken(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidRefreshToken) {
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
 		t.Fatalf(
 			"expected ErrInvalidRefreshToken, got %v",
 			err,
@@ -689,7 +690,7 @@ func TestRefreshUser_RejectsExpiredToken(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidRefreshToken) {
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
 		t.Fatalf(
 			"expected ErrInvalidRefreshToken, got %v",
 			err,
@@ -752,7 +753,7 @@ func TestRefreshUser_UserNotFound(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidRefreshToken) {
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
 		t.Fatalf(
 			"expected ErrInvalidRefreshToken, got %v",
 			err,
@@ -817,7 +818,7 @@ func TestRefreshUser_RejectsInactiveUser(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidRefreshToken) {
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
 		t.Fatalf(
 			"expected ErrInvalidRefreshToken, got %v",
 			err,
@@ -866,7 +867,7 @@ func TestRefreshUser_HashFailure(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrRefreshTokenHashing) {
+	if !errors.Is(err, application_errors.ErrRefreshTokenHashing) {
 		t.Fatalf(
 			"expected ErrRefreshTokenHashing, got %v",
 			err,
@@ -927,7 +928,7 @@ func TestRefreshUser_RotationFailure(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrRefreshTokenPersistence) {
+	if !errors.Is(err, application_errors.ErrRefreshTokenPersistence) {
 		t.Fatalf(
 			"expected ErrRefreshTokenPersistence, got %v",
 			err,
@@ -1010,7 +1011,7 @@ func TestRefreshUser_RefreshTokenGenerationFailure(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrRefreshTokenGeneration) {
+	if !errors.Is(err, application_errors.ErrRefreshTokenGeneration) {
 		t.Fatalf(
 			"expected ErrRefreshTokenGeneration, got %v",
 			err,
@@ -1076,7 +1077,7 @@ func TestRefreshUser_NewRefreshTokenHashFailure(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrRefreshTokenHashing) {
+	if !errors.Is(err, application_errors.ErrRefreshTokenHashing) {
 		t.Fatalf(
 			"expected ErrRefreshTokenHashing, got %v",
 			err,
@@ -1142,7 +1143,7 @@ func TestRefreshUser_AccessTokenGenerationFailure(t *testing.T) {
 		},
 	)
 
-	if !errors.Is(err, use_cases.ErrTokenGeneration) {
+	if !errors.Is(err, application_errors.ErrTokenGeneration) {
 		t.Fatalf(
 			"expected ErrTokenGeneration, got %v",
 			err,

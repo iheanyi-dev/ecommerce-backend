@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/policies"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
@@ -102,6 +104,7 @@ func (f *fakeChangePasswordRepository) UpdateStatus(
 ) error {
 	return nil
 }
+
 func (f *fakeChangePasswordRepository) List(
 	ctx context.Context,
 	limit int,
@@ -352,7 +355,7 @@ func TestChangePasswordUseCase_ReturnsUserNotFound(t *testing.T) {
 	)
 
 	// Assert.
-	if !errors.Is(err, use_cases.ErrUserNotFound) {
+	if !errors.Is(err, application_errors.ErrUserNotFound) {
 		t.Fatalf(
 			"expected ErrUserNotFound, got %v",
 			err,
@@ -610,6 +613,300 @@ func TestChangePasswordUseCase_DoesNotHashOrPersistWhenVerificationFails(
 }
 
 // -----------------------------------------------------------------------------
+// New-password policy rules
+// -----------------------------------------------------------------------------
+
+func TestChangePasswordUseCase_RejectsNewPasswordShorterThanEightCharacters(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange.
+	testUser := newChangePasswordUser(t)
+
+	repository := &fakeChangePasswordRepository{
+		user: testUser,
+	}
+
+	hasher := &fakeChangePasswordHasher{}
+
+	useCase := use_cases.NewChangePasswordUseCase(
+		repository,
+		hasher,
+	)
+
+	// Act.
+	err := useCase.Execute(
+		context.Background(),
+		testUser.ID().String(),
+		"OldPassword@123",
+		"Abc@123",
+	)
+
+	// Assert.
+	if !errors.Is(err, policies.ErrPasswordTooShort) {
+		t.Fatalf(
+			"expected ErrPasswordTooShort, got %v",
+			err,
+		)
+	}
+
+	if !hasher.verifyCalled {
+		t.Fatal("expected current password verification to be called")
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected new password hashing not to be called")
+	}
+
+	if repository.updatePasswordHashCalled {
+		t.Fatal("expected password persistence not to be called")
+	}
+}
+
+func TestChangePasswordUseCase_RejectsNewPasswordLongerThanSixtyFourCharacters(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange.
+	testUser := newChangePasswordUser(t)
+
+	repository := &fakeChangePasswordRepository{
+		user: testUser,
+	}
+
+	hasher := &fakeChangePasswordHasher{}
+
+	useCase := use_cases.NewChangePasswordUseCase(
+		repository,
+		hasher,
+	)
+
+	password := "A" + "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz1234567890@x"
+
+	// Act.
+	err := useCase.Execute(
+		context.Background(),
+		testUser.ID().String(),
+		"OldPassword@123",
+		password,
+	)
+
+	// Assert.
+	if !errors.Is(err, policies.ErrPasswordTooLong) {
+		t.Fatalf(
+			"expected ErrPasswordTooLong, got %v",
+			err,
+		)
+	}
+
+	if !hasher.verifyCalled {
+		t.Fatal("expected current password verification to be called")
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected new password hashing not to be called")
+	}
+
+	if repository.updatePasswordHashCalled {
+		t.Fatal("expected password persistence not to be called")
+	}
+}
+
+func TestChangePasswordUseCase_RejectsNewPasswordMissingUppercaseLetter(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange.
+	testUser := newChangePasswordUser(t)
+
+	repository := &fakeChangePasswordRepository{
+		user: testUser,
+	}
+
+	hasher := &fakeChangePasswordHasher{}
+
+	useCase := use_cases.NewChangePasswordUseCase(
+		repository,
+		hasher,
+	)
+
+	// Act.
+	err := useCase.Execute(
+		context.Background(),
+		testUser.ID().String(),
+		"OldPassword@123",
+		"strong@123",
+	)
+
+	// Assert.
+	if !errors.Is(err, policies.ErrPasswordMissingUppercase) {
+		t.Fatalf(
+			"expected ErrPasswordMissingUppercase, got %v",
+			err,
+		)
+	}
+
+	if !hasher.verifyCalled {
+		t.Fatal("expected current password verification to be called")
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected new password hashing not to be called")
+	}
+
+	if repository.updatePasswordHashCalled {
+		t.Fatal("expected password persistence not to be called")
+	}
+}
+
+func TestChangePasswordUseCase_RejectsNewPasswordMissingLowercaseLetter(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange.
+	testUser := newChangePasswordUser(t)
+
+	repository := &fakeChangePasswordRepository{
+		user: testUser,
+	}
+
+	hasher := &fakeChangePasswordHasher{}
+
+	useCase := use_cases.NewChangePasswordUseCase(
+		repository,
+		hasher,
+	)
+
+	// Act.
+	err := useCase.Execute(
+		context.Background(),
+		testUser.ID().String(),
+		"OldPassword@123",
+		"STRONG@123",
+	)
+
+	// Assert.
+	if !errors.Is(err, policies.ErrPasswordMissingLowercase) {
+		t.Fatalf(
+			"expected ErrPasswordMissingLowercase, got %v",
+			err,
+		)
+	}
+
+	if !hasher.verifyCalled {
+		t.Fatal("expected current password verification to be called")
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected new password hashing not to be called")
+	}
+
+	if repository.updatePasswordHashCalled {
+		t.Fatal("expected password persistence not to be called")
+	}
+}
+
+func TestChangePasswordUseCase_RejectsNewPasswordMissingNumber(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange.
+	testUser := newChangePasswordUser(t)
+
+	repository := &fakeChangePasswordRepository{
+		user: testUser,
+	}
+
+	hasher := &fakeChangePasswordHasher{}
+
+	useCase := use_cases.NewChangePasswordUseCase(
+		repository,
+		hasher,
+	)
+
+	// Act.
+	err := useCase.Execute(
+		context.Background(),
+		testUser.ID().String(),
+		"OldPassword@123",
+		"StrongPassword@",
+	)
+
+	// Assert.
+	if !errors.Is(err, policies.ErrPasswordMissingNumber) {
+		t.Fatalf(
+			"expected ErrPasswordMissingNumber, got %v",
+			err,
+		)
+	}
+
+	if !hasher.verifyCalled {
+		t.Fatal("expected current password verification to be called")
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected new password hashing not to be called")
+	}
+
+	if repository.updatePasswordHashCalled {
+		t.Fatal("expected password persistence not to be called")
+	}
+}
+
+func TestChangePasswordUseCase_RejectsNewPasswordMissingSpecialCharacter(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange.
+	testUser := newChangePasswordUser(t)
+
+	repository := &fakeChangePasswordRepository{
+		user: testUser,
+	}
+
+	hasher := &fakeChangePasswordHasher{}
+
+	useCase := use_cases.NewChangePasswordUseCase(
+		repository,
+		hasher,
+	)
+
+	// Act.
+	err := useCase.Execute(
+		context.Background(),
+		testUser.ID().String(),
+		"OldPassword@123",
+		"StrongPassword123",
+	)
+
+	// Assert.
+	if !errors.Is(err, policies.ErrPasswordMissingSpecialCharacter) {
+		t.Fatalf(
+			"expected ErrPasswordMissingSpecialCharacter, got %v",
+			err,
+		)
+	}
+
+	if !hasher.verifyCalled {
+		t.Fatal("expected current password verification to be called")
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected new password hashing not to be called")
+	}
+
+	if repository.updatePasswordHashCalled {
+		t.Fatal("expected password persistence not to be called")
+	}
+}
+
+// -----------------------------------------------------------------------------
 // New-password hashing failures
 // -----------------------------------------------------------------------------
 
@@ -803,7 +1100,7 @@ func TestChangePasswordUseCase_NeverSendsPlaintextPasswordToRepository(
 	if persistedHash != "hashed:"+newPassword {
 		t.Fatalf(
 			"expected repository to receive only the hashed password, got %q",
-			persistedHash,
+			"hashed:"+newPassword,
 		)
 	}
 }

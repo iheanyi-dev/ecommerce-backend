@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
@@ -66,7 +67,7 @@ func (uc *GetUserUseCase) Execute(
 	// A nil user with no repository error represents a valid
 	// "not found" result at the application boundary.
 	if existingUser == nil {
-		return nil, ErrUserNotFound
+		return nil, application_errors.ErrUserNotFound
 	}
 
 	return &dto.GetUserResult{

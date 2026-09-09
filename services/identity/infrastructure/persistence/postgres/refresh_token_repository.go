@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,8 +10,11 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	generated "github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres/generated"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 )
 
 // RefreshTokenRepository implements the application-level
@@ -21,6 +25,9 @@ import (
 //
 // This repository is therefore responsible for translating between the
 // application representation and the PostgreSQL representation.
+//
+// It is also the infrastructure boundary where PostgreSQL-specific
+// persistence errors are translated into semantic application errors.
 type RefreshTokenRepository struct {
 	pool    *pgxpool.Pool
 	queries *generated.Queries
@@ -46,6 +53,11 @@ func NewRefreshTokenRepository(
 //
 // The raw refresh token is never passed to this repository. The application
 // layer provides only the cryptographic hash of the token.
+//
+// PostgreSQL remains the final authority for persistence constraints.
+// Constraint failures are translated into the application-level persistence
+// error so PostgreSQL-specific errors do not escape this infrastructure
+// boundary.
 func (r *RefreshTokenRepository) Create(
 	ctx context.Context,
 	record ports.RefreshTokenRecord,
@@ -70,7 +82,22 @@ func (r *RefreshTokenRepository) Create(
 	}
 
 	if err := r.queries.CreateRefreshToken(ctx, params); err != nil {
-		return fmt.Errorf("create refresh token: %w", err)
+		// A refresh-token persistence failure is deliberately translated
+		// here. The application layer should not need to understand
+		// PostgreSQL SQLSTATE codes or pgconn.PgError.
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) {
+			return fmt.Errorf(
+				"create refresh token: %w",
+				application_errors.ErrRefreshTokenPersistence,
+			)
+		}
+
+		return fmt.Errorf(
+			"create refresh token: %w",
+			err,
+		)
 	}
 
 	return nil
@@ -80,8 +107,11 @@ func (r *RefreshTokenRepository) Create(
 // hash.
 //
 // A missing token is represented by nil, nil at the application boundary.
-// This allows the use case to distinguish "not found" from an actual
-// persistence failure.
+// This is intentional: the refresh-token use case treats a missing session
+// as an invalid refresh token rather than as a database failure.
+//
+// PostgreSQL's ErrNoRows therefore must NOT be translated into
+// ErrUserNotFound or another persistence error here.
 func (r *RefreshTokenRepository) FindByTokenHash(
 	ctx context.Context,
 	tokenHash string,
@@ -91,7 +121,7 @@ func (r *RefreshTokenRepository) FindByTokenHash(
 		tokenHash,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 
@@ -136,6 +166,10 @@ func (r *RefreshTokenRepository) FindByTokenHash(
 // Revocation is deliberately represented by a timestamp rather than
 // deleting the record. Keeping the record allows us to retain session
 // history and makes token lifecycle auditing possible later.
+//
+// Any PostgreSQL failure is translated into ErrRefreshTokenRevocation
+// because the application needs to distinguish a failed revocation from
+// other refresh-token persistence operations.
 func (r *RefreshTokenRepository) Revoke(
 	ctx context.Context,
 	id string,
@@ -155,7 +189,10 @@ func (r *RefreshTokenRepository) Revoke(
 		ctx,
 		params,
 	); err != nil {
-		return fmt.Errorf("revoke refresh token: %w", err)
+		return fmt.Errorf(
+			"revoke refresh token: %w",
+			application_errors.ErrRefreshTokenRevocation,
+		)
 	}
 
 	return nil
@@ -228,7 +265,10 @@ func (r *RefreshTokenRepository) Rotate(
 
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin refresh token rotation transaction: %w", err)
+		return fmt.Errorf(
+			"begin refresh token rotation transaction: %w",
+			err,
+		)
 	}
 
 	defer func() {
@@ -244,7 +284,10 @@ func (r *RefreshTokenRepository) Rotate(
 			RevokedAt: pgTimestamp(revokedAt),
 		},
 	); err != nil {
-		return fmt.Errorf("revoke old refresh token: %w", err)
+		return fmt.Errorf(
+			"revoke old refresh token: %w",
+			application_errors.ErrRefreshTokenRevocation,
+		)
 	}
 
 	if err := txQueries.CreateRefreshToken(
@@ -258,11 +301,19 @@ func (r *RefreshTokenRepository) Rotate(
 			CreatedAt: pgTimestamp(newRecord.CreatedAt),
 		},
 	); err != nil {
-		return fmt.Errorf("create replacement refresh token: %w", err)
+		// The transaction remains uncommitted here. Returning the error
+		// causes the deferred Rollback() to restore the old session.
+		return fmt.Errorf(
+			"create replacement refresh token: %w",
+			application_errors.ErrRefreshTokenPersistence,
+		)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit refresh token rotation: %w", err)
+		return fmt.Errorf(
+			"commit refresh token rotation: %w",
+			application_errors.ErrRefreshTokenPersistence,
+		)
 	}
 
 	return nil

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 )
 
@@ -36,10 +37,9 @@ func (h *MeHandler) ServeHTTP(
 ) {
 	// This endpoint is intentionally read-only.
 	if r.Method != http.MethodGet {
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
+			presentation_errors.ErrMethodNotAllowed,
 		)
 		return
 	}
@@ -55,10 +55,9 @@ func (h *MeHandler) ServeHTTP(
 	if !ok {
 		// This normally indicates that the route was incorrectly configured
 		// without AuthenticationMiddleware.
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"authentication required",
-			http.StatusUnauthorized,
+			presentation_errors.ErrAuthenticationRequired,
 		)
 		return
 	}

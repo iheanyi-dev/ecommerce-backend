@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 )
@@ -71,7 +72,7 @@ func TestLogoutUserUseCase_Logout_RejectsBlankRefreshToken(t *testing.T) {
 		"   ",
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidRefreshToken) {
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
 		t.Fatalf(
 			"expected ErrInvalidRefreshToken, got %v",
 			err,
@@ -108,7 +109,7 @@ func TestLogoutUserUseCase_Logout_RejectsUnknownRefreshToken(t *testing.T) {
 		"unknown-refresh-token",
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidRefreshToken) {
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
 		t.Fatalf(
 			"expected ErrInvalidRefreshToken, got %v",
 			err,
@@ -151,7 +152,7 @@ func TestLogoutUserUseCase_Logout_RejectsAlreadyRevokedRefreshToken(t *testing.T
 		"already-revoked-token",
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidRefreshToken) {
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
 		t.Fatalf(
 			"expected ErrInvalidRefreshToken, got %v",
 			err,
@@ -230,7 +231,7 @@ func TestLogoutUserUseCase_Logout_ReturnsHashingError(t *testing.T) {
 		"valid-refresh-token",
 	)
 
-	if !errors.Is(err, use_cases.ErrRefreshTokenHashing) {
+	if !errors.Is(err, application_errors.ErrRefreshTokenHashing) {
 		t.Fatalf(
 			"expected ErrRefreshTokenHashing, got %v",
 			err,
@@ -272,7 +273,7 @@ func TestLogoutUserUseCase_Logout_ReturnsRevocationError(t *testing.T) {
 		"valid-refresh-token",
 	)
 
-	if !errors.Is(err, use_cases.ErrRefreshTokenRevocation) {
+	if !errors.Is(err, application_errors.ErrRefreshTokenRevocation) {
 		t.Fatalf(
 			"expected ErrRefreshTokenRevocation, got %v",
 			err,

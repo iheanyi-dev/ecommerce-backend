@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 	"github.com/stretchr/testify/assert"
@@ -287,6 +287,19 @@ func TestGetUserHandler_ServeHTTP(t *testing.T) {
 			service.called,
 			"get user service must not be called without authentication",
 		)
+		assert.Equal(
+			t,
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+
+		expectedBody := `{"error":"authentication required"}` + "\n"
+
+		assert.Equal(
+			t,
+			expectedBody,
+			recorder.Body.String(),
+		)
 	})
 
 	t.Run("rejects unsupported method", func(t *testing.T) {
@@ -324,11 +337,24 @@ func TestGetUserHandler_ServeHTTP(t *testing.T) {
 			t,
 			service.called,
 		)
+		assert.Equal(
+			t,
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+
+		expectedBody := `{"error":"method not allowed"}` + "\n"
+
+		assert.Equal(
+			t,
+			expectedBody,
+			recorder.Body.String(),
+		)
 	})
 
 	t.Run("returns not found when application reports missing user", func(t *testing.T) {
 		service := &fakeGetUserService{
-			err: use_cases.ErrUserNotFound,
+			err: application_errors.ErrUserNotFound,
 		}
 
 		handler := handlers.NewGetUserHandler(service)

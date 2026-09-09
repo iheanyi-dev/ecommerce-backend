@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRequireRoles(t *testing.T) {
@@ -16,6 +18,7 @@ func TestRequireRoles(t *testing.T) {
 		identity       *ports.AuthenticatedIdentity
 		allowedRoles   []string
 		expectedStatus int
+		expectedError  string
 	}{
 		{
 			name: "allows admin",
@@ -56,12 +59,14 @@ func TestRequireRoles(t *testing.T) {
 			},
 			allowedRoles:   []string{"admin", "vendor"},
 			expectedStatus: http.StatusForbidden,
+			expectedError:  "forbidden",
 		},
 		{
 			name:           "rejects unauthenticated request",
 			identity:       nil,
 			allowedRoles:   []string{"admin"},
 			expectedStatus: http.StatusUnauthorized,
+			expectedError:  "authentication required",
 		},
 	}
 
@@ -114,6 +119,34 @@ func TestRequireRoles(t *testing.T) {
 				t,
 				tt.expectedStatus == http.StatusOK,
 				nextCalled,
+			)
+
+			// Successful requests do not have an authorization error body.
+			if tt.expectedStatus == http.StatusOK {
+				return
+			}
+
+			// Authorization failures must use the centralized JSON error
+			// response format rather than http.Error's plain-text format.
+			assert.Equal(
+				t,
+				"application/json",
+				rec.Header().Get("Content-Type"),
+			)
+
+			var response struct {
+				Error string `json:"error"`
+			}
+
+			require.NoError(
+				t,
+				json.Unmarshal(rec.Body.Bytes(), &response),
+			)
+
+			assert.Equal(
+				t,
+				tt.expectedError,
+				response.Error,
 			)
 		})
 	}

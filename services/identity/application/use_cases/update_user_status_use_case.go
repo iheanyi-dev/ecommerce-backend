@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
 
@@ -47,7 +49,7 @@ func (uc *UpdateUserStatusUseCase) Execute(
 	}
 
 	if existingUser == nil {
-		return dto.UpdateUserStatusResult{}, ErrUserNotFound
+		return dto.UpdateUserStatusResult{}, application_errors.ErrUserNotFound
 	}
 
 	switch user.Status(command.Status) {
@@ -61,7 +63,7 @@ func (uc *UpdateUserStatusUseCase) Execute(
 		err = existingUser.Deactivate()
 
 	default:
-		return dto.UpdateUserStatusResult{}, user.ErrInvalidStatusTransition
+		return dto.UpdateUserStatusResult{}, domain_errors.ErrInvalidStatusTransition
 	}
 
 	if err != nil {

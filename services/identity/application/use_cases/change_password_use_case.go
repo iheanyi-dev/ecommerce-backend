@@ -3,6 +3,8 @@ package use_cases
 import (
 	"context"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/policies"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
@@ -37,10 +39,11 @@ func NewChangePasswordUseCase(
 //  2. Load the user aggregate.
 //  3. Ensure the account is active.
 //  4. Verify the current plaintext password against the stored hash.
-//  5. Hash the new plaintext password.
-//  6. Create a domain PasswordHash value object.
-//  7. Change the password on the User aggregate.
-//  8. Persist the changed aggregate.
+//  5. Validate the new password against the application password policy.
+//  6. Hash the new plaintext password.
+//  7. Create a domain PasswordHash value object.
+//  8. Change the password on the User aggregate.
+//  9. Persist the changed aggregate.
 //
 // Plaintext passwords never cross the persistence boundary.
 func (uc *ChangePasswordUseCase) Execute(
@@ -65,7 +68,7 @@ func (uc *ChangePasswordUseCase) Execute(
 	// A missing aggregate means the authenticated identity no longer
 	// corresponds to a persisted user.
 	if existingUser == nil {
-		return ErrUserNotFound
+		return application_errors.ErrUserNotFound
 	}
 
 	// Password changes are permitted only for active accounts.
@@ -73,7 +76,7 @@ func (uc *ChangePasswordUseCase) Execute(
 	// Suspended, inactive, and pending-verification accounts must not be
 	// allowed to modify their credentials through this workflow.
 	if existingUser.Status() != user.StatusActive {
-		return ErrAccountNotActive
+		return application_errors.ErrAccountNotActive
 	}
 
 	// Verify the current password before doing any password hashing or
@@ -86,8 +89,19 @@ func (uc *ChangePasswordUseCase) Execute(
 		return err
 	}
 
-	// Hash the new password only after the current password has been
+	// Validate the new password only after the current password has been
 	// successfully verified.
+	//
+	// This preserves the security ordering of the workflow: an attacker
+	// cannot use password-policy validation to distinguish account state
+	// before proving knowledge of the current password.
+	if err := policies.ValidatePassword(newPassword); err != nil {
+		return err
+	}
+
+	// Hash the new password only after the current password has been
+	// successfully verified and the new password has passed policy
+	// validation.
 	newPasswordHashValue, err := uc.passwordHasher.Hash(
 		ctx,
 		newPassword,

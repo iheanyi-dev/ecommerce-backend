@@ -2,17 +2,19 @@ package security_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/security"
 )
 
 const (
-	testJWTSecret = "test-secret"
+	testJWTSecret = "test-secret-01234567890123456789"
 	testJWTIssuer = "identity-service"
 )
 
@@ -170,6 +172,16 @@ func TestJWTTokenService_ValidateAccessToken_RejectsEmptyToken(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected empty token to be rejected")
 	}
+
+	// Empty credentials are represented by the centralized application
+	// authentication error so the presentation layer can translate them
+	// consistently into HTTP 401.
+	if !errors.Is(err, application_errors.ErrInvalidAccessToken) {
+		t.Fatalf(
+			"expected ErrInvalidAccessToken, got %v",
+			err,
+		)
+	}
 }
 
 // TestJWTTokenService_ValidateAccessToken_RejectsInvalidToken verifies
@@ -185,6 +197,15 @@ func TestJWTTokenService_ValidateAccessToken_RejectsInvalidToken(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected invalid token to be rejected")
 	}
+
+	// Malformed JWTs must expose the stable application error rather than
+	// leaking JWT-library implementation details to upper layers.
+	if !errors.Is(err, application_errors.ErrInvalidAccessToken) {
+		t.Fatalf(
+			"expected ErrInvalidAccessToken, got %v",
+			err,
+		)
+	}
 }
 
 // TestJWTTokenService_ValidateAccessToken_RejectsWrongSecret verifies
@@ -196,7 +217,7 @@ func TestJWTTokenService_ValidateAccessToken_RejectsWrongSecret(t *testing.T) {
 
 	otherService, err := security.NewJWTTokenService(
 		security.TokenConfig{
-			Secret:         "different-secret",
+			Secret:         "different-secret-012345678901234567",
 			Issuer:         testJWTIssuer,
 			AccessTokenTTL: 15 * time.Minute,
 		},
@@ -227,6 +248,15 @@ func TestJWTTokenService_ValidateAccessToken_RejectsWrongSecret(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected token signed with wrong secret to be rejected")
+	}
+
+	// Cryptographic validation failures must use the centralized
+	// application-level authentication error.
+	if !errors.Is(err, application_errors.ErrInvalidAccessToken) {
+		t.Fatalf(
+			"expected ErrInvalidAccessToken, got %v",
+			err,
+		)
 	}
 }
 
@@ -265,6 +295,15 @@ func TestJWTTokenService_ValidateAccessToken_RejectsExpiredToken(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected expired token to be rejected")
+	}
+
+	// Expired credentials are authentication failures and therefore must
+	// use the centralized access-token error.
+	if !errors.Is(err, application_errors.ErrInvalidAccessToken) {
+		t.Fatalf(
+			"expected ErrInvalidAccessToken, got %v",
+			err,
+		)
 	}
 }
 
@@ -305,6 +344,15 @@ func TestJWTTokenService_ValidateAccessToken_RejectsWrongIssuer(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected token with wrong issuer to be rejected")
 	}
+
+	// Tokens from an unexpected issuer must be treated as invalid
+	// authentication credentials.
+	if !errors.Is(err, application_errors.ErrInvalidAccessToken) {
+		t.Fatalf(
+			"expected ErrInvalidAccessToken, got %v",
+			err,
+		)
+	}
 }
 
 // TestJWTTokenService_ValidateAccessToken_RejectsMissingSubject verifies
@@ -341,6 +389,14 @@ func TestJWTTokenService_ValidateAccessToken_RejectsMissingSubject(t *testing.T)
 
 	if err == nil {
 		t.Fatal("expected token without subject to be rejected")
+	}
+
+	// A token without a subject cannot establish an authenticated identity.
+	if !errors.Is(err, application_errors.ErrInvalidAccessToken) {
+		t.Fatalf(
+			"expected ErrInvalidAccessToken, got %v",
+			err,
+		)
 	}
 }
 
@@ -379,6 +435,15 @@ func TestJWTTokenService_ValidateAccessToken_RejectsMissingRole(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected token without role to be rejected")
+	}
+
+	// Authorization information is mandatory for a valid authenticated
+	// identity, so its absence represents an invalid access token.
+	if !errors.Is(err, application_errors.ErrInvalidAccessToken) {
+		t.Fatalf(
+			"expected ErrInvalidAccessToken, got %v",
+			err,
+		)
 	}
 }
 
@@ -423,6 +488,15 @@ func TestJWTTokenService_ValidateAccessToken_RejectsUnexpectedSigningMethod(
 			"expected token using unexpected signing method to be rejected",
 		)
 	}
+
+	// Tokens using an unsupported signing algorithm must be rejected as
+	// invalid authentication credentials.
+	if !errors.Is(err, application_errors.ErrInvalidAccessToken) {
+		t.Fatalf(
+			"expected ErrInvalidAccessToken, got %v",
+			err,
+		)
+	}
 }
 
 // TestJWTTokenService_ValidateAccessToken_RespectsCancelledContext
@@ -459,6 +533,8 @@ func TestJWTTokenService_ValidateAccessToken_RespectsCancelledContext(
 		t.Fatal("expected cancelled context to return an error")
 	}
 
+	// Context cancellation is an operation-level failure, not an invalid
+	// authentication credential.
 	if err != context.Canceled {
 		t.Fatalf(
 			"expected context.Canceled, got %v",
@@ -525,9 +601,77 @@ func TestJWTTokenService_RespectsCancelledContext(t *testing.T) {
 		t.Fatal("expected cancelled context to return an error")
 	}
 
+	// Context cancellation must remain distinguishable from authentication
+	// failures so callers can handle request cancellation correctly.
 	if err != context.Canceled {
 		t.Fatalf(
 			"expected context.Canceled, got %v",
+			err,
+		)
+	}
+}
+
+func TestNewJWTTokenService_RejectsWeakSecret(t *testing.T) {
+	_, err := security.NewJWTTokenService(
+		security.TokenConfig{
+			Secret:         "1234567890123456789012345678901",
+			Issuer:         testJWTIssuer,
+			AccessTokenTTL: 15 * time.Minute,
+		},
+	)
+
+	if err == nil {
+		t.Fatal("expected JWT secret shorter than 32 characters to be rejected")
+	}
+}
+
+// TestJWTTokenService_ValidateAccessToken_RejectsInvalidTemporalClaims
+// verifies that a token whose expiration time occurs before its issued-at
+// time cannot be accepted as a valid access token.
+func TestJWTTokenService_ValidateAccessToken_RejectsInvalidTemporalClaims(
+	t *testing.T,
+) {
+	service := newTestJWTService(t)
+
+	now := time.Now()
+
+	token := jwt.NewWithClaims(
+		jwt.SigningMethodHS256,
+		jwt.MapClaims{
+			"sub":  user.NewUserID().String(),
+			"role": user.RoleUser.String(),
+			"iss":  testJWTIssuer,
+			"iat":  now.Add(1 * time.Hour).Unix(),
+			"exp":  now.Unix(),
+		},
+	)
+
+	tokenString, err := token.SignedString(
+		[]byte(testJWTSecret),
+	)
+	if err != nil {
+		t.Fatalf(
+			"failed to sign token with invalid temporal claims: %v",
+			err,
+		)
+	}
+
+	_, err = service.ValidateAccessToken(
+		context.Background(),
+		tokenString,
+	)
+
+	if err == nil {
+		t.Fatal(
+			"expected token with expiration before issued-at time to be rejected",
+		)
+	}
+
+	// Invalid temporal claims make the access token unusable for
+	// authentication and therefore map to the centralized error.
+	if !errors.Is(err, application_errors.ErrInvalidAccessToken) {
+		t.Fatalf(
+			"expected ErrInvalidAccessToken, got %v",
 			err,
 		)
 	}

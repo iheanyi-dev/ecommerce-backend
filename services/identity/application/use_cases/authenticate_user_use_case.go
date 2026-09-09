@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
@@ -51,7 +52,7 @@ func (u *AuthenticateUserUseCase) Authenticate(
 	// than exposing validation details to an unauthenticated caller.
 	email, err := user.NewEmail(command.Email)
 	if err != nil {
-		return dto.LoginUserResult{}, ErrInvalidCredentials
+		return dto.LoginUserResult{}, application_errors.ErrInvalidCredentials
 	}
 
 	// Retrieve the persisted user.
@@ -60,11 +61,11 @@ func (u *AuthenticateUserUseCase) Authenticate(
 	// when the password is incorrect.
 	authenticatedUser, err := u.userRepository.FindByEmail(ctx, email)
 	if err != nil {
-		return dto.LoginUserResult{}, ErrInvalidCredentials
+		return dto.LoginUserResult{}, application_errors.ErrInvalidCredentials
 	}
 
 	if authenticatedUser == nil {
-		return dto.LoginUserResult{}, ErrInvalidCredentials
+		return dto.LoginUserResult{}, application_errors.ErrInvalidCredentials
 	}
 
 	// Verify the supplied plaintext password against the stored hash.
@@ -73,12 +74,12 @@ func (u *AuthenticateUserUseCase) Authenticate(
 		command.Password,
 		authenticatedUser.PasswordHash().String(),
 	); err != nil {
-		return dto.LoginUserResult{}, ErrInvalidCredentials
+		return dto.LoginUserResult{}, application_errors.ErrInvalidCredentials
 	}
 
 	// Only active accounts may authenticate.
 	if authenticatedUser.Status() != user.StatusActive {
-		return dto.LoginUserResult{}, ErrAccountNotActive
+		return dto.LoginUserResult{}, application_errors.ErrAccountNotActive
 	}
 
 	// Generate the access token only after all authentication checks
@@ -89,7 +90,7 @@ func (u *AuthenticateUserUseCase) Authenticate(
 		authenticatedUser.Role(),
 	)
 	if err != nil {
-		return dto.LoginUserResult{}, ErrTokenGeneration
+		return dto.LoginUserResult{}, application_errors.ErrTokenGeneration
 	}
 
 	// Return the authenticated identity and generated token.

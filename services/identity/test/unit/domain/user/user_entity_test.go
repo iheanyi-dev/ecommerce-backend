@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
 
@@ -343,7 +344,7 @@ func TestUser_PromoteToVendor_CannotBeRepeated(t *testing.T) {
 
 	err := newUser.PromoteToVendor()
 
-	if err != user.ErrUserAlreadyVendor {
+	if err != domain_errors.ErrUserAlreadyVendor {
 		t.Fatalf(
 			"expected ErrUserAlreadyVendor, got %v",
 			err,
@@ -430,7 +431,7 @@ func TestUser_CannotSuspendPendingVerificationUser(t *testing.T) {
 
 	err := newUser.Suspend()
 
-	if err != user.ErrInvalidStatusTransition {
+	if err != domain_errors.ErrInvalidStatusTransition {
 		t.Fatalf(
 			"expected ErrInvalidStatusTransition, got %v",
 			err,
@@ -445,7 +446,7 @@ func TestUser_CannotDeactivatePendingVerificationUser(t *testing.T) {
 
 	err := newUser.Deactivate()
 
-	if err != user.ErrInvalidStatusTransition {
+	if err != domain_errors.ErrInvalidStatusTransition {
 		t.Fatalf(
 			"expected ErrInvalidStatusTransition, got %v",
 			err,
@@ -468,7 +469,7 @@ func TestUser_CannotSuspendSuspendedUser(t *testing.T) {
 
 	err := newUser.Suspend()
 
-	if err != user.ErrInvalidStatusTransition {
+	if err != domain_errors.ErrInvalidStatusTransition {
 		t.Fatalf(
 			"expected ErrInvalidStatusTransition, got %v",
 			err,

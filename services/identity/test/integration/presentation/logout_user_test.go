@@ -175,7 +175,7 @@ func TestLogoutUserIntegration(t *testing.T) {
 		dto.RegisterUserCommand{
 			FullName: "Logout Integration User",
 			Email:    email,
-			Password: "SecurePassword123",
+			Password: "SecurePassword123@",
 		},
 	)
 	if err != nil {
@@ -572,7 +572,7 @@ func TestLogoutUserIntegration_AlreadyRevokedToken(t *testing.T) {
 		dto.RegisterUserCommand{
 			FullName: "Revoked Logout User",
 			Email:    email,
-			Password: "SecurePassword123",
+			Password: "SecurePassword123@",
 		},
 	)
 	if err != nil {
@@ -826,7 +826,7 @@ func TestLogoutUserIntegration_RevokesOnlySpecifiedSession(t *testing.T) {
 		dto.RegisterUserCommand{
 			FullName: "Multi Session Logout User",
 			Email:    email,
-			Password: "SecurePassword123",
+			Password: "SecurePassword123@",
 		},
 	)
 	if err != nil {

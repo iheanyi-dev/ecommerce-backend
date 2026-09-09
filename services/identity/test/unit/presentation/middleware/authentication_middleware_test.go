@@ -2,11 +2,12 @@ package middleware_test
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
@@ -32,6 +33,42 @@ func (m *mockTokenService) ValidateAccessToken(
 	token string,
 ) (ports.AuthenticatedIdentity, error) {
 	return m.validateFunc(ctx, token)
+}
+
+// assertUnauthorizedJSON verifies that authentication failures use the
+// common presentation error response format.
+func assertUnauthorizedJSON(
+	t *testing.T,
+	recorder *httptest.ResponseRecorder,
+) {
+	t.Helper()
+
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Fatalf(
+			"expected Content-Type application/json, got %q",
+			contentType,
+		)
+	}
+
+	var response struct {
+		Error string `json:"error"`
+	}
+
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf(
+			"expected JSON error response, got %v",
+			err,
+		)
+	}
+
+	// Missing, malformed, or empty bearer credentials are represented
+	// by the same client-safe authentication error as invalid tokens.
+	if response.Error != "invalid or expired access token" {
+		t.Fatalf(
+			"expected invalid or expired access token, got %q",
+			response.Error,
+		)
+	}
 }
 
 func TestAuthenticationMiddleware_RequiresAuthorizationHeader(
@@ -79,6 +116,9 @@ func TestAuthenticationMiddleware_RequiresAuthorizationHeader(
 			recorder.Code,
 		)
 	}
+
+	assertUnauthorizedJSON(t, recorder)
+
 }
 
 func TestAuthenticationMiddleware_RejectsInvalidAuthorizationHeader(
@@ -131,6 +171,9 @@ func TestAuthenticationMiddleware_RejectsInvalidAuthorizationHeader(
 			recorder.Code,
 		)
 	}
+
+	assertUnauthorizedJSON(t, recorder)
+
 }
 
 func TestAuthenticationMiddleware_RejectsInvalidToken(
@@ -148,9 +191,7 @@ func TestAuthenticationMiddleware_RejectsInvalidToken(
 				)
 			}
 
-			return ports.AuthenticatedIdentity{}, errors.New(
-				"invalid token",
-			)
+			return ports.AuthenticatedIdentity{}, application_errors.ErrInvalidAccessToken
 		},
 	}
 
@@ -191,6 +232,37 @@ func TestAuthenticationMiddleware_RejectsInvalidToken(
 			recorder.Code,
 		)
 	}
+
+	// The common presentation error translator must return a JSON error
+	// response rather than exposing the raw token-service error.
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Fatalf(
+			"expected Content-Type application/json, got %q",
+			contentType,
+		)
+	}
+
+	var response struct {
+		Error string `json:"error"`
+	}
+
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf(
+			"expected JSON error response, got %v",
+			err,
+		)
+	}
+
+	// Invalid access tokens are expected authentication failures,
+	// so the common translator must expose the standardized client-safe
+	// authentication message rather than an internal-server message.
+	if response.Error != "invalid or expired access token" {
+		t.Fatalf(
+			"expected invalid or expired access token, got %q",
+			response.Error,
+		)
+	}
+
 }
 
 func TestAuthenticationMiddleware_AllowsValidToken(
@@ -280,6 +352,7 @@ func TestAuthenticationMiddleware_AllowsValidToken(
 			recorder.Code,
 		)
 	}
+
 }
 
 func TestAuthenticatedIdentity_ReturnsFalseWhenMissing(
@@ -300,6 +373,7 @@ func TestAuthenticatedIdentity_ReturnsFalseWhenMissing(
 			"expected authenticated identity to be missing",
 		)
 	}
+
 }
 
 func TestAuthenticationMiddleware_RejectsBearerWithoutToken(
@@ -352,6 +426,9 @@ func TestAuthenticationMiddleware_RejectsBearerWithoutToken(
 			recorder.Code,
 		)
 	}
+
+	assertUnauthorizedJSON(t, recorder)
+
 }
 
 func TestAuthenticationMiddleware_RejectsAuthorizationHeaderWithExtraFields(
@@ -404,4 +481,7 @@ func TestAuthenticationMiddleware_RejectsAuthorizationHeaderWithExtraFields(
 			recorder.Code,
 		)
 	}
+
+	assertUnauthorizedJSON(t, recorder)
+
 }

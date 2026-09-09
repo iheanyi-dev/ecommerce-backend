@@ -77,6 +77,18 @@ func TestMeHandler_ServeHTTP(t *testing.T) {
 			http.StatusUnauthorized,
 			recorder.Code,
 		)
+
+		assert.Equal(
+			t,
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+
+		assert.Equal(
+			t,
+			`{"error":"authentication required"}`+"\n",
+			recorder.Body.String(),
+		)
 	})
 
 	t.Run("rejects unsupported method", func(t *testing.T) {
@@ -96,6 +108,18 @@ func TestMeHandler_ServeHTTP(t *testing.T) {
 			t,
 			http.StatusMethodNotAllowed,
 			recorder.Code,
+		)
+
+		assert.Equal(
+			t,
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+
+		assert.Equal(
+			t,
+			`{"error":"method not allowed"}`+"\n",
+			recorder.Body.String(),
 		)
 	})
 

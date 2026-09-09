@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
+
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 )
 
@@ -56,22 +56,14 @@ func (h *RefreshUserHandler) ServeHTTP(
 	r *http.Request,
 ) {
 	if r.Method != http.MethodPost {
-		http.Error(
-			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
-		)
+		presentation_errors.WriteError(w, presentation_errors.ErrMethodNotAllowed)
 		return
 	}
 
 	var request schemas.RefreshTokenRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(
-			w,
-			"invalid request body",
-			http.StatusBadRequest,
-		)
+		presentation_errors.WriteError(w, presentation_errors.ErrInvalidRequestBody)
 		return
 	}
 
@@ -85,40 +77,10 @@ func (h *RefreshUserHandler) ServeHTTP(
 	)
 
 	if err != nil {
-		// Invalid, expired, revoked, or otherwise unusable refresh tokens
-		// are represented by the same generic response. This prevents
-		// token/session state from being unnecessarily exposed.
-		if errors.Is(err, use_cases.ErrInvalidRefreshToken) {
-			http.Error(
-				w,
-				"invalid refresh token",
-				http.StatusUnauthorized,
-			)
-			return
-		}
-
-		// Refresh-token generation/hash failures and persistence failures
-		// are internal failures. Infrastructure details must never reach
-		// the client.
-		if errors.Is(err, use_cases.ErrRefreshTokenGeneration) ||
-			errors.Is(err, use_cases.ErrRefreshTokenHashing) ||
-			errors.Is(err, use_cases.ErrRefreshTokenPersistence) ||
-			errors.Is(err, use_cases.ErrTokenGeneration) {
-			http.Error(
-				w,
-				"failed to refresh authentication",
-				http.StatusInternalServerError,
-			)
-			return
-		}
-
-		// Any unexpected application/infrastructure failure receives the
-		// same generic internal-server-error response.
-		http.Error(
-			w,
-			"failed to refresh authentication",
-			http.StatusInternalServerError,
-		)
+		// Delegate application and domain error translation to the common
+		// presentation error translator so every endpoint uses the same
+		// HTTP status codes and JSON error response format.
+		presentation_errors.WriteError(w, err)
 		return
 	}
 

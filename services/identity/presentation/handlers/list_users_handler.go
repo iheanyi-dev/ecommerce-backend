@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 )
@@ -45,10 +46,9 @@ func (h *ListUsersHandler) ServeHTTP(
 	r *http.Request,
 ) {
 	if r.Method != http.MethodGet {
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
+			presentation_errors.ErrMethodNotAllowed,
 		)
 		return
 	}
@@ -59,10 +59,9 @@ func (h *ListUsersHandler) ServeHTTP(
 	// This defensive check prevents the handler from accidentally
 	// processing an unauthenticated request if the route is misconfigured.
 	if _, ok := middleware.AuthenticatedIdentity(r.Context()); !ok {
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"authentication required",
-			http.StatusUnauthorized,
+			presentation_errors.ErrAuthenticationRequired,
 		)
 		return
 	}
@@ -87,11 +86,10 @@ func (h *ListUsersHandler) ServeHTTP(
 		offset,
 	)
 	if err != nil {
-		writeJSONError(
-			w,
-			http.StatusInternalServerError,
-			"failed to list users",
-		)
+		// Delegate application and domain error translation to the common
+		// presentation error translator so every endpoint uses the same
+		// HTTP status codes and JSON error response format.
+		presentation_errors.WriteError(w, err)
 		return
 	}
 

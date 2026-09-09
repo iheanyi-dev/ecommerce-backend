@@ -228,7 +228,7 @@ func TestRegisterUserIntegration(t *testing.T) {
 	requestBody := schemas.RegisterUserRequest{
 		FullName: "John Doe",
 		Email:    email,
-		Password: "SecurePassword123",
+		Password: "SecurePassword123@@",
 	}
 
 	body, err := json.Marshal(requestBody)
@@ -361,7 +361,7 @@ func TestRegisterUserIntegration_DuplicateEmail(t *testing.T) {
 	firstRequestBody := schemas.RegisterUserRequest{
 		FullName: "John Doe",
 		Email:    email,
-		Password: "SecurePassword123",
+		Password: "SecurePassword123@@",
 	}
 
 	firstBody, err := json.Marshal(firstRequestBody)
@@ -403,7 +403,7 @@ func TestRegisterUserIntegration_DuplicateEmail(t *testing.T) {
 	secondRequestBody := schemas.RegisterUserRequest{
 		FullName: "Jane Doe",
 		Email:    email,
-		Password: "AnotherPassword123",
+		Password: "AnotherPassword123@",
 	}
 
 	secondBody, err := json.Marshal(secondRequestBody)
@@ -495,7 +495,7 @@ func TestRegisterUserIntegration_InvalidEmail(t *testing.T) {
 	requestBody := schemas.RegisterUserRequest{
 		FullName: "John Doe",
 		Email:    "not-an-email",
-		Password: "SecurePassword123",
+		Password: "SecurePassword123@",
 	}
 
 	body, err := json.Marshal(requestBody)
@@ -560,7 +560,7 @@ func TestRegisterUserIntegration_InvalidFullName(t *testing.T) {
 	requestBody := schemas.RegisterUserRequest{
 		FullName: "",
 		Email:    "valid@example.com",
-		Password: "SecurePassword123",
+		Password: "SecurePassword123@",
 	}
 
 	body, err := json.Marshal(requestBody)
@@ -812,7 +812,7 @@ func TestRegisterUserIntegration_Route(t *testing.T) {
 	body := schemas.RegisterUserRequest{
 		FullName: "Route Test User",
 		Email:    email,
-		Password: "SecurePassword123",
+		Password: "SecurePassword123@",
 	}
 
 	requestBody, err := json.Marshal(body)

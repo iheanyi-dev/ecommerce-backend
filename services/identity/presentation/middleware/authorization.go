@@ -1,6 +1,10 @@
 package middleware
 
-import "net/http"
+import (
+	"net/http"
+
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
+)
 
 // RequireRoles creates middleware that allows access only to authenticated
 // identities whose role matches one of the supplied roles.
@@ -19,11 +23,14 @@ func RequireRoles(allowedRoles ...string) func(http.Handler) http.Handler {
 			identity, ok := AuthenticatedIdentity(r.Context())
 
 			// No identity means authentication has not happened.
+			//
+			// Authorization errors are translated through the centralized
+			// presentation error handler so that middleware and handlers
+			// expose the same JSON error contract.
 			if !ok {
-				http.Error(
+				presentation_errors.WriteError(
 					w,
-					"authentication required",
-					http.StatusUnauthorized,
+					presentation_errors.ErrAuthenticationRequired,
 				)
 				return
 			}
@@ -31,10 +38,9 @@ func RequireRoles(allowedRoles ...string) func(http.Handler) http.Handler {
 			// The caller is authenticated, but their role does not have
 			// permission to access this resource.
 			if !hasAllowedRole(identity.Role, allowedRoles) {
-				http.Error(
+				presentation_errors.WriteError(
 					w,
-					"forbidden",
-					http.StatusForbidden,
+					presentation_errors.ErrForbidden,
 				)
 				return
 			}

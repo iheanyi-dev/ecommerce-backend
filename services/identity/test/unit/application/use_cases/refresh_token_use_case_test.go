@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 )
 
 type mockRefreshTokenService struct {
@@ -144,6 +144,6 @@ func TestRefreshTokenUseCase_Refresh_Success(t *testing.T) {
 	_ = refreshTokenService
 	_ = repository
 	_ = dto.RefreshTokenCommand{}
-	_ = use_cases.ErrInvalidRefreshToken
+	_ = application_errors.ErrInvalidRefreshToken
 	_ = errors.New
 }

@@ -2,11 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 )
 
@@ -43,10 +42,9 @@ func (h *LogoutUserHandler) ServeHTTP(
 	// Logout changes server-side authentication state,
 	// so it is intentionally restricted to POST requests.
 	if r.Method != http.MethodPost {
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
+			presentation_errors.ErrMethodNotAllowed,
 		)
 		return
 	}
@@ -55,10 +53,9 @@ func (h *LogoutUserHandler) ServeHTTP(
 
 	// Decode the refresh token from the JSON request body.
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"invalid request body",
-			http.StatusBadRequest,
+			presentation_errors.ErrInvalidRequestBody,
 		)
 		return
 	}
@@ -70,24 +67,10 @@ func (h *LogoutUserHandler) ServeHTTP(
 		request.RefreshToken,
 	)
 	if err != nil {
-		// An invalid, unknown, expired, or already-revoked
-		// refresh token is treated as an authentication failure.
-		if errors.Is(err, use_cases.ErrInvalidRefreshToken) {
-			http.Error(
-				w,
-				"invalid refresh token",
-				http.StatusUnauthorized,
-			)
-			return
-		}
-
-		// Any unexpected application/infrastructure failure
-		// is returned as an internal server error.
-		http.Error(
-			w,
-			"internal server error",
-			http.StatusInternalServerError,
-		)
+		// Delegate application and domain error translation to the common
+		// presentation error translator so every endpoint uses the same
+		// HTTP status codes and JSON error response format.
+		presentation_errors.WriteError(w, err)
 		return
 	}
 

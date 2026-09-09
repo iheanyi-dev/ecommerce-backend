@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"errors"
+
 	"github.com/google/uuid"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
@@ -366,6 +369,16 @@ func TestRefreshTokenRepository_Create_DuplicateHash(t *testing.T) {
 			"expected duplicate token hash to return a PostgreSQL error",
 		)
 	}
+	if !errors.Is(
+		err,
+		application_errors.ErrRefreshTokenPersistence,
+	) {
+		t.Fatalf(
+			"expected error to wrap %v, got %v",
+			application_errors.ErrRefreshTokenPersistence,
+			err,
+		)
+	}
 }
 
 // TestRefreshTokenRepository_Create_RequiresExistingUser verifies the
@@ -627,16 +640,30 @@ func TestRefreshTokenRepository_Rotate_RollsBackOnCreateFailure(
 		oldRecord.TokenHash,
 	)
 
-	err := refreshTokenRepository.Rotate(
+	rotateErr := refreshTokenRepository.Rotate(
 		context.Background(),
 		oldRecord.ID,
 		time.Now(),
 		failingReplacement,
 	)
 
-	if err == nil {
+	if rotateErr == nil {
 		t.Fatal(
 			"expected Rotate() to fail when replacement token hash is duplicated",
+		)
+	}
+
+	// Rotate() should translate the PostgreSQL persistence failure into
+	// the centralized application persistence error while preserving the
+	// original database error through wrapping.
+	if !errors.Is(
+		rotateErr,
+		application_errors.ErrRefreshTokenPersistence,
+	) {
+		t.Fatalf(
+			"expected error to wrap %v, got %v",
+			application_errors.ErrRefreshTokenPersistence,
+			rotateErr,
 		)
 	}
 
@@ -701,4 +728,3 @@ func TestRefreshTokenRepository_Rotate_RollsBackOnCreateFailure(
 // Compile-time assertion that the future implementation satisfies the
 // application port.
 var _ ports.RefreshTokenRepository = (*postgres.RefreshTokenRepository)(nil)
-

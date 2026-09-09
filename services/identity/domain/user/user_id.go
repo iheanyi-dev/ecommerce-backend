@@ -1,12 +1,9 @@
 package user
 
 import (
-	"errors"
-
 	"github.com/google/uuid"
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
 )
-
-var ErrInvalidUserID = errors.New("invalid user ID")
 
 // UserID uniquely identifies a User within the Identity domain.
 //
@@ -27,7 +24,7 @@ func NewUserID() UserID {
 func UserIDFromString(value string) (UserID, error) {
 	id, err := uuid.Parse(value)
 	if err != nil {
-		return UserID{}, ErrInvalidUserID
+		return UserID{}, domain_errors.ErrInvalidUserID
 	}
 
 	return UserID{value: id}, nil

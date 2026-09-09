@@ -1,11 +1,10 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 )
@@ -42,10 +41,9 @@ func (h *GetUserHandler) ServeHTTP(
 	r *http.Request,
 ) {
 	if r.Method != http.MethodGet {
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
+			presentation_errors.ErrMethodNotAllowed,
 		)
 		return
 	}
@@ -56,14 +54,12 @@ func (h *GetUserHandler) ServeHTTP(
 	// This defensive check prevents the handler from accidentally
 	// processing an unauthenticated request if the route is misconfigured.
 	if _, ok := middleware.AuthenticatedIdentity(r.Context()); !ok {
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"authentication required",
-			http.StatusUnauthorized,
+			presentation_errors.ErrAuthenticationRequired,
 		)
 		return
 	}
-
 	// The router provides the user ID through the named "id"
 	// path parameter.
 	userID := r.PathValue("id")
@@ -73,24 +69,10 @@ func (h *GetUserHandler) ServeHTTP(
 		userID,
 	)
 	if err != nil {
-		// ErrUserNotFound is an expected application-level condition
-		// and therefore maps to HTTP 404 rather than HTTP 500.
-		if errors.Is(err, use_cases.ErrUserNotFound) {
-			writeJSONError(
-				w,
-				http.StatusNotFound,
-				"user not found",
-			)
-			return
-		}
-
-		// Do not expose internal application or infrastructure errors
-		// to the HTTP client.
-		writeJSONError(
-			w,
-			http.StatusInternalServerError,
-			"failed to get user",
-		)
+		// Delegate application and domain error translation to the common
+		// presentation error translator so every endpoint uses the same
+		// HTTP status codes and JSON error response format.
+		presentation_errors.WriteError(w, err)
 		return
 	}
 

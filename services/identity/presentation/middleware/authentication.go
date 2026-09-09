@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"strings"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
 )
 
 // contextKey is a private type used to prevent collisions with context
@@ -74,10 +76,11 @@ func (m *AuthenticationMiddleware) RequireAuthentication(
 		)
 
 		if authorization == "" {
-			http.Error(
+			// Return authentication failures through the common presentation
+			// error translator so the API uses one consistent JSON format.
+			presentation_errors.WriteError(
 				w,
-				"authorization header is required",
-				http.StatusUnauthorized,
+				application_errors.ErrInvalidAccessToken,
 			)
 			return
 		}
@@ -88,10 +91,11 @@ func (m *AuthenticationMiddleware) RequireAuthentication(
 
 		if len(parts) != 2 ||
 			!strings.EqualFold(parts[0], "Bearer") {
-			http.Error(
+			// Malformed authorization headers are authentication failures and
+			// therefore use the centralized presentation error response.
+			presentation_errors.WriteError(
 				w,
-				"invalid authorization header",
-				http.StatusUnauthorized,
+				application_errors.ErrInvalidAccessToken,
 			)
 			return
 		}
@@ -99,10 +103,11 @@ func (m *AuthenticationMiddleware) RequireAuthentication(
 		tokenString := strings.TrimSpace(parts[1])
 
 		if tokenString == "" {
-			http.Error(
+			// A missing bearer token is treated as an invalid access token and
+			// translated through the common presentation error mechanism.
+			presentation_errors.WriteError(
 				w,
-				"invalid authorization header",
-				http.StatusUnauthorized,
+				application_errors.ErrInvalidAccessToken,
 			)
 			return
 		}
@@ -112,11 +117,9 @@ func (m *AuthenticationMiddleware) RequireAuthentication(
 			tokenString,
 		)
 		if err != nil {
-			http.Error(
-				w,
-				"invalid or expired access token",
-				http.StatusUnauthorized,
-			)
+			// Delegate token-validation failures to the common presentation
+			// error translator instead of returning a plain-text HTTP error.
+			presentation_errors.WriteError(w, err)
 			return
 		}
 

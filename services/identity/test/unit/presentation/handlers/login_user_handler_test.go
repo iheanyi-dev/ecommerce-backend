@@ -1,15 +1,16 @@
 package handlers_test
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
+
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 
@@ -28,6 +29,7 @@ type mockAuthenticateUserService struct {
 	) (dto.LoginUserResult, error)
 }
 
+// Authenticate implements the authentication service port for tests.
 func (m *mockAuthenticateUserService) Authenticate(
 	ctx context.Context,
 	cmd dto.LoginUserCommand,
@@ -124,6 +126,17 @@ func TestLoginUserHandler_InvalidJSON(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Equal(
+		t,
+		"application/json",
+		recorder.Header().Get("Content-Type"),
+	)
+
+	assert.Equal(
+		t,
+		"{\"error\":\"invalid request body\"}\n",
+		recorder.Body.String(),
+	)
 	assert.False(t, serviceCalled)
 }
 
@@ -153,10 +166,21 @@ func TestLoginUserHandler_MethodNotAllowed(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
+	assert.Equal(
+		t,
+		"application/json",
+		recorder.Header().Get("Content-Type"),
+	)
+
+	assert.Equal(
+		t,
+		"{\"error\":\"method not allowed\"}\n",
+		recorder.Body.String(),
+	)
 }
 
 // TestLoginUserHandler_InvalidCredentials verifies that authentication
-// failures are translated into an appropriate HTTP response.
+// failures are translated into the standardized JSON error response.
 func TestLoginUserHandler_InvalidCredentials(t *testing.T) {
 	t.Parallel()
 
@@ -164,7 +188,7 @@ func TestLoginUserHandler_InvalidCredentials(t *testing.T) {
 		authenticateFunc: func(
 			cmd dto.LoginUserCommand,
 		) (dto.LoginUserResult, error) {
-			return dto.LoginUserResult{}, use_cases.ErrInvalidCredentials
+			return dto.LoginUserResult{}, application_errors.ErrInvalidCredentials
 		},
 	}
 
@@ -191,11 +215,17 @@ func TestLoginUserHandler_InvalidCredentials(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+	assert.JSONEq(
+		t,
+		`{"error":"invalid credentials"}`,
+		recorder.Body.String(),
+	)
 }
 
 // TestLoginUserHandler_InternalError verifies that unexpected application
-// failures are returned as an internal server error rather than exposing
-// implementation details to the client.
+// failures are returned as a standardized internal server error without
+// exposing implementation details to the client.
 func TestLoginUserHandler_InternalError(t *testing.T) {
 	t.Parallel()
 
@@ -229,15 +259,25 @@ func TestLoginUserHandler_InternalError(t *testing.T) {
 
 	handler.ServeHTTP(recorder, req)
 
-	// The exact distinction between authentication errors and infrastructure
-	// errors will depend on the typed application errors we already defined.
-	//
-	// For now this test documents the expected presentation behavior.
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+
+	assert.JSONEq(
+		t,
+		`{"error":"internal server error"}`,
+		recorder.Body.String(),
+	)
+
+	assert.NotContains(
+		t,
+		recorder.Body.String(),
+		"database unavailable",
+	)
 }
 
-// TestLoginUserHandler_AccountNotActive verifies that an authenticated
-// account which is not active cannot obtain an access token.
+// TestLoginUserHandler_AccountNotActive verifies that an inactive account
+// cannot obtain an access token and that the standardized error response
+// is returned.
 func TestLoginUserHandler_AccountNotActive(t *testing.T) {
 	t.Parallel()
 
@@ -245,7 +285,7 @@ func TestLoginUserHandler_AccountNotActive(t *testing.T) {
 		authenticateFunc: func(
 			cmd dto.LoginUserCommand,
 		) (dto.LoginUserResult, error) {
-			return dto.LoginUserResult{}, use_cases.ErrAccountNotActive
+			return dto.LoginUserResult{}, application_errors.ErrAccountNotActive
 		},
 	}
 
@@ -272,4 +312,54 @@ func TestLoginUserHandler_AccountNotActive(t *testing.T) {
 	handler.ServeHTTP(recorder, req)
 
 	assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+	assert.JSONEq(
+		t,
+		`{"error":"account is not active"}`,
+		recorder.Body.String(),
+	)
+}
+
+// TestLoginUserHandler_TokenGenerationError verifies that token-generation
+// failures are hidden behind the common internal-server-error response.
+func TestLoginUserHandler_TokenGenerationError(t *testing.T) {
+	t.Parallel()
+
+	mockService := &mockAuthenticateUserService{
+		authenticateFunc: func(
+			cmd dto.LoginUserCommand,
+		) (dto.LoginUserResult, error) {
+			return dto.LoginUserResult{}, application_errors.ErrTokenGeneration
+		},
+	}
+
+	handler := handlers.NewLoginUserHandler(mockService)
+
+	requestBody := schemas.LoginUserRequest{
+		Email:    "john@example.com",
+		Password: "correct-password",
+	}
+
+	body, err := json.Marshal(requestBody)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/users/login",
+		bytes.NewReader(body),
+	)
+
+	req.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, req)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+	assert.JSONEq(
+		t,
+		`{"error":"internal server error"}`,
+		recorder.Body.String(),
+	)
 }

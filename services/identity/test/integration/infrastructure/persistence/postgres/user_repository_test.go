@@ -2,9 +2,11 @@ package postgres_tests
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
 	generated "github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres/generated"
@@ -588,5 +590,146 @@ func TestUserRepository_List(t *testing.T) {
 
 	if users[2].Email() != firstUser.Email() {
 		t.Fatal("first user's email changed during reconstruction")
+	}
+}
+
+// TestUserRepository_Create_DuplicateEmail verifies that a PostgreSQL
+// unique-constraint violation on the users.email column is translated
+// into the application-level ErrEmailAlreadyExists error.
+//
+// The database remains the final authority for uniqueness. This protects
+// the application from race conditions where two requests can both pass
+// ExistsByEmail() before attempting the INSERT.
+func TestUserRepository_Create_DuplicateEmail(t *testing.T) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+	repository := postgres.NewUserRepository(queries)
+
+	firstUser := newTestUser(
+		t,
+		"duplicate@example.com",
+	)
+
+	if err := repository.Create(
+		context.Background(),
+		firstUser,
+	); err != nil {
+		t.Fatalf(
+			"first Create() returned an error: %v",
+			err,
+		)
+	}
+
+	// Construct a second valid domain User with the same email.
+	//
+	// The UserID is different, so the expected database conflict must
+	// specifically come from the unique email constraint.
+	secondUser := newTestUser(
+		t,
+		"duplicate@example.com",
+	)
+
+	err := repository.Create(
+		context.Background(),
+		secondUser,
+	)
+	if err == nil {
+		t.Fatal(
+			"expected duplicate email Create() to return an error",
+		)
+	}
+
+	// Infrastructure must translate the PostgreSQL uniqueness failure
+	// into a semantic application error. The application layer must not
+	// need to understand PostgreSQL error codes or SQLC errors.
+	if !errors.Is(
+		err,
+		application_errors.ErrEmailAlreadyExists,
+	) {
+		t.Fatalf(
+			"expected error to wrap %v, got %v",
+			application_errors.ErrEmailAlreadyExists,
+			err,
+		)
+	}
+}
+
+// TestUserRepository_FindByEmail_UserDoesNotExist_ReturnsApplicationError
+// verifies that the repository translates PostgreSQL's no-row condition
+// into the semantic application-level ErrUserNotFound.
+//
+// The application layer must not need to understand pgx.ErrNoRows.
+func TestUserRepository_FindByEmail_UserDoesNotExist_ReturnsApplicationError(t *testing.T) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+	repository := postgres.NewUserRepository(queries)
+
+	email, err := user.NewEmail("missing@example.com")
+	if err != nil {
+		t.Fatalf(
+			"failed to create test email: %v",
+			err,
+		)
+	}
+
+	_, err = repository.FindByEmail(
+		context.Background(),
+		email,
+	)
+	if err == nil {
+		t.Fatal(
+			"expected FindByEmail() to return an error",
+		)
+	}
+
+	if !errors.Is(
+		err,
+		application_errors.ErrUserNotFound,
+	) {
+		t.Fatalf(
+			"expected error to wrap %v, got %v",
+			application_errors.ErrUserNotFound,
+			err,
+		)
+	}
+}
+
+// TestUserRepository_FindByID_UserDoesNotExist_ReturnsApplicationError
+// verifies that the repository translates PostgreSQL's no-row condition
+// into the semantic application-level ErrUserNotFound.
+//
+// The application layer therefore remains independent of PostgreSQL.
+func TestUserRepository_FindByID_UserDoesNotExist_ReturnsApplicationError(t *testing.T) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+	repository := postgres.NewUserRepository(queries)
+
+	missingUserID := user.NewUserID()
+
+	_, err := repository.FindByID(
+		context.Background(),
+		missingUserID,
+	)
+	if err == nil {
+		t.Fatal(
+			"expected FindByID() to return an error",
+		)
+	}
+
+	if !errors.Is(
+		err,
+		application_errors.ErrUserNotFound,
+	) {
+		t.Fatalf(
+			"expected error to wrap %v, got %v",
+			application_errors.ErrUserNotFound,
+			err,
+		)
 	}
 }

@@ -2,13 +2,17 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	generated "github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres/generated"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -17,6 +21,9 @@ import (
 //
 // Infrastructure is responsible for translating between the domain
 // aggregate and PostgreSQL's persistence representation.
+//
+// It is also the boundary at which PostgreSQL-specific errors are
+// translated into semantic application errors.
 type UserRepository struct {
 	queries *generated.Queries
 }
@@ -50,6 +57,13 @@ func toPgTimestamp(value time.Time) pgtype.Timestamptz {
 // The User aggregate has already been validated by the domain layer.
 // This method therefore focuses on translating the aggregate into the
 // parameters required by the SQLC-generated query.
+//
+// PostgreSQL remains the final authority for uniqueness. The repository
+// translates the users_email_key violation into the semantic application
+// error ErrEmailAlreadyExists.
+//
+// This is important because ExistsByEmail() is only a pre-check and cannot
+// eliminate a race condition between two concurrent registration requests.
 func (r *UserRepository) Create(
 	ctx context.Context,
 	newUser *user.User,
@@ -65,7 +79,33 @@ func (r *UserRepository) Create(
 		UpdatedAt:    toPgTimestamp(newUser.UpdatedAt()),
 	}
 
-	return r.queries.CreateUser(ctx, params)
+	err := r.queries.CreateUser(ctx, params)
+	if err == nil {
+		return nil
+	}
+
+	// PostgreSQL reports unique-constraint violations using SQLSTATE
+	// 23505. We additionally verify the constraint name so that another
+	// future unique constraint is not incorrectly interpreted as a
+	// duplicate email.
+	var pgErr *pgconn.PgError
+
+	if errors.As(err, &pgErr) &&
+		pgErr.Code == "23505" &&
+		pgErr.ConstraintName == "users_email_key" {
+		return fmt.Errorf(
+			"create user: %w",
+			application_errors.ErrEmailAlreadyExists,
+		)
+	}
+
+	// Unexpected persistence failures remain wrapped infrastructure
+	// errors. The underlying error is preserved for diagnostics without
+	// leaking PostgreSQL-specific knowledge into higher layers.
+	return fmt.Errorf(
+		"create user: %w",
+		err,
+	)
 }
 
 // ExistsByEmail checks whether a user with the supplied email already
@@ -78,7 +118,8 @@ func (r *UserRepository) ExistsByEmail(
 	email user.Email,
 ) (bool, error) {
 	count, err := r.queries.ExistsUserByEmail(
-		ctx, email.String(),
+		ctx,
+		email.String(),
 	)
 	if err != nil {
 		return false, fmt.Errorf(
@@ -86,6 +127,7 @@ func (r *UserRepository) ExistsByEmail(
 			err,
 		)
 	}
+
 	return count, nil
 }
 
@@ -95,46 +137,30 @@ func (r *UserRepository) ExistsByEmail(
 // for translating those values back into domain value objects before
 // reconstructing the User aggregate.
 //
-// The reconstruction flow is:
-//
-// PostgreSQL
-//
-//	↓
-//
-// SQLC generated User
-//
-//	↓
-//
-// Domain value-object construction
-//
-//	↓
-//
-// user.ReconstituteUser()
-//
-//	↓
-//
-// Valid User aggregate
+// PostgreSQL's no-row condition is translated into the application-level
+// ErrUserNotFound so the application layer never depends on pgx.
 func (r *UserRepository) FindByEmail(
 	ctx context.Context,
 	email user.Email,
 ) (*user.User, error) {
-	// Retrieve the raw persisted user through the SQLC-generated query.
 	row, err := r.queries.FindUserByEmail(
 		ctx,
 		email.String(),
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf(
+				"find user by email: %w",
+				application_errors.ErrUserNotFound,
+			)
+		}
+
 		return nil, fmt.Errorf(
 			"find user by email: %w",
 			err,
 		)
 	}
 
-	// Reconstruct the UserID from the UUID returned by PostgreSQL.
-	//
-	// SQLC represents the UUID using pgtype.UUID. The domain uses its
-	// own UserID value object, so the repository performs the translation
-	// at this infrastructure boundary.
 	id, err := user.UserIDFromString(row.ID.String())
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -143,7 +169,6 @@ func (r *UserRepository) FindByEmail(
 		)
 	}
 
-	// Reconstruct the FullName value object.
 	fullName, err := user.NewFullName(row.FullName)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -152,7 +177,6 @@ func (r *UserRepository) FindByEmail(
 		)
 	}
 
-	// Reconstruct the Email value object.
 	persistedEmail, err := user.NewEmail(row.Email)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -161,11 +185,6 @@ func (r *UserRepository) FindByEmail(
 		)
 	}
 
-	// Reconstruct the PasswordHash value object.
-	//
-	// We do not hash the password here. The database already contains
-	// the securely hashed password. We are simply restoring the domain
-	// representation of that persisted hash.
 	passwordHash, err := user.NewPasswordHash(row.PasswordHash)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -174,7 +193,6 @@ func (r *UserRepository) FindByEmail(
 		)
 	}
 
-	// Reconstruct the user's Role from its persisted representation.
 	role, err := user.NewRole(row.Role)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -183,7 +201,6 @@ func (r *UserRepository) FindByEmail(
 		)
 	}
 
-	// Reconstruct the user's account Status.
 	status, err := user.NewStatus(row.Status)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -192,11 +209,6 @@ func (r *UserRepository) FindByEmail(
 		)
 	}
 
-	// All persisted values have now been translated into validated
-	// domain components.
-	//
-	// ReconstituteUser deliberately does not apply creation defaults.
-	// It restores the exact state that was persisted in the database.
 	reconstitutedUser := user.ReconstituteUser(
 		id,
 		fullName,
@@ -214,11 +226,11 @@ func (r *UserRepository) FindByEmail(
 // FindByID retrieves a persisted User aggregate by UserID.
 //
 // SQLC returns primitive persistence values. This method translates those
-// values back into domain value objects before reconstructing the User
+// values back to domain value objects before reconstructing the domain
 // aggregate.
 //
-// The repository performs this translation at the infrastructure boundary
-// so the application layer never depends on PostgreSQL or SQLC types.
+// PostgreSQL's no-row condition is translated into the application-level
+// ErrUserNotFound so the application layer never depends on pgx.
 func (r *UserRepository) FindByID(
 	ctx context.Context,
 	id user.UserID,
@@ -228,6 +240,13 @@ func (r *UserRepository) FindByID(
 		toPgUUID(id.Value()),
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf(
+				"find user by ID: %w",
+				application_errors.ErrUserNotFound,
+			)
+		}
+
 		return nil, fmt.Errorf(
 			"find user by ID: %w",
 			err,
@@ -397,14 +416,22 @@ func (r *UserRepository) UpdateFullName(
 	ctx context.Context,
 	existingUser *user.User,
 ) error {
-	return r.queries.UpdateUserFullName(
+	err := r.queries.UpdateUserFullName(
 		ctx,
 		generated.UpdateUserFullNameParams{
 			ID:        toPgUUID(existingUser.ID().Value()),
 			FullName:  existingUser.FullName().String(),
-			UpdatedAt: pgtype.Timestamptz{Time: existingUser.UpdatedAt(), Valid: true},
+			UpdatedAt: toPgTimestamp(existingUser.UpdatedAt()),
 		},
 	)
+	if err != nil {
+		return fmt.Errorf(
+			"update user full name: %w",
+			err,
+		)
+	}
+
+	return nil
 }
 
 // UpdatePasswordHash persists the changed password hash and the UpdatedAt
@@ -417,14 +444,22 @@ func (r *UserRepository) UpdatePasswordHash(
 	ctx context.Context,
 	existingUser *user.User,
 ) error {
-	return r.queries.UpdateUserPasswordHash(
+	err := r.queries.UpdateUserPasswordHash(
 		ctx,
 		generated.UpdateUserPasswordHashParams{
 			ID:           toPgUUID(existingUser.ID().Value()),
 			PasswordHash: existingUser.PasswordHash().String(),
-			UpdatedAt:    pgtype.Timestamptz{Time: existingUser.UpdatedAt(), Valid: true},
+			UpdatedAt:    toPgTimestamp(existingUser.UpdatedAt()),
 		},
 	)
+	if err != nil {
+		return fmt.Errorf(
+			"update user password hash: %w",
+			err,
+		)
+	}
+
+	return nil
 }
 
 // UpdateStatus persists the changed account status and the UpdatedAt
@@ -436,14 +471,22 @@ func (r *UserRepository) UpdateStatus(
 	ctx context.Context,
 	existingUser *user.User,
 ) error {
-	return r.queries.UpdateUserStatus(
+	err := r.queries.UpdateUserStatus(
 		ctx,
 		generated.UpdateUserStatusParams{
 			ID:        toPgUUID(existingUser.ID().Value()),
 			Status:    string(existingUser.Status()),
-			UpdatedAt: pgtype.Timestamptz{Time: existingUser.UpdatedAt(), Valid: true},
+			UpdatedAt: toPgTimestamp(existingUser.UpdatedAt()),
 		},
 	)
+	if err != nil {
+		return fmt.Errorf(
+			"update user status: %w",
+			err,
+		)
+	}
+
+	return nil
 }
 
 // Compile-time assertion.

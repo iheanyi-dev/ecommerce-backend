@@ -305,6 +305,19 @@ func TestListUsersHandler_ServeHTTP(t *testing.T) {
 			service.called,
 			"list users service must not be called without authentication",
 		)
+		assert.Equal(
+			t,
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+
+		expectedBody := `{"error":"authentication required"}` + "\n"
+
+		assert.Equal(
+			t,
+			expectedBody,
+			recorder.Body.String(),
+		)
 	})
 
 	t.Run("rejects unsupported method", func(t *testing.T) {
@@ -336,6 +349,19 @@ func TestListUsersHandler_ServeHTTP(t *testing.T) {
 		assert.False(
 			t,
 			service.called,
+		)
+		assert.Equal(
+			t,
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+
+		expectedBody := `{"error":"method not allowed"}` + "\n"
+
+		assert.Equal(
+			t,
+			expectedBody,
+			recorder.Body.String(),
 		)
 	})
 

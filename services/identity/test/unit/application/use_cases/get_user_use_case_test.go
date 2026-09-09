@@ -3,6 +3,7 @@ package use_cases_test
 import (
 	"context"
 	"errors"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"testing"
 	"time"
 
@@ -303,7 +304,7 @@ func TestGetUserUseCase_Execute_ReturnsUserNotFound(
 		t.Fatal("expected user not found error, got nil")
 	}
 
-	if !errors.Is(err, use_cases.ErrUserNotFound) {
+	if !errors.Is(err, application_errors.ErrUserNotFound) {
 		t.Fatalf(
 			"expected ErrUserNotFound, got %v",
 			err,

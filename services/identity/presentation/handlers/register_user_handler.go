@@ -2,13 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 )
 
@@ -44,26 +42,22 @@ func (h *RegisterUserHandler) ServeHTTP(
 ) {
 	// Registration is only available through POST.
 	if r.Method != http.MethodPost {
-		writeJSONError(
+		presentation_errors.WriteError(
 			w,
-			http.StatusMethodNotAllowed,
-			"method not allowed",
+			presentation_errors.ErrMethodNotAllowed,
 		)
 		return
 	}
-
 	var request schemas.RegisterUserRequest
 
 	// Decode the incoming JSON body into the presentation schema.
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		writeJSONError(
+		presentation_errors.WriteError(
 			w,
-			http.StatusBadRequest,
-			"invalid request body",
+			presentation_errors.ErrInvalidRequestBody,
 		)
 		return
 	}
-
 	// Convert the presentation schema into the application command.
 	command := dto.RegisterUserCommand{
 		FullName: request.FullName,
@@ -77,10 +71,12 @@ func (h *RegisterUserHandler) ServeHTTP(
 		command,
 	)
 	if err != nil {
-		h.handleError(w, err)
+		// Delegate application and domain error translation to the common
+		// presentation error translator so every endpoint uses the same
+		// HTTP status codes and JSON error response format.
+		presentation_errors.WriteError(w, err)
 		return
 	}
-
 	// Convert the application result into the HTTP response schema.
 	response := schemas.NewRegisterUserResponse(result)
 
@@ -89,47 +85,6 @@ func (h *RegisterUserHandler) ServeHTTP(
 		http.StatusCreated,
 		response,
 	)
-}
-
-// handleError maps known application and domain errors into appropriate
-// HTTP responses.
-//
-// The presentation layer decides how application and domain errors are
-// represented over HTTP. The application/domain layers remain unaware
-// of HTTP status codes.
-func (h *RegisterUserHandler) handleError(
-	w http.ResponseWriter,
-	err error,
-) {
-	switch {
-	case errors.Is(err, use_cases.ErrEmailAlreadyExists):
-		writeJSONError(
-			w,
-			http.StatusConflict,
-			"email already exists",
-		)
-
-	case errors.Is(err, user.ErrInvalidEmail):
-		writeJSONError(
-			w,
-			http.StatusBadRequest,
-			"invalid email address",
-		)
-
-	case errors.Is(err, user.ErrInvalidFullName):
-		writeJSONError(
-			w,
-			http.StatusBadRequest,
-			"invalid full name",
-		)
-
-	default:
-		writeJSONError(
-			w,
-			http.StatusInternalServerError,
-			"failed to register user",
-		)
-	}
 }
 
 // writeJSON writes a successful JSON response.

@@ -1,11 +1,10 @@
 package user
 
 import (
-	"errors"
 	"strings"
-)
 
-var ErrInvalidRole = errors.New("invalid user role")
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
+)
 
 // Role represents the account category within the platform.
 type Role string
@@ -24,7 +23,7 @@ func NewRole(value string) (Role, error) {
 	case RoleAdmin, RoleVendor, RoleUser:
 		return role, nil
 	default:
-		return "", ErrInvalidRole
+		return "", domain_errors.ErrInvalidRole
 	}
 }
 

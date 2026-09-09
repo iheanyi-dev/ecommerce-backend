@@ -3,9 +3,11 @@ package use_cases_test
 import (
 	"context"
 	"errors"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"testing"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/policies"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
@@ -242,7 +244,7 @@ func TestRegisterUserUseCase_DoesNotRegisterDuplicateEmail(
 	)
 
 	// Assert
-	if !errors.Is(err, use_cases.ErrEmailAlreadyExists) {
+	if !errors.Is(err, application_errors.ErrEmailAlreadyExists) {
 		t.Fatalf(
 			"expected ErrEmailAlreadyExists, got %v",
 			err,
@@ -523,5 +525,266 @@ func TestRegisterUserUseCase_DoesNotExposePasswordHash(
 			command.Email,
 			result.Email,
 		)
+	}
+}
+
+func TestRegisterUserUseCase_RejectsPasswordShorterThanEightCharacters(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "Abc@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, policies.ErrPasswordTooShort) {
+		t.Fatalf(
+			"expected ErrPasswordTooShort, got %v",
+			err,
+		)
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected password hashing not to occur for an invalid password")
+	}
+
+	if repository.createdUser != nil {
+		t.Fatal("expected invalid user not to be created")
+	}
+}
+
+func TestRegisterUserUseCase_RejectsPasswordLongerThanSixtyFourCharacters(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+	)
+
+	password := "A" +
+		"abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz1234567890@x"
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: password,
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, policies.ErrPasswordTooLong) {
+		t.Fatalf(
+			"expected ErrPasswordTooLong, got %v",
+			err,
+		)
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected password hashing not to occur for an invalid password")
+	}
+
+	if repository.createdUser != nil {
+		t.Fatal("expected invalid user not to be created")
+	}
+}
+
+func TestRegisterUserUseCase_RejectsPasswordMissingUppercase(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "strong@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, policies.ErrPasswordMissingUppercase) {
+		t.Fatalf(
+			"expected ErrPasswordMissingUppercase, got %v",
+			err,
+		)
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected password hashing not to occur for an invalid password")
+	}
+
+	if repository.createdUser != nil {
+		t.Fatal("expected invalid user not to be created")
+	}
+}
+
+func TestRegisterUserUseCase_RejectsPasswordMissingLowercase(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "STRONG@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, policies.ErrPasswordMissingLowercase) {
+		t.Fatalf(
+			"expected ErrPasswordMissingLowercase, got %v",
+			err,
+		)
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected password hashing not to occur for an invalid password")
+	}
+
+	if repository.createdUser != nil {
+		t.Fatal("expected invalid user not to be created")
+	}
+}
+
+func TestRegisterUserUseCase_RejectsPasswordMissingNumber(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPassword@",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, policies.ErrPasswordMissingNumber) {
+		t.Fatalf(
+			"expected ErrPasswordMissingNumber, got %v",
+			err,
+		)
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected password hashing not to occur for an invalid password")
+	}
+
+	if repository.createdUser != nil {
+		t.Fatal("expected invalid user not to be created")
+	}
+}
+
+func TestRegisterUserUseCase_RejectsPasswordMissingSpecialCharacter(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPassword123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, policies.ErrPasswordMissingSpecialCharacter) {
+		t.Fatalf(
+			"expected ErrPasswordMissingSpecialCharacter, got %v",
+			err,
+		)
+	}
+
+	if hasher.hashCalled {
+		t.Fatal("expected password hashing not to occur for an invalid password")
+	}
+
+	if repository.createdUser != nil {
+		t.Fatal("expected invalid user not to be created")
 	}
 }

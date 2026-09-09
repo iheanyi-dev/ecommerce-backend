@@ -264,7 +264,7 @@ func TestLoginUserIntegration(t *testing.T) {
 
 	email := "login-" + uuid.New().String() + "@example.com"
 
-	const password = "SecurePassword123"
+	const password = "SecurePassword123@"
 
 	// ---------------------------------------------------------
 	// Register a real user through the HTTP API
@@ -544,7 +544,7 @@ func TestLoginUserIntegration_InvalidPassword(t *testing.T) {
 
 	email := "wrong-password-" + uuid.New().String() + "@example.com"
 
-	const correctPassword = "SecurePassword123"
+	const correctPassword = "SecurePassword123@"
 
 	registerRequestBody := schemas.RegisterUserRequest{
 		FullName: "Wrong Password User",
@@ -626,7 +626,7 @@ func TestLoginUserIntegration_InvalidPassword(t *testing.T) {
 	// Attempt authentication using an incorrect password.
 	loginRequestBody := schemas.LoginUserRequest{
 		Email:    email,
-		Password: "WrongPassword123",
+		Password: "WrongPassword123@",
 	}
 
 	loginBody, err := json.Marshal(
@@ -743,7 +743,7 @@ func TestLoginUserIntegration_NonExistentUser(t *testing.T) {
 
 	requestBody := schemas.LoginUserRequest{
 		Email:    "non-existent-" + uuid.New().String() + "@example.com",
-		Password: "SecurePassword123",
+		Password: "SecurePassword123@",
 	}
 
 	body, err := json.Marshal(requestBody)

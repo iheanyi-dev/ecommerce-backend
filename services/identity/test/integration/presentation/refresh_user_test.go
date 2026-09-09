@@ -231,7 +231,7 @@ func TestRefreshUserIntegration(t *testing.T) {
 		dto.RegisterUserCommand{
 			FullName: fullName,
 			Email:    email,
-			Password: "SecurePassword123",
+			Password: "SecurePassword123@",
 		},
 	)
 	if err != nil {
@@ -717,7 +717,7 @@ func TestRefreshUserIntegration_ExpiredToken(t *testing.T) {
 		dto.RegisterUserCommand{
 			FullName: "Expired Refresh Integration User",
 			Email:    email,
-			Password: "SecurePassword123",
+			Password: "SecurePassword123@",
 		},
 	)
 	if err != nil {
@@ -874,7 +874,7 @@ func TestRefreshUserIntegration_RevokedToken(t *testing.T) {
 		dto.RegisterUserCommand{
 			FullName: "Revoked Refresh Integration User",
 			Email:    email,
-			Password: "SecurePassword123",
+			Password: "SecurePassword123@",
 		},
 	)
 	if err != nil {
@@ -1049,7 +1049,7 @@ func TestRefreshUserIntegration_InactiveUser(t *testing.T) {
 		dto.RegisterUserCommand{
 			FullName: "Inactive Refresh Integration User",
 			Email:    email,
-			Password: "SecurePassword123",
+			Password: "SecurePassword123@",
 		},
 	)
 	if err != nil {

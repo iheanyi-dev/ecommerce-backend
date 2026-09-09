@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/policies"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
@@ -38,10 +40,11 @@ func NewRegisterUserUseCase(
 //
 //  1. Validate the email through the Email value object.
 //  2. Check whether the email already exists.
-//  3. Hash the supplied password.
-//  4. Validate the full name.
-//  5. Create the User aggregate.
-//  6. Persist the User aggregate through the repository.
+//  3. Validate the plaintext password against the application password policy.
+//  4. Hash the supplied password.
+//  5. Validate the full name.
+//  6. Create the User aggregate.
+//  7. Persist the User aggregate through the repository.
 //
 // A Unit of Work is intentionally not used here because registration
 // currently performs a single aggregate persistence operation. Transaction
@@ -67,7 +70,17 @@ func (uc *RegisterUserUseCase) Execute(
 	}
 
 	if exists {
-		return dto.RegisterUserResult{}, ErrEmailAlreadyExists
+		return dto.RegisterUserResult{}, application_errors.ErrEmailAlreadyExists
+	}
+
+	// Validate the plaintext password before performing the expensive
+	// password-hashing operation.
+	//
+	// The password policy belongs to the application layer. The domain
+	// never receives the plaintext password; it only receives the
+	// resulting PasswordHash value below.
+	if err := policies.ValidatePassword(command.Password); err != nil {
+		return dto.RegisterUserResult{}, err
 	}
 
 	// Password hashing is an application concern rather than a domain

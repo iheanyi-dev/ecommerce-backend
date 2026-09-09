@@ -2,6 +2,7 @@ package security_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -129,3 +130,42 @@ func TestRefreshTokenService_HashRejectsEmptyToken(t *testing.T) {
 	}
 }
 
+func TestRefreshTokenService_Generate_RespectsCancelledContext(t *testing.T) {
+	service := security.NewRefreshTokenService()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	token, err := service.Generate(ctx)
+	if err == nil {
+		t.Fatal("expected context cancellation error, got nil")
+	}
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+
+	if token != "" {
+		t.Fatalf("expected empty token on context cancellation, got %q", token)
+	}
+}
+
+func TestRefreshTokenService_Hash_RespectsCancelledContext(t *testing.T) {
+	service := security.NewRefreshTokenService()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	hash, err := service.Hash(ctx, "valid-refresh-token")
+	if err == nil {
+		t.Fatal("expected context cancellation error, got nil")
+	}
+
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+
+	if hash != "" {
+		t.Fatalf("expected empty hash on context cancellation, got %q", hash)
+	}
+}

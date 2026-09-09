@@ -1,21 +1,9 @@
 package user
 
 import (
-	"errors"
 	"time"
-)
 
-var (
-	// ErrUserAlreadyVendor indicates that the user already has vendor privileges.
-	ErrUserAlreadyVendor = errors.New("user is already a vendor")
-
-	// ErrInvalidVendorPromotion indicates that the user's current role
-	// cannot be promoted to vendor.
-	ErrInvalidVendorPromotion = errors.New("user cannot be promoted to vendor")
-
-	// ErrInvalidStatusTransition indicates that the requested account
-	// status transition is not allowed by the domain.
-	ErrInvalidStatusTransition = errors.New("invalid user status transition")
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
 )
 
 // User is the aggregate root for user identity within the Identity service.
@@ -169,11 +157,11 @@ func (u *User) ChangePassword(passwordHash PasswordHash) {
 // administrative privileges.
 func (u *User) PromoteToVendor() error {
 	if u.role == RoleVendor {
-		return ErrUserAlreadyVendor
+		return domain_errors.ErrUserAlreadyVendor
 	}
 
 	if u.role != RoleUser {
-		return ErrInvalidVendorPromotion
+		return domain_errors.ErrInvalidVendorPromotion
 	}
 
 	u.role = RoleVendor
@@ -195,14 +183,14 @@ func (u *User) Activate() error {
 		return nil
 
 	default:
-		return ErrInvalidStatusTransition
+		return domain_errors.ErrInvalidStatusTransition
 	}
 }
 
 // Suspend places an active account into the suspended state.
 func (u *User) Suspend() error {
 	if u.status != StatusActive {
-		return ErrInvalidStatusTransition
+		return domain_errors.ErrInvalidStatusTransition
 	}
 
 	u.status = StatusSuspended
@@ -214,7 +202,7 @@ func (u *User) Suspend() error {
 // Deactivate places an active account into the inactive state.
 func (u *User) Deactivate() error {
 	if u.status != StatusActive {
-		return ErrInvalidStatusTransition
+		return domain_errors.ErrInvalidStatusTransition
 	}
 
 	u.status = StatusInactive

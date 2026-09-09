@@ -1,6 +1,7 @@
 package use_cases_test
 
 import (
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"context"
 	"errors"
 	"testing"
@@ -440,7 +441,7 @@ func TestAuthenticateUser_UserNotFound(t *testing.T) {
 		command,
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidCredentials) {
+	if !errors.Is(err, application_errors.ErrInvalidCredentials) {
 		t.Fatalf(
 			"expected ErrInvalidCredentials, got %v",
 			err,
@@ -500,7 +501,7 @@ func TestAuthenticateUser_InvalidPassword(t *testing.T) {
 		command,
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidCredentials) {
+	if !errors.Is(err, application_errors.ErrInvalidCredentials) {
 		t.Fatalf(
 			"expected ErrInvalidCredentials, got %v",
 			err,
@@ -560,7 +561,7 @@ func TestAuthenticateUser_InactiveAccount(t *testing.T) {
 		command,
 	)
 
-	if !errors.Is(err, use_cases.ErrAccountNotActive) {
+	if !errors.Is(err, application_errors.ErrAccountNotActive) {
 		t.Fatalf(
 			"expected ErrAccountNotActive, got %v",
 			err,
@@ -616,7 +617,7 @@ func TestAuthenticateUser_PendingVerification(t *testing.T) {
 		command,
 	)
 
-	if !errors.Is(err, use_cases.ErrAccountNotActive) {
+	if !errors.Is(err, application_errors.ErrAccountNotActive) {
 		t.Fatalf(
 			"expected ErrAccountNotActive, got %v",
 			err,
@@ -676,7 +677,7 @@ func TestAuthenticateUser_SuspendedAccount(t *testing.T) {
 		command,
 	)
 
-	if !errors.Is(err, use_cases.ErrAccountNotActive) {
+	if !errors.Is(err, application_errors.ErrAccountNotActive) {
 		t.Fatalf(
 			"expected ErrAccountNotActive, got %v",
 			err,
@@ -728,7 +729,7 @@ func TestAuthenticateUser_InvalidEmail(t *testing.T) {
 		command,
 	)
 
-	if !errors.Is(err, use_cases.ErrInvalidCredentials) {
+	if !errors.Is(err, application_errors.ErrInvalidCredentials) {
 		t.Fatalf(
 			"expected ErrInvalidCredentials, got %v",
 			err,
@@ -793,7 +794,7 @@ func TestAuthenticateUser_TokenGenerationFailure(t *testing.T) {
 		command,
 	)
 
-	if !errors.Is(err, use_cases.ErrTokenGeneration) {
+	if !errors.Is(err, application_errors.ErrTokenGeneration) {
 		t.Fatalf(
 			"expected ErrTokenGeneration, got %v",
 			err,

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 )
 
@@ -39,28 +40,28 @@ func (u *LogoutUserUseCase) Logout(
 ) error {
 	// A blank token cannot identify a valid session.
 	if strings.TrimSpace(refreshToken) == "" {
-		return ErrInvalidRefreshToken
+		return application_errors.ErrInvalidRefreshToken
 	}
 
 	// Refresh tokens are stored as hashes, never as raw tokens.
 	tokenHash, err := u.refreshTokenService.Hash(ctx, refreshToken)
 	if err != nil {
-		return ErrRefreshTokenHashing
+		return application_errors.ErrRefreshTokenHashing
 	}
 
 	// Locate the exact refresh-token session represented by this token.
 	record, err := u.refreshTokenRepository.FindByTokenHash(ctx, tokenHash)
 	if err != nil {
-		return ErrInvalidRefreshToken
+		return application_errors.ErrInvalidRefreshToken
 	}
 
 	if record == nil {
-		return ErrInvalidRefreshToken
+		return application_errors.ErrInvalidRefreshToken
 	}
 
 	// An already-revoked token cannot be used to perform another logout.
 	if record.RevokedAt != nil {
-		return ErrInvalidRefreshToken
+		return application_errors.ErrInvalidRefreshToken
 	}
 
 	// Revoke only this refresh-token session.
@@ -69,7 +70,7 @@ func (u *LogoutUserUseCase) Logout(
 		record.ID,
 		time.Now(),
 	); err != nil {
-		return ErrRefreshTokenRevocation
+		return application_errors.ErrRefreshTokenRevocation
 	}
 
 	return nil

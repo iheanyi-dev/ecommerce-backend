@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
 )
 
@@ -110,9 +110,10 @@ func TestRegisterUserHandler_Success(t *testing.T) {
 
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf(
-			"expected status %d, got %d",
+			"expected status %d, got %d, body: %s",
 			http.StatusCreated,
 			recorder.Code,
+			recorder.Body.String(),
 		)
 	}
 
@@ -220,6 +221,22 @@ func TestRegisterUserHandler_InvalidJSON(t *testing.T) {
 			recorder.Code,
 		)
 	}
+
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf(
+			"expected Content-Type %q, got %q",
+			"application/json",
+			contentType,
+		)
+	}
+
+	if body := recorder.Body.String(); body != `{"error":"invalid request body"}`+"\n" {
+		t.Errorf(
+			"expected body %q, got %q",
+			`{"error":"invalid request body"}`+"\n",
+			body,
+		)
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -259,6 +276,22 @@ func TestRegisterUserHandler_MethodNotAllowed(t *testing.T) {
 			recorder.Code,
 		)
 	}
+
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf(
+			"expected Content-Type %q, got %q",
+			"application/json",
+			contentType,
+		)
+	}
+
+	if body := recorder.Body.String(); body != `{"error":"method not allowed"}`+"\n" {
+		t.Errorf(
+			"expected body %q, got %q",
+			`{"error":"method not allowed"}`+"\n",
+			body,
+		)
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -271,7 +304,7 @@ func TestRegisterUserHandler_EmailAlreadyExists(t *testing.T) {
 			ctx context.Context,
 			command dto.RegisterUserCommand,
 		) (dto.RegisterUserResult, error) {
-			return dto.RegisterUserResult{}, use_cases.ErrEmailAlreadyExists
+			return dto.RegisterUserResult{}, application_errors.ErrEmailAlreadyExists
 		},
 	}
 
@@ -300,9 +333,26 @@ func TestRegisterUserHandler_EmailAlreadyExists(t *testing.T) {
 
 	if recorder.Code != http.StatusConflict {
 		t.Fatalf(
-			"expected status %d, got %d",
+			"expected status %d, got %d, body: %s",
 			http.StatusConflict,
 			recorder.Code,
+			recorder.Body.String(),
+		)
+	}
+
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf(
+			"expected Content-Type %q, got %q",
+			"application/json",
+			contentType,
+		)
+	}
+
+	if body := recorder.Body.String(); body != `{"error":"email already exists"}`+"\n" {
+		t.Errorf(
+			"expected body %q, got %q",
+			`{"error":"email already exists"}`+"\n",
+			body,
 		)
 	}
 }
@@ -317,7 +367,7 @@ func TestRegisterUserHandler_InvalidEmail(t *testing.T) {
 			ctx context.Context,
 			command dto.RegisterUserCommand,
 		) (dto.RegisterUserResult, error) {
-			return dto.RegisterUserResult{}, user.ErrInvalidEmail
+			return dto.RegisterUserResult{}, domain_errors.ErrInvalidEmail
 		},
 	}
 
@@ -352,6 +402,22 @@ func TestRegisterUserHandler_InvalidEmail(t *testing.T) {
 			recorder.Body.String(),
 		)
 	}
+
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf(
+			"expected Content-Type %q, got %q",
+			"application/json",
+			contentType,
+		)
+	}
+
+	if body := recorder.Body.String(); body != `{"error":"invalid request"}`+"\n" {
+		t.Errorf(
+			"expected body %q, got %q",
+			`{"error":"invalid request"}`+"\n",
+			body,
+		)
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -364,7 +430,7 @@ func TestRegisterUserHandler_InvalidFullName(t *testing.T) {
 			ctx context.Context,
 			command dto.RegisterUserCommand,
 		) (dto.RegisterUserResult, error) {
-			return dto.RegisterUserResult{}, user.ErrInvalidFullName
+			return dto.RegisterUserResult{}, domain_errors.ErrInvalidFullName
 		},
 	}
 
@@ -397,6 +463,22 @@ func TestRegisterUserHandler_InvalidFullName(t *testing.T) {
 			http.StatusBadRequest,
 			recorder.Code,
 			recorder.Body.String(),
+		)
+	}
+
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf(
+			"expected Content-Type %q, got %q",
+			"application/json",
+			contentType,
+		)
+	}
+
+	if body := recorder.Body.String(); body != `{"error":"invalid request"}`+"\n" {
+		t.Errorf(
+			"expected body %q, got %q",
+			`{"error":"invalid request"}`+"\n",
+			body,
 		)
 	}
 }
@@ -442,9 +524,26 @@ func TestRegisterUserHandler_InternalError(t *testing.T) {
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf(
-			"expected status %d, got %d",
+			"expected status %d, got %d, body: %s",
 			http.StatusInternalServerError,
 			recorder.Code,
+			recorder.Body.String(),
+		)
+	}
+
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf(
+			"expected Content-Type %q, got %q",
+			"application/json",
+			contentType,
+		)
+	}
+
+	if body := recorder.Body.String(); body != `{"error":"internal server error"}`+"\n" {
+		t.Errorf(
+			"expected body %q, got %q",
+			`{"error":"internal server error"}`+"\n",
+			body,
 		)
 	}
 }

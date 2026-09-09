@@ -133,6 +133,23 @@ func TestUpdateUserStatusHandler_RejectsInvalidJSON(t *testing.T) {
 			response.Code,
 		)
 	}
+	if response.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf(
+			"expected content type %q, got %q",
+			"application/json",
+			response.Header().Get("Content-Type"),
+		)
+	}
+
+	expectedBody := `{"error":"invalid request body"}` + "\n"
+
+	if response.Body.String() != expectedBody {
+		t.Fatalf(
+			"expected body %q, got %q",
+			expectedBody,
+			response.Body.String(),
+		)
+	}
 
 	if service.called {
 		t.Fatal("expected service not to be called")
@@ -158,6 +175,23 @@ func TestUpdateUserStatusHandler_RejectsUnsupportedMethod(t *testing.T) {
 		t.Fatalf("expected status %d, got %d",
 			http.StatusMethodNotAllowed,
 			response.Code,
+		)
+	}
+	if response.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf(
+			"expected content type %q, got %q",
+			"application/json",
+			response.Header().Get("Content-Type"),
+		)
+	}
+
+	expectedBody := `{"error":"method not allowed"}` + "\n"
+
+	if response.Body.String() != expectedBody {
+		t.Fatalf(
+			"expected body %q, got %q",
+			expectedBody,
+			response.Body.String(),
 		)
 	}
 
@@ -189,5 +223,50 @@ func TestUpdateUserStatusHandler_ServiceError(t *testing.T) {
 			http.StatusInternalServerError,
 			response.Code,
 		)
+	}
+}
+
+func TestUpdateUserStatusHandler_RejectsMissingUserID(t *testing.T) {
+	service := &mockUpdateUserStatusService{}
+	handler := handlers.NewUpdateUserStatusHandler(service)
+
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/admin/users//status",
+		strings.NewReader(`{"status":"suspended"}`),
+	)
+
+	// Deliberately do not set the "id" path value.
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d",
+			http.StatusBadRequest,
+			response.Code,
+		)
+	}
+
+	if response.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf(
+			"expected content type %q, got %q",
+			"application/json",
+			response.Header().Get("Content-Type"),
+		)
+	}
+
+	expectedBody := `{"error":"user id is required"}` + "\n"
+
+	if response.Body.String() != expectedBody {
+		t.Fatalf(
+			"expected body %q, got %q",
+			expectedBody,
+			response.Body.String(),
+		)
+	}
+
+	if service.called {
+		t.Fatal("expected service not to be called")
 	}
 }

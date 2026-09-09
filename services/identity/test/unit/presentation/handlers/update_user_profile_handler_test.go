@@ -4,16 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 // fakeUpdateUserProfileService is a test double for the application port.
@@ -158,6 +159,18 @@ func TestUpdateUserProfileHandler_ServeHTTP(t *testing.T) {
 			recorder.Code,
 		)
 
+		assert.Equal(
+			t,
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+
+		assert.Equal(
+			t,
+			"{\"error\":\"authentication required\"}\n",
+			recorder.Body.String(),
+		)
+
 		assert.False(
 			t,
 			service.called,
@@ -186,6 +199,18 @@ func TestUpdateUserProfileHandler_ServeHTTP(t *testing.T) {
 			t,
 			http.StatusMethodNotAllowed,
 			recorder.Code,
+		)
+
+		assert.Equal(
+			t,
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+
+		assert.Equal(
+			t,
+			"{\"error\":\"method not allowed\"}\n",
+			recorder.Body.String(),
 		)
 
 		assert.False(
@@ -225,6 +250,18 @@ func TestUpdateUserProfileHandler_ServeHTTP(t *testing.T) {
 			t,
 			http.StatusBadRequest,
 			recorder.Code,
+		)
+
+		assert.Equal(
+			t,
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+
+		assert.Equal(
+			t,
+			"{\"error\":\"invalid request body\"}\n",
+			recorder.Body.String(),
 		)
 
 		assert.False(
@@ -302,7 +339,7 @@ func TestUpdateUserProfileHandler_ServeHTTP(t *testing.T) {
 
 	t.Run("maps user not found to not found", func(t *testing.T) {
 		service := &fakeUpdateUserProfileService{
-			err: use_cases.ErrUserNotFound,
+			err: application_errors.ErrUserNotFound,
 		}
 
 		handler := handlers.NewUpdateUserProfileHandler(service)

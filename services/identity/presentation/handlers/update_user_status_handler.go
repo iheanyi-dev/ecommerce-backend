@@ -6,6 +6,7 @@ import (
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 )
 
@@ -33,20 +34,28 @@ func (h *UpdateUserStatusHandler) ServeHTTP(
 	r *http.Request,
 ) {
 	if r.Method != http.MethodPatch {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		presentation_errors.WriteError(
+			w,
+			presentation_errors.ErrMethodNotAllowed,
+		)
 		return
 	}
 
 	userID := r.PathValue("id")
 	if userID == "" {
-		http.Error(w, "user id is required", http.StatusBadRequest)
+		presentation_errors.WriteError(
+			w,
+			presentation_errors.ErrUserIDRequired,
+		)
 		return
 	}
-
 	var request schemas.UpdateUserStatusRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		presentation_errors.WriteError(
+			w,
+			presentation_errors.ErrInvalidRequestBody,
+		)
 		return
 	}
 
@@ -59,7 +68,10 @@ func (h *UpdateUserStatusHandler) ServeHTTP(
 		command,
 	)
 	if err != nil {
-		http.Error(w, "failed to update user status", http.StatusInternalServerError)
+		// Delegate application and domain error translation to the common
+		// presentation error translator so every endpoint uses the same
+		// HTTP status codes and JSON error response format.
+		presentation_errors.WriteError(w, err)
 		return
 	}
 

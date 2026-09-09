@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 )
@@ -176,6 +176,22 @@ func TestRefreshUserHandler_InvalidJSON(t *testing.T) {
 		)
 	}
 
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf(
+			"expected Content-Type %q, got %q",
+			"application/json",
+			contentType,
+		)
+	}
+
+	if body := recorder.Body.String(); body != `{"error":"invalid request body"}`+"\n" {
+		t.Errorf(
+			"expected body %q, got %q",
+			`{"error":"invalid request body"}`+"\n",
+			body,
+		)
+	}
+
 	if service.called {
 		t.Fatal(
 			"application service should not be called for invalid JSON",
@@ -220,6 +236,28 @@ func TestRefreshUserHandler_MethodNotAllowed(t *testing.T) {
 			recorder.Code,
 		)
 	}
+
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf(
+			"expected Content-Type %q, got %q",
+			"application/json",
+			contentType,
+		)
+	}
+
+	if body := recorder.Body.String(); body != `{"error":"method not allowed"}`+"\n" {
+		t.Errorf(
+			"expected body %q, got %q",
+			`{"error":"method not allowed"}`+"\n",
+			body,
+		)
+	}
+
+	if service.called {
+		t.Fatal(
+			"application service should not be called for invalid HTTP method",
+		)
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -232,7 +270,7 @@ func TestRefreshUserHandler_InvalidRefreshToken(t *testing.T) {
 			ctx context.Context,
 			command dto.RefreshTokenCommand,
 		) (dto.RefreshTokenResult, error) {
-			return dto.RefreshTokenResult{}, use_cases.ErrInvalidRefreshToken
+			return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 		},
 	}
 
@@ -277,7 +315,7 @@ func TestRefreshUserHandler_RotationFailure(t *testing.T) {
 			ctx context.Context,
 			command dto.RefreshTokenCommand,
 		) (dto.RefreshTokenResult, error) {
-			return dto.RefreshTokenResult{}, use_cases.ErrRefreshTokenPersistence
+			return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenPersistence
 		},
 	}
 

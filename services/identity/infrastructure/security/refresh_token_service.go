@@ -28,9 +28,14 @@ func NewRefreshTokenService() *RefreshTokenService {
 // 32 random bytes provide 256 bits of entropy. The token is encoded using
 // unpadded URL-safe Base64 so it can safely travel through JSON, HTTP headers,
 // cookies, and other transport mechanisms.
+// The context is checked before generating randomness so a cancelled
+// request does not perform unnecessary work.
 func (s *RefreshTokenService) Generate(
-	_ context.Context,
+	ctx context.Context,
 ) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	const tokenSize = 32
 
 	randomBytes := make([]byte, tokenSize)
@@ -51,9 +56,12 @@ func (s *RefreshTokenService) Generate(
 //
 // The raw refresh token must never be persisted.
 func (s *RefreshTokenService) Hash(
-	_ context.Context,
+	ctx context.Context,
 	token string,
 ) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	if token == "" {
 		return "", fmt.Errorf("refresh token cannot be empty")
 	}

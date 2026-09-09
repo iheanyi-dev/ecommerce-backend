@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
 )
 
@@ -132,6 +132,21 @@ func TestLogoutUserHandler_ServeHTTP_RejectsNonPostMethod(t *testing.T) {
 			recorder.Code,
 		)
 	}
+	if recorder.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf(
+			"expected content type %q, got %q",
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+	}
+
+	if recorder.Body.String() != "{\"error\":\"method not allowed\"}\n" {
+		t.Fatalf(
+			"expected body %q, got %q",
+			"{\"error\":\"method not allowed\"}\n",
+			recorder.Body.String(),
+		)
+	}
 
 	if service.logoutCalled {
 		t.Fatal("expected Logout not to be called")
@@ -173,6 +188,21 @@ func TestLogoutUserHandler_ServeHTTP_RejectsInvalidJSON(t *testing.T) {
 			recorder.Code,
 		)
 	}
+	if recorder.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf(
+			"expected content type %q, got %q",
+			"application/json",
+			recorder.Header().Get("Content-Type"),
+		)
+	}
+
+	if recorder.Body.String() != "{\"error\":\"invalid request body\"}\n" {
+		t.Fatalf(
+			"expected body %q, got %q",
+			"{\"error\":\"invalid request body\"}\n",
+			recorder.Body.String(),
+		)
+	}
 
 	if service.logoutCalled {
 		t.Fatal("expected Logout not to be called")
@@ -189,7 +219,7 @@ func TestLogoutUserHandler_ServeHTTP_ReturnsUnauthorizedForInvalidToken(
 	// -------------------------------------------------------------------------
 
 	service := &mockLogoutUserService{
-		err: use_cases.ErrInvalidRefreshToken,
+		err: application_errors.ErrInvalidRefreshToken,
 	}
 
 	handler := handlers.NewLogoutUserHandler(service)
@@ -235,7 +265,7 @@ func TestLogoutUserHandler_ServeHTTP_ReturnsInternalServerErrorForHashingFailure
 	// -------------------------------------------------------------------------
 
 	service := &mockLogoutUserService{
-		err: use_cases.ErrRefreshTokenHashing,
+		err: application_errors.ErrRefreshTokenHashing,
 	}
 
 	handler := handlers.NewLogoutUserHandler(service)
@@ -277,7 +307,7 @@ func TestLogoutUserHandler_ServeHTTP_ReturnsInternalServerErrorForRevocationFail
 	// -------------------------------------------------------------------------
 
 	service := &mockLogoutUserService{
-		err: use_cases.ErrRefreshTokenRevocation,
+		err: application_errors.ErrRefreshTokenRevocation,
 	}
 
 	handler := handlers.NewLogoutUserHandler(service)

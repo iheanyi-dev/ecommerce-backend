@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
@@ -22,6 +22,8 @@ type JWTTokenService struct {
 	config TokenConfig
 }
 
+const minJWTSecretLength = 32
+
 // NewJWTTokenService creates a JWT token service.
 //
 // The signing secret must never be empty because issuing unsigned or
@@ -33,6 +35,9 @@ func NewJWTTokenService(config TokenConfig) (*JWTTokenService, error) {
 
 	if strings.TrimSpace(config.Issuer) == "" {
 		return nil, errors.New("JWT issuer cannot be empty")
+	}
+	if len(config.Secret) < minJWTSecretLength {
+		return nil, errors.New("JWT signing secret must be at least 32 characters")
 	}
 
 	if config.AccessTokenTTL <= 0 {
@@ -106,9 +111,8 @@ func (s *JWTTokenService) ValidateAccessToken(
 	}
 
 	if strings.TrimSpace(tokenString) == "" {
-		return ports.AuthenticatedIdentity{}, errors.New(
-			"access token is empty",
-		)
+		// Treat an empty access token as an invalid authentication credential.
+		return ports.AuthenticatedIdentity{}, application_errors.ErrInvalidAccessToken
 	}
 
 	token, err := jwt.Parse(
@@ -130,16 +134,19 @@ func (s *JWTTokenService) ValidateAccessToken(
 		jwt.WithIssuer(s.config.Issuer),
 	)
 	if err != nil {
+		// Expose a stable application-level error to callers while preserving
+		// the underlying JWT error for infrastructure-level diagnostics.
 		return ports.AuthenticatedIdentity{}, fmt.Errorf(
-			"invalid access token: %w",
+			"%w: %v",
+			application_errors.ErrInvalidAccessToken,
 			err,
 		)
 	}
 
 	if !token.Valid {
-		return ports.AuthenticatedIdentity{}, errors.New(
-			"access token is invalid",
-		)
+		// Return the centralized application error so the presentation layer
+		// can consistently translate invalid tokens into HTTP 401 responses.
+		return ports.AuthenticatedIdentity{}, application_errors.ErrInvalidAccessToken
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
@@ -152,17 +159,17 @@ func (s *JWTTokenService) ValidateAccessToken(
 	// The subject identifies the authenticated user.
 	subject, ok := claims["sub"].(string)
 	if !ok || strings.TrimSpace(subject) == "" {
-		return ports.AuthenticatedIdentity{}, errors.New(
-			"access token subject is missing",
-		)
+		// A token without a valid subject cannot establish an authenticated
+		// user identity.
+		return ports.AuthenticatedIdentity{}, application_errors.ErrInvalidAccessToken
 	}
 
 	// The role is required by the authorization layer.
 	role, ok := claims["role"].(string)
 	if !ok || strings.TrimSpace(role) == "" {
-		return ports.AuthenticatedIdentity{}, errors.New(
-			"access token role is missing",
-		)
+		// A token without a valid role cannot safely participate in
+		// authorization decisions.
+		return ports.AuthenticatedIdentity{}, application_errors.ErrInvalidAccessToken
 	}
 
 	return ports.AuthenticatedIdentity{
@@ -170,7 +177,6 @@ func (s *JWTTokenService) ValidateAccessToken(
 		Role:   role,
 	}, nil
 }
-
 
 // Compile-time assertion.
 //

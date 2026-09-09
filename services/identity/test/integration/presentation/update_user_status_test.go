@@ -96,7 +96,7 @@ func TestUpdateUserStatusIntegration(t *testing.T) {
 		dto.RegisterUserCommand{
 			FullName: "Status Integration User",
 			Email:    email,
-			Password: "SecurePassword123",
+			Password: "SecurePassword123@",
 		},
 	)
 	if err != nil {

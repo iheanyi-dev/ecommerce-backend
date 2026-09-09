@@ -1,12 +1,11 @@
 package user
 
 import (
-	"errors"
 	"strings"
 	"unicode/utf8"
-)
 
-var ErrInvalidFullName = errors.New("invalid full name")
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
+)
 
 const maxFullNameLength = 150
 
@@ -23,7 +22,7 @@ func NewFullName(value string) (FullName, error) {
 	value = strings.TrimSpace(value)
 
 	if value == "" || utf8.RuneCountInString(value) > maxFullNameLength {
-		return FullName{}, ErrInvalidFullName
+		return FullName{}, domain_errors.ErrInvalidFullName
 	}
 
 	return FullName{value: value}, nil

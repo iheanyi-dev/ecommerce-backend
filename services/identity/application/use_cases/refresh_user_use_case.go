@@ -4,8 +4,11 @@ import (
 	"context"
 	"strings"
 	"time"
+
 	"github.com/google/uuid"
+
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
@@ -26,15 +29,13 @@ import (
 //	    ↓
 //	Validate current account status
 //	    ↓
-//	Revoke old refresh token
-//	    ↓
 //	Generate new refresh token
 //	    ↓
 //	Hash new refresh token
 //	    ↓
-//	Persist new refresh-token session
-//	    ↓
 //	Generate new access token
+//	    ↓
+//	Revoke old refresh token and persist replacement
 //	    ↓
 //	Return both tokens
 //
@@ -72,7 +73,7 @@ func (u *RefreshUserUseCase) Refresh(
 	command dto.RefreshTokenCommand,
 ) (dto.RefreshTokenResult, error) {
 	if strings.TrimSpace(command.RefreshToken) == "" {
-		return dto.RefreshTokenResult{}, ErrInvalidRefreshToken
+		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	// -------------------------------------------------------------------------
@@ -87,7 +88,7 @@ func (u *RefreshUserUseCase) Refresh(
 		command.RefreshToken,
 	)
 	if err != nil {
-		return dto.RefreshTokenResult{}, ErrRefreshTokenHashing
+		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenHashing
 	}
 
 	// -------------------------------------------------------------------------
@@ -99,11 +100,11 @@ func (u *RefreshUserUseCase) Refresh(
 		tokenHash,
 	)
 	if err != nil {
-		return dto.RefreshTokenResult{}, ErrInvalidRefreshToken
+		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	if record == nil {
-		return dto.RefreshTokenResult{}, ErrInvalidRefreshToken
+		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	// -------------------------------------------------------------------------
@@ -111,11 +112,11 @@ func (u *RefreshUserUseCase) Refresh(
 	// -------------------------------------------------------------------------
 
 	if record.RevokedAt != nil {
-		return dto.RefreshTokenResult{}, ErrInvalidRefreshToken
+		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	if !record.ExpiresAt.After(time.Now()) {
-		return dto.RefreshTokenResult{}, ErrInvalidRefreshToken
+		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	// -------------------------------------------------------------------------
@@ -124,7 +125,7 @@ func (u *RefreshUserUseCase) Refresh(
 
 	userID, err := user.UserIDFromString(record.UserID)
 	if err != nil {
-		return dto.RefreshTokenResult{}, ErrInvalidRefreshToken
+		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	// -------------------------------------------------------------------------
@@ -140,15 +141,15 @@ func (u *RefreshUserUseCase) Refresh(
 		userID,
 	)
 	if err != nil {
-		return dto.RefreshTokenResult{}, ErrInvalidRefreshToken
+		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	if currentUser == nil {
-		return dto.RefreshTokenResult{}, ErrInvalidRefreshToken
+		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	if currentUser.Status() != user.StatusActive {
-		return dto.RefreshTokenResult{}, ErrInvalidRefreshToken
+		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	// -------------------------------------------------------------------------
@@ -159,11 +160,11 @@ func (u *RefreshUserUseCase) Refresh(
 
 	newRefreshToken, err := u.refreshTokenService.Generate(ctx)
 	if err != nil {
-		return dto.RefreshTokenResult{}, ErrRefreshTokenGeneration
+		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenGeneration
 	}
 
 	if strings.TrimSpace(newRefreshToken) == "" {
-		return dto.RefreshTokenResult{}, ErrRefreshTokenGeneration
+		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenGeneration
 	}
 
 	// -------------------------------------------------------------------------
@@ -177,7 +178,7 @@ func (u *RefreshUserUseCase) Refresh(
 		newRefreshToken,
 	)
 	if err != nil {
-		return dto.RefreshTokenResult{}, ErrRefreshTokenHashing
+		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenHashing
 	}
 
 	// -------------------------------------------------------------------------
@@ -193,36 +194,35 @@ func (u *RefreshUserUseCase) Refresh(
 		currentUser.Role(),
 	)
 	if err != nil {
-		return dto.RefreshTokenResult{}, ErrTokenGeneration
+		return dto.RefreshTokenResult{}, application_errors.ErrTokenGeneration
 	}
 
 	now := time.Now()
 
 	// -------------------------------------------------------------------------
-	// 9. Revoke the old refresh-token session.
+	// 9. Revoke the old refresh-token session and persist the replacement.
 	//
-	// NOTE:
-	// Revoke and Create are currently separate repository operations. The
-	// infrastructure layer must eventually make this rotation atomic.
+	// The repository's Rotate operation is responsible for performing this
+	// lifecycle transition.
 	// -------------------------------------------------------------------------
 
 	newRecord := ports.RefreshTokenRecord{
-	ID:        uuid.NewString(),
-	UserID:    currentUser.ID().String(),
-	TokenHash: newRefreshTokenHash,
-	ExpiresAt: now.Add(30 * 24 * time.Hour),
-	RevokedAt: nil,
-	CreatedAt: now,
-}
+		ID:        uuid.NewString(),
+		UserID:    currentUser.ID().String(),
+		TokenHash: newRefreshTokenHash,
+		ExpiresAt: now.Add(30 * 24 * time.Hour),
+		RevokedAt: nil,
+		CreatedAt: now,
+	}
 
-if err := u.refreshTokenRepository.Rotate(
-	ctx,
-	record.ID,
-	now,
-	newRecord,
-); err != nil {
-	return dto.RefreshTokenResult{}, ErrRefreshTokenPersistence
-}
+	if err := u.refreshTokenRepository.Rotate(
+		ctx,
+		record.ID,
+		now,
+		newRecord,
+	); err != nil {
+		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenPersistence
+	}
 
 	return dto.RefreshTokenResult{
 		AccessToken:  accessToken,

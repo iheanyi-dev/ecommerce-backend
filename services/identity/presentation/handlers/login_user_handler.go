@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
+
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	presentation_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/schemas"
 )
 
@@ -54,10 +54,9 @@ func (h *LoginUserHandler) ServeHTTP(
 	// Authentication is performed using POST because credentials are
 	// supplied in the request body.
 	if r.Method != http.MethodPost {
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"method not allowed",
-			http.StatusMethodNotAllowed,
+			presentation_errors.ErrMethodNotAllowed,
 		)
 		return
 	}
@@ -66,10 +65,9 @@ func (h *LoginUserHandler) ServeHTTP(
 	var request schemas.LoginUserRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		http.Error(
+		presentation_errors.WriteError(
 			w,
-			"invalid request body",
-			http.StatusBadRequest,
+			presentation_errors.ErrInvalidRequestBody,
 		)
 		return
 	}
@@ -90,48 +88,12 @@ func (h *LoginUserHandler) ServeHTTP(
 	)
 
 	if err != nil {
-		// Authentication failures intentionally use generic responses.
+		// Delegate application and domain error translation to the common
+		// presentation error translator.
 		//
-		// We must not reveal whether an email exists or whether the
-		// password was incorrect.
-		if errors.Is(err, use_cases.ErrInvalidCredentials) {
-			http.Error(
-				w,
-				"invalid credentials",
-				http.StatusUnauthorized,
-			)
-			return
-		}
-
-		// Inactive accounts are authenticated users whose account status
-		// does not permit login.
-		if errors.Is(err, use_cases.ErrAccountNotActive) {
-			http.Error(
-				w,
-				"account is not active",
-				http.StatusUnauthorized,
-			)
-			return
-		}
-
-		// Token generation failure is an internal authentication failure.
-		// Do not expose JWT/infrastructure details to the client.
-		if errors.Is(err, use_cases.ErrTokenGeneration) {
-			http.Error(
-				w,
-				"failed to authenticate user",
-				http.StatusInternalServerError,
-			)
-			return
-		}
-
-		// Any unexpected application/infrastructure failure is also
-		// represented as an internal server error.
-		http.Error(
-			w,
-			"failed to authenticate user",
-			http.StatusInternalServerError,
-		)
+		// This keeps HTTP error mapping in one place and prevents individual
+		// handlers from developing different error-response conventions.
+		presentation_errors.WriteError(w, err)
 		return
 	}
 

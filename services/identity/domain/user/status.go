@@ -1,11 +1,10 @@
 package user
 
 import (
-	"errors"
 	"strings"
-)
 
-var ErrInvalidStatus = errors.New("invalid user status")
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
+)
 
 // Status represents the lifecycle state of a user account.
 type Status string
@@ -28,7 +27,7 @@ func NewStatus(value string) (Status, error) {
 		StatusInactive:
 		return status, nil
 	default:
-		return "", ErrInvalidStatus
+		return "", domain_errors.ErrInvalidStatus
 	}
 }
 

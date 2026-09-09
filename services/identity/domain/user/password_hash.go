@@ -1,11 +1,10 @@
 package user
 
 import (
-	"errors"
 	"strings"
-)
 
-var ErrInvalidPasswordHash = errors.New("invalid password hash")
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
+)
 
 // PasswordHash represents a password after it has been securely hashed.
 //
@@ -22,7 +21,7 @@ func NewPasswordHash(value string) (PasswordHash, error) {
 	value = strings.TrimSpace(value)
 
 	if value == "" {
-		return PasswordHash{}, ErrInvalidPasswordHash
+		return PasswordHash{}, domain_errors.ErrInvalidPasswordHash
 	}
 
 	return PasswordHash{value: value}, nil

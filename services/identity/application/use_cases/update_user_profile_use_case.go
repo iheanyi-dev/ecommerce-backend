@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
@@ -57,7 +58,7 @@ func (uc *UpdateUserProfileUseCase) Execute(
 	}
 
 	if existingUser == nil {
-		return dto.UpdateUserProfileResult{}, ErrUserNotFound
+		return dto.UpdateUserProfileResult{}, application_errors.ErrUserNotFound
 	}
 
 	// Apply the domain behaviour rather than directly changing persistence
