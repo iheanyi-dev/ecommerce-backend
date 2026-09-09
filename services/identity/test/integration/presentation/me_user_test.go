@@ -2,12 +2,12 @@ package presentation_test
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
@@ -128,7 +128,7 @@ func TestMeEndpoint_MissingToken(t *testing.T) {
 // rejected before the protected handler executes.
 func TestMeEndpoint_InvalidToken(t *testing.T) {
 	tokenService := &fakeTokenService{
-		validateErr: errors.New("invalid token"),
+		validateErr: application_errors.ErrInvalidAccessToken,
 	}
 
 	authMiddleware := middleware.NewAuthenticationMiddleware(

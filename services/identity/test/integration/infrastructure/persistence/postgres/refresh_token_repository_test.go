@@ -252,6 +252,65 @@ func TestRefreshTokenRepository_FindByTokenHash_NotFound(t *testing.T) {
 	}
 }
 
+// TestRefreshTokenRepository_FindByTokenHash_PersistenceFailure verifies that
+// an unexpected database failure is translated into the centralized
+// refresh-token persistence error.
+//
+// ErrNoRows is intentionally handled separately by FindByTokenHash() because
+// a missing refresh-token session is a valid application-level outcome.
+//
+// Any other database failure, however, represents an infrastructure failure
+// and must not leak PostgreSQL-specific errors through the repository
+// boundary.
+func TestRefreshTokenRepository_FindByTokenHash_PersistenceFailure(
+	t *testing.T,
+) {
+	testDB := NewTestDatabase(t)
+	tx := testDB.BeginTx(t)
+
+	queries := generated.New(tx)
+
+	refreshTokenRepository := postgres.NewRefreshTokenRepository(
+		testDB.pool,
+		queries,
+	)
+
+	// Roll back the transaction before executing the repository query.
+	//
+	// The SQLC query executor is still bound to this transaction, but the
+	// transaction is now closed. This deliberately creates a database-layer
+	// failure without modifying the production database schema or introducing
+	// test-only SQL behavior.
+	if err := tx.Rollback(context.Background()); err != nil {
+		t.Fatalf(
+			"failed to rollback test transaction: %v",
+			err,
+		)
+	}
+
+	_, err := refreshTokenRepository.FindByTokenHash(
+		context.Background(),
+		"refresh-token-persistence-failure",
+	)
+
+	if err == nil {
+		t.Fatal(
+			"expected FindByTokenHash() to return a persistence error",
+		)
+	}
+
+	if !errors.Is(
+		err,
+		application_errors.ErrRefreshTokenPersistence,
+	) {
+		t.Fatalf(
+			"expected error to wrap %v, got %v",
+			application_errors.ErrRefreshTokenPersistence,
+			err,
+		)
+	}
+}
+
 // TestRefreshTokenRepository_Revoke verifies that an active refresh token
 // can be revoked.
 func TestRefreshTokenRepository_Revoke(t *testing.T) {

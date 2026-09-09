@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/security"
 )
 
@@ -115,6 +116,12 @@ func TestRefreshTokenService_HashProducesDifferentHashesForDifferentTokens(
 	}
 }
 
+// TestRefreshTokenService_HashRejectsEmptyToken verifies that an empty
+// refresh token is rejected using the centralized application-level error.
+//
+// An empty token is invalid client authentication input, so callers should
+// receive ErrInvalidRefreshToken rather than a security-implementation-
+// specific error.
 func TestRefreshTokenService_HashRejectsEmptyToken(t *testing.T) {
 	t.Parallel()
 
@@ -127,6 +134,16 @@ func TestRefreshTokenService_HashRejectsEmptyToken(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected empty refresh token hashing to fail")
+	}
+
+	if !errors.Is(
+		err,
+		application_errors.ErrInvalidRefreshToken,
+	) {
+		t.Fatalf(
+			"expected ErrInvalidRefreshToken, got %v",
+			err,
+		)
 	}
 }
 

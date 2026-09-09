@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 )
 
 // RefreshTokenService implements the application-level
@@ -62,8 +64,9 @@ func (s *RefreshTokenService) Hash(
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+
 	if token == "" {
-		return "", fmt.Errorf("refresh token cannot be empty")
+		return "", application_errors.ErrInvalidRefreshToken
 	}
 
 	hash := sha256.Sum256([]byte(token))

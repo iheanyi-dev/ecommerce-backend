@@ -122,12 +122,16 @@ func (r *RefreshTokenRepository) FindByTokenHash(
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			// A missing refresh-token session is a valid application outcome.
 			return nil, nil
 		}
 
+		// Any other database failure is an infrastructure persistence failure.
+		// Translate it into the centralized application error so PostgreSQL/
+		// pgx-specific details do not cross the repository boundary.
 		return nil, fmt.Errorf(
 			"find refresh token by hash: %w",
-			err,
+			application_errors.ErrRefreshTokenPersistence,
 		)
 	}
 

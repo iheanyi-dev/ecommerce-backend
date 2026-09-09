@@ -600,7 +600,7 @@ func TestRegisterUserIntegration_InvalidFullName(t *testing.T) {
 		)
 	}
 
-	if response["error"] != "invalid full name" {
+	if response["error"] != "invalid request" {
 		t.Fatalf(
 			"expected error %q, got %q",
 			"invalid full name",

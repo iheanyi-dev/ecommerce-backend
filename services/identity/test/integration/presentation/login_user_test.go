@@ -666,7 +666,7 @@ func TestLoginUserIntegration_InvalidPassword(t *testing.T) {
 		)
 	}
 
-	expectedBody := "invalid credentials\n"
+	expectedBody := "{\"error\":\"invalid credentials\"}\n"
 
 	if recorder.Body.String() != expectedBody {
 		t.Fatalf(
@@ -781,7 +781,7 @@ func TestLoginUserIntegration_NonExistentUser(t *testing.T) {
 		)
 	}
 
-	expectedBody := "invalid credentials\n"
+	expectedBody := "{\"error\":\"invalid credentials\"}\n"
 
 	if recorder.Body.String() != expectedBody {
 		t.Fatalf(
