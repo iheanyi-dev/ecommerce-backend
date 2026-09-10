@@ -3,6 +3,7 @@ package presentation
 import (
 	"net/http"
 
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/handlers"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/presentation/middleware"
 )
@@ -10,9 +11,16 @@ import (
 // NewRouter creates the HTTP router for the Identity service.
 //
 // The router is responsible only for mapping HTTP paths and methods to
-// presentation handlers.
+// presentation handlers and composing the presentation middleware chain.
 //
 // Authentication and authorization remain separate middleware concerns.
+//
+// The logger is passed explicitly so authorization-denial observability does
+// not depend on hidden or package-level state.
+//
+// Request-level observability is applied around the completed router so that
+// it can record the final HTTP status code produced by handlers and
+// middleware.
 func NewRouter(
 	registerUserHandler *handlers.RegisterUserHandler,
 	loginUserHandler *handlers.LoginUserHandler,
@@ -24,6 +32,8 @@ func NewRouter(
 	listUsersHandler *handlers.ListUsersHandler,
 	getUserHandler *handlers.GetUserHandler,
 	updateUserStatusHandler *handlers.UpdateUserStatusHandler,
+	logger ports.Logger,
+	requestObservabilityMiddleware *middleware.RequestObservabilityMiddleware,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -81,14 +91,24 @@ func NewRouter(
 	mux.Handle(
 		"GET /api/v1/users/me",
 		authenticationMiddleware.RequireAuthentication(
-			middleware.RequireRoles("admin", "vendor", "user")(meHandler),
+			middleware.RequireRolesWithLogger(
+				logger,
+				"admin",
+				"vendor",
+				"user",
+			)(meHandler),
 		),
 	)
 
 	mux.Handle(
 		"PATCH /api/v1/users/me",
 		authenticationMiddleware.RequireAuthentication(
-			middleware.RequireRoles("admin", "vendor", "user")(updateUserProfileHandler),
+			middleware.RequireRolesWithLogger(
+				logger,
+				"admin",
+				"vendor",
+				"user",
+			)(updateUserProfileHandler),
 		),
 	)
 
@@ -120,9 +140,13 @@ func NewRouter(
 	mux.Handle(
 		"GET /api/v1/admin/users",
 		authenticationMiddleware.RequireAuthentication(
-			middleware.RequireRoles("admin")(listUsersHandler),
+			middleware.RequireRolesWithLogger(
+				logger,
+				"admin",
+			)(listUsersHandler),
 		),
 	)
+
 	// Get a single user:
 	//
 	// GET /api/v1/admin/users/{id}
@@ -134,7 +158,10 @@ func NewRouter(
 	mux.Handle(
 		"GET /api/v1/admin/users/{id}",
 		authenticationMiddleware.RequireAuthentication(
-			middleware.RequireRoles("admin")(getUserHandler),
+			middleware.RequireRolesWithLogger(
+				logger,
+				"admin",
+			)(getUserHandler),
 		),
 	)
 
@@ -153,9 +180,24 @@ func NewRouter(
 	mux.Handle(
 		"PATCH /api/v1/admin/users/{id}/status",
 		authenticationMiddleware.RequireAuthentication(
-			middleware.RequireRoles("admin")(updateUserStatusHandler),
+			middleware.RequireRolesWithLogger(
+				logger,
+				"admin",
+			)(updateUserStatusHandler),
 		),
 	)
 
+	// The request observability middleware is deliberately applied around
+	// the complete mux rather than around individual routes.
+	//
+	// This ensures that the final HTTP status produced by authentication,
+	// authorization, handlers, and the mux itself can be recorded in one
+	// consistent request-completion event.
+	if requestObservabilityMiddleware != nil {
+		return requestObservabilityMiddleware.Middleware(mux)
+	}
+
+	// Keep the router usable in isolated tests or environments where the
+	// optional observability middleware is intentionally not supplied.
 	return mux
 }

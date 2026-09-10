@@ -1,12 +1,12 @@
 package use_cases_test
 
 import (
-	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"context"
 	"errors"
 	"testing"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
@@ -113,6 +113,7 @@ func (f *fakeAuthenticationUserRepository) UpdateStatus(
 ) error {
 	return nil
 }
+
 func (f *fakeAuthenticationUserRepository) List(
 	ctx context.Context,
 	limit int,
@@ -200,6 +201,174 @@ func (f *fakeAuthenticationTokenService) ValidateAccessToken(
 }
 
 // -----------------------------------------------------------------------------
+// Fake Logger
+// -----------------------------------------------------------------------------
+
+// fakeAuthenticationLogger is a test double for the application Logger port.
+//
+// The logger stores every LogEvent supplied by the use case so tests can
+// verify the actual structured event rather than merely checking that
+// logging occurred.
+type fakeAuthenticationLogger struct {
+	events []ports.LogEvent
+	logErr error
+}
+
+// Log records the supplied structured event.
+func (f *fakeAuthenticationLogger) Log(
+	ctx context.Context,
+	event ports.LogEvent,
+) error {
+	f.events = append(f.events, event)
+
+	return f.logErr
+}
+
+// lastEvent returns the most recently recorded event.
+//
+// Authentication tests expect at most one authentication event per request.
+func (f *fakeAuthenticationLogger) lastEvent(t *testing.T) ports.LogEvent {
+	t.Helper()
+
+	if len(f.events) == 0 {
+		t.Fatal("expected at least one log event, got none")
+	}
+
+	return f.events[len(f.events)-1]
+}
+
+// assertAuthenticationEvent verifies the common fields for an authentication
+// event.
+func assertAuthenticationEvent(
+	t *testing.T,
+	event ports.LogEvent,
+	expectedEvent string,
+	expectedUserID string,
+	expectedRole string,
+	expectedFailureCategory string,
+) {
+	t.Helper()
+
+	if event.Event != expectedEvent {
+		t.Fatalf(
+			"expected log event %q, got %q",
+			expectedEvent,
+			event.Event,
+		)
+	}
+
+	if event.Operation != "login" {
+		t.Fatalf(
+			"expected operation %q, got %q",
+			"login",
+			event.Operation,
+		)
+	}
+
+	if event.UserID != expectedUserID {
+		t.Fatalf(
+			"expected user ID %q, got %q",
+			expectedUserID,
+			event.UserID,
+		)
+	}
+
+	if event.Role != expectedRole {
+		t.Fatalf(
+			"expected role %q, got %q",
+			expectedRole,
+			event.Role,
+		)
+	}
+
+	if event.FailureCategory != expectedFailureCategory {
+		t.Fatalf(
+			"expected failure category %q, got %q",
+			expectedFailureCategory,
+			event.FailureCategory,
+		)
+	}
+
+	// Authentication events must never contain HTTP-specific information
+	// unless the presentation layer explicitly supplies it.
+	if event.HTTPMethod != "" {
+		t.Fatalf(
+			"expected HTTP method to be empty, got %q",
+			event.HTTPMethod,
+		)
+	}
+
+	if event.Route != "" {
+		t.Fatalf(
+			"expected route to be empty, got %q",
+			event.Route,
+		)
+	}
+
+	if event.StatusCode != 0 {
+		t.Fatalf(
+			"expected status code to be empty, got %d",
+			event.StatusCode,
+		)
+	}
+
+	if event.DurationMillis != 0 {
+		t.Fatalf(
+			"expected duration to be empty, got %d",
+			event.DurationMillis,
+		)
+	}
+
+	if event.RequiredRole != "" {
+		t.Fatalf(
+			"expected required role to be empty, got %q",
+			event.RequiredRole,
+		)
+	}
+}
+
+// assertAuthenticationEventContainsNoSecrets verifies that authentication
+// events do not expose credential material through any structured field.
+func assertAuthenticationEventContainsNoSecrets(
+	t *testing.T,
+	event ports.LogEvent,
+) {
+	t.Helper()
+
+	// These values intentionally represent secrets that must never appear in
+	// authentication log events.
+	secrets := []string{
+		"correct-password",
+		"wrong-password",
+		"test-access-token",
+		"test-refresh-token",
+		"$2a$10$test-password-hash",
+	}
+
+	fields := []string{
+		event.Event,
+		event.Operation,
+		event.UserID,
+		event.Role,
+		event.HTTPMethod,
+		event.Route,
+		event.FailureCategory,
+		event.RequiredRole,
+	}
+
+	for _, field := range fields {
+		for _, secret := range secrets {
+			if field == secret {
+				t.Fatalf(
+					"authentication log event contains sensitive value %q",
+					secret,
+				)
+			}
+		}
+	}
+}
+
+// -----------------------------------------------------------------------------
 // Compile-Time Contract Assertions
 // -----------------------------------------------------------------------------
 
@@ -208,6 +377,8 @@ var _ ports.UserRepository = (*fakeAuthenticationUserRepository)(nil)
 var _ ports.PasswordHasher = (*fakeAuthenticationPasswordHasher)(nil)
 
 var _ ports.TokenService = (*fakeAuthenticationTokenService)(nil)
+
+var _ ports.Logger = (*fakeAuthenticationLogger)(nil)
 
 // -----------------------------------------------------------------------------
 // Test Helpers
@@ -289,6 +460,7 @@ func newAuthenticationUseCase(
 	repository *fakeAuthenticationUserRepository,
 	passwordHasher *fakeAuthenticationPasswordHasher,
 	tokenService *fakeAuthenticationTokenService,
+	logger *fakeAuthenticationLogger,
 ) *use_cases.AuthenticateUserUseCase {
 	t.Helper()
 
@@ -296,6 +468,7 @@ func newAuthenticationUseCase(
 		repository,
 		passwordHasher,
 		tokenService,
+		logger,
 	)
 }
 
@@ -316,11 +489,14 @@ func TestAuthenticateUser_Success(t *testing.T) {
 		token: "test-access-token",
 	}
 
+	logger := &fakeAuthenticationLogger{}
+
 	useCase := newAuthenticationUseCase(
 		t,
 		repository,
 		passwordHasher,
 		tokenService,
+		logger,
 	)
 
 	command := dto.LoginUserCommand{
@@ -409,6 +585,26 @@ func TestAuthenticateUser_Success(t *testing.T) {
 	if tokenService.role != testUser.Role() {
 		t.Fatal("expected token service to receive authenticated user role")
 	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication log event, got %d",
+			len(logger.events),
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertAuthenticationEvent(
+		t,
+		event,
+		"auth.login.succeeded",
+		testUser.ID().String(),
+		testUser.Role().String(),
+		"",
+	)
+
+	assertAuthenticationEventContainsNoSecrets(t, event)
 }
 
 // -----------------------------------------------------------------------------
@@ -424,11 +620,14 @@ func TestAuthenticateUser_UserNotFound(t *testing.T) {
 		token: "test-access-token",
 	}
 
+	logger := &fakeAuthenticationLogger{}
+
 	useCase := newAuthenticationUseCase(
 		t,
 		repository,
 		passwordHasher,
 		tokenService,
+		logger,
 	)
 
 	command := dto.LoginUserCommand{
@@ -448,7 +647,6 @@ func TestAuthenticateUser_UserNotFound(t *testing.T) {
 		)
 	}
 
-	// Password verification must never occur when the user does not exist.
 	if passwordHasher.verifyCall != 0 {
 		t.Fatalf(
 			"expected password verification not to be called, got %d calls",
@@ -456,13 +654,32 @@ func TestAuthenticateUser_UserNotFound(t *testing.T) {
 		)
 	}
 
-	// Token generation must never occur when authentication fails.
 	if tokenService.generateCall != 0 {
 		t.Fatalf(
 			"expected token generation not to be called, got %d calls",
 			tokenService.generateCall,
 		)
 	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication log event, got %d",
+			len(logger.events),
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertAuthenticationEvent(
+		t,
+		event,
+		"auth.login.user_not_found",
+		"",
+		"",
+		"user_not_found",
+	)
+
+	assertAuthenticationEventContainsNoSecrets(t, event)
 }
 
 // -----------------------------------------------------------------------------
@@ -484,11 +701,14 @@ func TestAuthenticateUser_InvalidPassword(t *testing.T) {
 		token: "test-access-token",
 	}
 
+	logger := &fakeAuthenticationLogger{}
+
 	useCase := newAuthenticationUseCase(
 		t,
 		repository,
 		passwordHasher,
 		tokenService,
+		logger,
 	)
 
 	command := dto.LoginUserCommand{
@@ -521,6 +741,26 @@ func TestAuthenticateUser_InvalidPassword(t *testing.T) {
 			tokenService.generateCall,
 		)
 	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication log event, got %d",
+			len(logger.events),
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertAuthenticationEvent(
+		t,
+		event,
+		"auth.login.invalid_credentials",
+		"",
+		"",
+		"invalid_credentials",
+	)
+
+	assertAuthenticationEventContainsNoSecrets(t, event)
 }
 
 // -----------------------------------------------------------------------------
@@ -544,11 +784,14 @@ func TestAuthenticateUser_InactiveAccount(t *testing.T) {
 		token: "test-access-token",
 	}
 
+	logger := &fakeAuthenticationLogger{}
+
 	useCase := newAuthenticationUseCase(
 		t,
 		repository,
 		passwordHasher,
 		tokenService,
+		logger,
 	)
 
 	command := dto.LoginUserCommand{
@@ -581,6 +824,26 @@ func TestAuthenticateUser_InactiveAccount(t *testing.T) {
 			tokenService.generateCall,
 		)
 	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication log event, got %d",
+			len(logger.events),
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertAuthenticationEvent(
+		t,
+		event,
+		"auth.login.user_inactive",
+		testUser.ID().String(),
+		testUser.Role().String(),
+		"user_inactive",
+	)
+
+	assertAuthenticationEventContainsNoSecrets(t, event)
 }
 
 // -----------------------------------------------------------------------------
@@ -600,11 +863,14 @@ func TestAuthenticateUser_PendingVerification(t *testing.T) {
 		token: "test-access-token",
 	}
 
+	logger := &fakeAuthenticationLogger{}
+
 	useCase := newAuthenticationUseCase(
 		t,
 		repository,
 		passwordHasher,
 		tokenService,
+		logger,
 	)
 
 	command := dto.LoginUserCommand{
@@ -637,6 +903,26 @@ func TestAuthenticateUser_PendingVerification(t *testing.T) {
 			tokenService.generateCall,
 		)
 	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication log event, got %d",
+			len(logger.events),
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertAuthenticationEvent(
+		t,
+		event,
+		"auth.login.user_inactive",
+		pendingUser.ID().String(),
+		pendingUser.Role().String(),
+		"user_inactive",
+	)
+
+	assertAuthenticationEventContainsNoSecrets(t, event)
 }
 
 // -----------------------------------------------------------------------------
@@ -660,11 +946,14 @@ func TestAuthenticateUser_SuspendedAccount(t *testing.T) {
 		token: "test-access-token",
 	}
 
+	logger := &fakeAuthenticationLogger{}
+
 	useCase := newAuthenticationUseCase(
 		t,
 		repository,
 		passwordHasher,
 		tokenService,
+		logger,
 	)
 
 	command := dto.LoginUserCommand{
@@ -697,6 +986,26 @@ func TestAuthenticateUser_SuspendedAccount(t *testing.T) {
 			tokenService.generateCall,
 		)
 	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication log event, got %d",
+			len(logger.events),
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertAuthenticationEvent(
+		t,
+		event,
+		"auth.login.user_inactive",
+		testUser.ID().String(),
+		testUser.Role().String(),
+		"user_inactive",
+	)
+
+	assertAuthenticationEventContainsNoSecrets(t, event)
 }
 
 // -----------------------------------------------------------------------------
@@ -712,11 +1021,14 @@ func TestAuthenticateUser_InvalidEmail(t *testing.T) {
 		token: "test-access-token",
 	}
 
+	logger := &fakeAuthenticationLogger{}
+
 	useCase := newAuthenticationUseCase(
 		t,
 		repository,
 		passwordHasher,
 		tokenService,
+		logger,
 	)
 
 	command := dto.LoginUserCommand{
@@ -752,7 +1064,7 @@ func TestAuthenticateUser_InvalidEmail(t *testing.T) {
 
 	if tokenService.generateCall != 0 {
 		t.Fatalf(
-			"expected token generation not to occur, got %d calls",
+			"expected token generation not to be called, got %d calls",
 			tokenService.generateCall,
 		)
 	}
@@ -777,11 +1089,14 @@ func TestAuthenticateUser_TokenGenerationFailure(t *testing.T) {
 		generateErr: tokenGenerationErr,
 	}
 
+	logger := &fakeAuthenticationLogger{}
+
 	useCase := newAuthenticationUseCase(
 		t,
 		repository,
 		passwordHasher,
 		tokenService,
+		logger,
 	)
 
 	command := dto.LoginUserCommand{
@@ -814,4 +1129,24 @@ func TestAuthenticateUser_TokenGenerationFailure(t *testing.T) {
 			tokenService.generateCall,
 		)
 	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication log event, got %d",
+			len(logger.events),
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertAuthenticationEvent(
+		t,
+		event,
+		"auth.login.failed",
+		testUser.ID().String(),
+		testUser.Role().String(),
+		"token_generation_failed",
+	)
+
+	assertAuthenticationEventContainsNoSecrets(t, event)
 }

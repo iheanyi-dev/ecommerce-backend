@@ -3,9 +3,10 @@ package use_cases_test
 import (
 	"context"
 	"errors"
-	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"testing"
 	"time"
+
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
@@ -292,6 +293,85 @@ func (f *fakeRefreshAccessTokenService) ValidateAccessToken(
 var _ ports.TokenService = (*fakeRefreshAccessTokenService)(nil)
 
 // -----------------------------------------------------------------------------
+// Fake Logger
+// -----------------------------------------------------------------------------
+
+type fakeRefreshLogger struct {
+	events []ports.LogEvent
+	err    error
+}
+
+func (f *fakeRefreshLogger) Log(
+	_ context.Context,
+	event ports.LogEvent,
+) error {
+	f.events = append(f.events, event)
+	return f.err
+}
+
+var _ ports.Logger = (*fakeRefreshLogger)(nil)
+
+func assertRefreshLogEvent(
+	t *testing.T,
+	logger *fakeRefreshLogger,
+	expectedEvent string,
+	expectedFailureCategory string,
+	expectedUserID string,
+	expectedRole string,
+) {
+	t.Helper()
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected exactly one log event, got %d",
+			len(logger.events),
+		)
+	}
+
+	event := logger.events[0]
+
+	if event.Event != expectedEvent {
+		t.Fatalf(
+			"expected event %q, got %q",
+			expectedEvent,
+			event.Event,
+		)
+	}
+
+	if event.Operation != "refresh" {
+		t.Fatalf(
+			"expected operation %q, got %q",
+			"refresh",
+			event.Operation,
+		)
+	}
+
+	if event.FailureCategory != expectedFailureCategory {
+		t.Fatalf(
+			"expected failure category %q, got %q",
+			expectedFailureCategory,
+			event.FailureCategory,
+		)
+	}
+
+	if event.UserID != expectedUserID {
+		t.Fatalf(
+			"expected user ID %q, got %q",
+			expectedUserID,
+			event.UserID,
+		)
+	}
+
+	if event.Role != expectedRole {
+		t.Fatalf(
+			"expected role %q, got %q",
+			expectedRole,
+			event.Role,
+		)
+	}
+}
+
+// -----------------------------------------------------------------------------
 // Test Helpers
 // -----------------------------------------------------------------------------
 
@@ -385,12 +465,14 @@ func TestRefreshUser_Success(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		token: "new-access-token",
 	}
+	logger := &fakeRefreshLogger{}
 
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	result, err := useCase.Refresh(
@@ -535,12 +617,13 @@ func TestRefreshUser_InvalidRefreshToken(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		token: "access-token",
 	}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -610,12 +693,13 @@ func TestRefreshUser_RejectsRevokedToken(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		token: "access-token",
 	}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -675,12 +759,13 @@ func TestRefreshUser_RejectsExpiredToken(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		token: "access-token",
 	}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -738,12 +823,13 @@ func TestRefreshUser_UserNotFound(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		token: "access-token",
 	}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -803,12 +889,13 @@ func TestRefreshUser_RejectsInactiveUser(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		token: "access-token",
 	}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -852,12 +939,13 @@ func TestRefreshUser_HashFailure(t *testing.T) {
 	userRepository := &fakeRefreshUserRepository{}
 
 	tokenService := &fakeRefreshAccessTokenService{}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -913,12 +1001,13 @@ func TestRefreshUser_RotationFailure(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		token: "access-token",
 	}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -996,12 +1085,13 @@ func TestRefreshUser_RefreshTokenGenerationFailure(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		token: "access-token",
 	}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -1062,12 +1152,13 @@ func TestRefreshUser_NewRefreshTokenHashFailure(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		token: "access-token",
 	}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -1128,12 +1219,13 @@ func TestRefreshUser_AccessTokenGenerationFailure(t *testing.T) {
 	tokenService := &fakeRefreshAccessTokenService{
 		generateErr: errors.New("access token generation failed"),
 	}
-
+	logger := &fakeRefreshLogger{}
 	useCase := use_cases.NewRefreshUserUseCase(
 		repository,
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		logger,
 	)
 
 	_, err := useCase.Refresh(
@@ -1154,5 +1246,499 @@ func TestRefreshUser_AccessTokenGenerationFailure(t *testing.T) {
 		t.Fatal(
 			"expected old refresh token not to be rotated when access token generation fails",
 		)
+	}
+}
+func TestRefreshUser_LogsSuccess(t *testing.T) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"old-refresh-token-hash",
+		time.Now().Add(time.Hour),
+	)
+
+	repository := &fakeRefreshTokenRepository{
+		record: &record,
+	}
+
+	refreshTokenService := &fakeRefreshTokenService{
+		generatedToken: "new-refresh-token",
+	}
+
+	userRepository := &fakeRefreshUserRepository{
+		user: testUser,
+	}
+
+	tokenService := &fakeRefreshAccessTokenService{
+		token: "new-access-token",
+	}
+
+	logger := &fakeRefreshLogger{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		repository,
+		userRepository,
+		refreshTokenService,
+		tokenService,
+		logger,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "old-refresh-token",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("expected refresh to succeed, got %v", err)
+	}
+
+	assertRefreshLogEvent(
+		t,
+		logger,
+		"auth.refresh.succeeded",
+		"",
+		testUser.ID().String(),
+		testUser.Role().String(),
+	)
+}
+
+func TestRefreshUser_LogsInvalidToken(t *testing.T) {
+	t.Parallel()
+
+	repository := &fakeRefreshTokenRepository{}
+
+	refreshTokenService := &fakeRefreshTokenService{
+		hashedToken: "hash",
+	}
+
+	userRepository := &fakeRefreshUserRepository{}
+
+	tokenService := &fakeRefreshAccessTokenService{}
+
+	logger := &fakeRefreshLogger{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		repository,
+		userRepository,
+		refreshTokenService,
+		tokenService,
+		logger,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "invalid-token",
+		},
+	)
+
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
+		t.Fatalf("expected ErrInvalidRefreshToken, got %v", err)
+	}
+
+	assertRefreshLogEvent(
+		t,
+		logger,
+		"auth.refresh.invalid_token",
+		"invalid_refresh_token",
+		"",
+		"",
+	)
+}
+
+func TestRefreshUser_LogsRevokedToken(t *testing.T) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	revokedAt := time.Now().Add(-time.Minute)
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"token-hash",
+		time.Now().Add(time.Hour),
+	)
+
+	record.RevokedAt = &revokedAt
+
+	repository := &fakeRefreshTokenRepository{
+		record: &record,
+	}
+
+	refreshTokenService := &fakeRefreshTokenService{}
+
+	userRepository := &fakeRefreshUserRepository{
+		user: testUser,
+	}
+
+	tokenService := &fakeRefreshAccessTokenService{}
+
+	logger := &fakeRefreshLogger{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		repository,
+		userRepository,
+		refreshTokenService,
+		tokenService,
+		logger,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "refresh-token",
+		},
+	)
+
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
+		t.Fatalf("expected ErrInvalidRefreshToken, got %v", err)
+	}
+
+	assertRefreshLogEvent(
+		t,
+		logger,
+		"auth.refresh.invalid_token",
+		"invalid_refresh_token",
+		testUser.ID().String(),
+		"",
+	)
+}
+
+func TestRefreshUser_LogsExpiredToken(t *testing.T) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"token-hash",
+		time.Now().Add(-time.Minute),
+	)
+
+	repository := &fakeRefreshTokenRepository{
+		record: &record,
+	}
+
+	refreshTokenService := &fakeRefreshTokenService{}
+
+	userRepository := &fakeRefreshUserRepository{
+		user: testUser,
+	}
+
+	tokenService := &fakeRefreshAccessTokenService{}
+
+	logger := &fakeRefreshLogger{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		repository,
+		userRepository,
+		refreshTokenService,
+		tokenService,
+		logger,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "refresh-token",
+		},
+	)
+
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
+		t.Fatalf("expected ErrInvalidRefreshToken, got %v", err)
+	}
+
+	assertRefreshLogEvent(
+		t,
+		logger,
+		"auth.refresh.invalid_token",
+		"invalid_refresh_token",
+		testUser.ID().String(),
+		"",
+	)
+}
+
+func TestRefreshUser_LogsInactiveUser(t *testing.T) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	if err := testUser.Deactivate(); err != nil {
+		t.Fatalf("failed to deactivate test user: %v", err)
+	}
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"token-hash",
+		time.Now().Add(time.Hour),
+	)
+
+	repository := &fakeRefreshTokenRepository{
+		record: &record,
+	}
+
+	refreshTokenService := &fakeRefreshTokenService{}
+
+	userRepository := &fakeRefreshUserRepository{
+		user: testUser,
+	}
+
+	tokenService := &fakeRefreshAccessTokenService{}
+
+	logger := &fakeRefreshLogger{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		repository,
+		userRepository,
+		refreshTokenService,
+		tokenService,
+		logger,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "refresh-token",
+		},
+	)
+
+	if !errors.Is(err, application_errors.ErrInvalidRefreshToken) {
+		t.Fatalf("expected ErrInvalidRefreshToken, got %v", err)
+	}
+
+	assertRefreshLogEvent(
+		t,
+		logger,
+		"auth.refresh.user_inactive",
+		"user_inactive",
+		testUser.ID().String(),
+		testUser.Role().String(),
+	)
+}
+
+func TestRefreshUser_LogsHashFailure(t *testing.T) {
+	t.Parallel()
+
+	logger := &fakeRefreshLogger{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		&fakeRefreshTokenRepository{},
+		&fakeRefreshUserRepository{},
+		&fakeRefreshTokenService{
+			hashErr: errors.New("hash failed"),
+		},
+		&fakeRefreshAccessTokenService{},
+		logger,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "refresh-token",
+		},
+	)
+
+	if !errors.Is(err, application_errors.ErrRefreshTokenHashing) {
+		t.Fatalf("expected ErrRefreshTokenHashing, got %v", err)
+	}
+
+	assertRefreshLogEvent(
+		t,
+		logger,
+		"auth.refresh.failed",
+		"token_hashing_failed",
+		"",
+		"",
+	)
+}
+
+func TestRefreshUser_LogsRotationFailure(t *testing.T) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"token-hash",
+		time.Now().Add(time.Hour),
+	)
+
+	logger := &fakeRefreshLogger{}
+
+	repository := &fakeRefreshTokenRepository{
+		record:    &record,
+		rotateErr: errors.New("rotation failed"),
+	}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		repository,
+		&fakeRefreshUserRepository{user: testUser},
+		&fakeRefreshTokenService{
+			generatedToken: "new-refresh-token",
+		},
+		&fakeRefreshAccessTokenService{
+			token: "access-token",
+		},
+		logger,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "refresh-token",
+		},
+	)
+
+	if !errors.Is(err, application_errors.ErrRefreshTokenPersistence) {
+		t.Fatalf(
+			"expected ErrRefreshTokenPersistence, got %v",
+			err,
+		)
+	}
+
+	assertRefreshLogEvent(
+		t,
+		logger,
+		"auth.refresh.failed",
+		"token_rotation_failed",
+		testUser.ID().String(),
+		testUser.Role().String(),
+	)
+}
+
+func TestRefreshUser_LoggingFailureDoesNotChangeResult(t *testing.T) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"old-refresh-token-hash",
+		time.Now().Add(time.Hour),
+	)
+
+	logger := &fakeRefreshLogger{
+		err: errors.New("logger unavailable"),
+	}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		&fakeRefreshTokenRepository{
+			record: &record,
+		},
+		&fakeRefreshUserRepository{
+			user: testUser,
+		},
+		&fakeRefreshTokenService{
+			generatedToken: "new-refresh-token",
+		},
+		&fakeRefreshAccessTokenService{
+			token: "new-access-token",
+		},
+		logger,
+	)
+
+	result, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "old-refresh-token",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf(
+			"expected logging failure not to affect refresh, got %v",
+			err,
+		)
+	}
+
+	if result.AccessToken != "new-access-token" {
+		t.Fatalf(
+			"expected access token %q, got %q",
+			"new-access-token",
+			result.AccessToken,
+		)
+	}
+
+	if result.RefreshToken != "new-refresh-token" {
+		t.Fatalf(
+			"expected refresh token %q, got %q",
+			"new-refresh-token",
+			result.RefreshToken,
+		)
+	}
+}
+
+func TestRefreshUser_NeverLogsSecrets(t *testing.T) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"old-refresh-token-hash",
+		time.Now().Add(time.Hour),
+	)
+
+	logger := &fakeRefreshLogger{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		&fakeRefreshTokenRepository{
+			record: &record,
+		},
+		&fakeRefreshUserRepository{
+			user: testUser,
+		},
+		&fakeRefreshTokenService{
+			generatedToken: "new-refresh-token",
+		},
+		&fakeRefreshAccessTokenService{
+			token: "new-access-token",
+		},
+		logger,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "old-refresh-token",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("expected refresh to succeed, got %v", err)
+	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected exactly one log event, got %d",
+			len(logger.events),
+		)
+	}
+
+	event := logger.events[0]
+
+	secrets := []string{
+		"old-refresh-token",
+		"old-refresh-token-hash",
+		"new-refresh-token",
+		"new-refresh-token-hash",
+		"new-access-token",
+	}
+
+	for _, secret := range secrets {
+		if event.Event == secret ||
+			event.UserID == secret ||
+			event.Role == secret ||
+			event.FailureCategory == secret ||
+			event.RequiredRole == secret {
+			t.Fatalf(
+				"secret %q was unexpectedly present in structured log event",
+				secret,
+			)
+		}
 	}
 }

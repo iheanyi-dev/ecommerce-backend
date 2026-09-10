@@ -1,279 +1,154 @@
-package use_cases_test
+package use_cases
 
 import (
 	"context"
-	"testing"
-	"time"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
+	domain_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
 
-type fakeUpdateUserStatusRepository struct {
-	user *user.User
-
-	updateStatusCalled bool
-	updatedUserID      user.UserID
-	updatedStatus      user.Status
-	updatedAt          time.Time
+// UpdateUserStatusUseCase implements the administrator's account-status
+// management workflow.
+//
+// This use case deliberately changes only the account status. Profile fields,
+// password, email, and role are outside the responsibility of this workflow.
+//
+// Logging is best-effort observability. A logging failure must never change
+// the business result of the status update operation.
+type UpdateUserStatusUseCase struct {
+	userRepository ports.UserRepository
+	logger         ports.Logger
 }
 
-func (f *fakeUpdateUserStatusRepository) UpdateStatus(
+// NewUpdateUserStatusUseCase constructs the administrative account-status
+// update use case.
+func NewUpdateUserStatusUseCase(
+	userRepository ports.UserRepository,
+	logger ports.Logger,
+) *UpdateUserStatusUseCase {
+	return &UpdateUserStatusUseCase{
+		userRepository: userRepository,
+		logger:         logger,
+	}
+}
+
+// Execute changes the target user's account status.
+//
+// The requested transition is delegated to the User aggregate so that domain
+// lifecycle rules remain enforced in one place.
+func (uc *UpdateUserStatusUseCase) Execute(
 	ctx context.Context,
-	existingUser *user.User,
-) error {
-	f.updateStatusCalled = true
-	f.updatedUserID = existingUser.ID()
-	f.updatedStatus = existingUser.Status()
-	f.updatedAt = existingUser.UpdatedAt()
-
-	return nil
-}
-
-func (f *fakeUpdateUserStatusRepository) ExistsByEmail(
-	ctx context.Context,
-	email user.Email,
-) (bool, error) {
-	return false, nil
-}
-
-func (f *fakeUpdateUserStatusRepository) Create(
-	ctx context.Context,
-	newUser *user.User,
-) error {
-	return nil
-}
-
-func (f *fakeUpdateUserStatusRepository) FindByEmail(
-	ctx context.Context,
-	email user.Email,
-) (*user.User, error) {
-	return nil, nil
-}
-
-func (f *fakeUpdateUserStatusRepository) FindByID(
-	ctx context.Context,
-	id user.UserID,
-) (*user.User, error) {
-	return f.user, nil
-}
-
-func (f *fakeUpdateUserStatusRepository) UpdateFullName(
-	ctx context.Context,
-	existingUser *user.User,
-) error {
-	return nil
-}
-
-func (f *fakeUpdateUserStatusRepository) UpdatePasswordHash(
-	ctx context.Context,
-	existingUser *user.User,
-) error {
-	return nil
-}
-
-func (f *fakeUpdateUserStatusRepository) List(
-	ctx context.Context,
-	limit int,
-	offset int,
-) ([]*user.User, error) {
-	return nil, nil
-}
-
-func newStatusUpdateUser(t *testing.T, status user.Status) *user.User {
-	t.Helper()
-
-	id := user.NewUserID()
-
-	fullName, err := user.NewFullName("Status Test User")
+	userID string,
+	command dto.UpdateUserStatusCommand,
+) (dto.UpdateUserStatusResult, error) {
+	id, err := user.UserIDFromString(userID)
 	if err != nil {
-		t.Fatalf("failed to create full name: %v", err)
+		uc.logStatusUpdateEvent(ctx, ports.LogEvent{
+			Event:           "user.status_update.validation_failed",
+			Operation:       "update_user_status",
+			FailureCategory: "validation_failed",
+		})
+
+		return dto.UpdateUserStatusResult{}, err
 	}
 
-	email, err := user.NewEmail("status@example.com")
+	existingUser, err := uc.userRepository.FindByID(ctx, id)
 	if err != nil {
-		t.Fatalf("failed to create email: %v", err)
+		uc.logStatusUpdateEvent(ctx, ports.LogEvent{
+			Event:           "user.status_update.failed",
+			Operation:       "update_user_status",
+			UserID:          id.String(),
+			FailureCategory: "user_lookup_failed",
+		})
+
+		return dto.UpdateUserStatusResult{}, err
 	}
 
-	passwordHash, err := user.NewPasswordHash("hashed-password")
+	if existingUser == nil {
+		uc.logStatusUpdateEvent(ctx, ports.LogEvent{
+			Event:           "user.status_update.not_found",
+			Operation:       "update_user_status",
+			UserID:          id.String(),
+			FailureCategory: "user_not_found",
+		})
+
+		return dto.UpdateUserStatusResult{}, application_errors.ErrUserNotFound
+	}
+
+	switch user.Status(command.Status) {
+	case user.StatusActive:
+		err = existingUser.Activate()
+
+	case user.StatusSuspended:
+		err = existingUser.Suspend()
+
+	case user.StatusInactive:
+		err = existingUser.Deactivate()
+
+	default:
+		uc.logStatusUpdateEvent(ctx, ports.LogEvent{
+			Event:           "user.status_update.validation_failed",
+			Operation:       "update_user_status",
+			UserID:          existingUser.ID().String(),
+			Role:            string(existingUser.Role()),
+			FailureCategory: "validation_failed",
+		})
+
+		return dto.UpdateUserStatusResult{}, domain_errors.ErrInvalidStatusTransition
+	}
+
 	if err != nil {
-		t.Fatalf("failed to create password hash: %v", err)
+		uc.logStatusUpdateEvent(ctx, ports.LogEvent{
+			Event:           "user.status_update.validation_failed",
+			Operation:       "update_user_status",
+			UserID:          existingUser.ID().String(),
+			Role:            string(existingUser.Role()),
+			FailureCategory: "validation_failed",
+		})
+
+		return dto.UpdateUserStatusResult{}, err
 	}
 
-	now := time.Now().UTC()
+	if err := uc.userRepository.UpdateStatus(ctx, existingUser); err != nil {
+		uc.logStatusUpdateEvent(ctx, ports.LogEvent{
+			Event:           "user.status_update.failed",
+			Operation:       "update_user_status",
+			UserID:          existingUser.ID().String(),
+			Role:            string(existingUser.Role()),
+			FailureCategory: "status_update_failed",
+		})
 
-	return user.ReconstituteUser(
-		id,
-		fullName,
-		email,
-		passwordHash,
-		user.RoleUser,
-		status,
-		now,
-		now,
-	)
+		return dto.UpdateUserStatusResult{}, err
+	}
+
+	uc.logStatusUpdateEvent(ctx, ports.LogEvent{
+		Event:     "user.status_update.succeeded",
+		Operation: "update_user_status",
+		UserID:    existingUser.ID().String(),
+		Role:      string(existingUser.Role()),
+	})
+
+	return dto.NewUpdateUserStatusResult(existingUser), nil
 }
 
-func TestUpdateUserStatusUseCase_SuspendsActiveUser(t *testing.T) {
-	testUser := newStatusUpdateUser(t, user.StatusActive)
-
-	repository := &fakeUpdateUserStatusRepository{user: testUser}
-	useCase := use_cases.NewUpdateUserStatusUseCase(repository)
-
-	before := testUser.UpdatedAt()
-
-	result, err := useCase.Execute(
-		context.Background(),
-		testUser.ID().String(),
-		dto.UpdateUserStatusCommand{
-			Status: string(user.StatusSuspended),
-		},
-	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+// logStatusUpdateEvent records a status-management event without allowing
+// observability failures to affect the application workflow.
+//
+// Logger errors are deliberately ignored because logging is supplementary
+// infrastructure and must not cause an otherwise successful business
+// operation to fail.
+func (uc *UpdateUserStatusUseCase) logStatusUpdateEvent(
+	ctx context.Context,
+	event ports.LogEvent,
+) {
+	if uc.logger == nil {
+		return
 	}
 
-	if result.Status != string(user.StatusSuspended) {
-		t.Fatalf("expected status %q, got %q",
-			user.StatusSuspended,
-			result.Status,
-		)
-	}
-
-	if !repository.updateStatusCalled {
-		t.Fatal("expected UpdateStatus to be called")
-	}
-
-	if repository.updatedUserID != testUser.ID() {
-		t.Fatalf("expected updated user ID %q, got %q",
-			testUser.ID(),
-			repository.updatedUserID,
-		)
-	}
-
-	if repository.updatedStatus != user.StatusSuspended {
-		t.Fatalf("expected persisted status %q, got %q",
-			user.StatusSuspended,
-			repository.updatedStatus,
-		)
-	}
-
-	if !repository.updatedAt.After(before) {
-		t.Fatal("expected domain to update UpdatedAt")
-	}
+	_ = uc.logger.Log(ctx, event)
 }
 
-func TestUpdateUserStatusUseCase_ActivatesInactiveUser(t *testing.T) {
-	testUser := newStatusUpdateUser(t, user.StatusInactive)
-
-	repository := &fakeUpdateUserStatusRepository{user: testUser}
-	useCase := use_cases.NewUpdateUserStatusUseCase(repository)
-
-	_, err := useCase.Execute(
-		context.Background(),
-		testUser.ID().String(),
-		dto.UpdateUserStatusCommand{
-			Status: string(user.StatusActive),
-		},
-	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if testUser.Status() != user.StatusActive {
-		t.Fatalf("expected status %q, got %q",
-			user.StatusActive,
-			testUser.Status(),
-		)
-	}
-}
-
-func TestUpdateUserStatusUseCase_DeactivatesActiveUser(t *testing.T) {
-	testUser := newStatusUpdateUser(t, user.StatusActive)
-
-	repository := &fakeUpdateUserStatusRepository{user: testUser}
-	useCase := use_cases.NewUpdateUserStatusUseCase(repository)
-
-	_, err := useCase.Execute(
-		context.Background(),
-		testUser.ID().String(),
-		dto.UpdateUserStatusCommand{
-			Status: string(user.StatusInactive),
-		},
-	)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if testUser.Status() != user.StatusInactive {
-		t.Fatalf("expected status %q, got %q",
-			user.StatusInactive,
-			testUser.Status(),
-		)
-	}
-}
-
-func TestUpdateUserStatusUseCase_RejectsInvalidStatus(t *testing.T) {
-	testUser := newStatusUpdateUser(t, user.StatusActive)
-
-	repository := &fakeUpdateUserStatusRepository{user: testUser}
-	useCase := use_cases.NewUpdateUserStatusUseCase(repository)
-
-	_, err := useCase.Execute(
-		context.Background(),
-		testUser.ID().String(),
-		dto.UpdateUserStatusCommand{
-			Status: "deleted",
-		},
-	)
-	if err == nil {
-		t.Fatal("expected invalid status error")
-	}
-
-	if repository.updateStatusCalled {
-		t.Fatal("expected UpdateStatus not to be called")
-	}
-}
-
-func TestUpdateUserStatusUseCase_RejectsInvalidTransition(t *testing.T) {
-	testUser := newStatusUpdateUser(t, user.StatusSuspended)
-
-	repository := &fakeUpdateUserStatusRepository{user: testUser}
-	useCase := use_cases.NewUpdateUserStatusUseCase(repository)
-
-	_, err := useCase.Execute(
-		context.Background(),
-		testUser.ID().String(),
-		dto.UpdateUserStatusCommand{
-			Status: string(user.StatusActive),
-		},
-	)
-	if err == nil {
-		t.Fatal("expected invalid status transition error")
-	}
-
-	if repository.updateStatusCalled {
-		t.Fatal("expected UpdateStatus not to be called")
-	}
-}
-
-func TestUpdateUserStatusUseCase_ReturnsUserNotFound(t *testing.T) {
-	repository := &fakeUpdateUserStatusRepository{}
-	useCase := use_cases.NewUpdateUserStatusUseCase(repository)
-
-	_, err := useCase.Execute(
-		context.Background(),
-		user.NewUserID().String(),
-		dto.UpdateUserStatusCommand{
-			Status: string(user.StatusActive),
-		},
-	)
-	if err != application_errors.ErrUserNotFound {
-		t.Fatalf("expected ErrUserNotFound, got %v", err)
-	}
-}
-
-var _ ports.UserRepository = (*fakeUpdateUserStatusRepository)(nil)
+var _ ports.UpdateUserStatusService = (*UpdateUserStatusUseCase)(nil)

@@ -2,14 +2,23 @@ package use_cases_test
 
 import (
 	"context"
-	"errors"
-	"testing"
 	"time"
 
-	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
-	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 )
+
+// -----------------------------------------------------------------------------
+// Shared Refresh Token Service Mock
+// -----------------------------------------------------------------------------
+//
+// This mock is shared by the logout use-case tests.
+//
+// The refresh-user tests intentionally use their own
+// fakeRefreshTokenService because those tests need additional call tracking
+// and token-specific behavior.
+//
+// Keeping this mock separate prevents the deletion of the obsolete
+// refresh_token_use_case_test.go file from breaking logout tests.
 
 type mockRefreshTokenService struct {
 	generatedToken string
@@ -40,15 +49,33 @@ func (m *mockRefreshTokenService) Hash(
 	return m.hashedToken, nil
 }
 
+var _ ports.RefreshTokenService = (*mockRefreshTokenService)(nil)
+
+// -----------------------------------------------------------------------------
+// Shared Refresh Token Repository Mock
+// -----------------------------------------------------------------------------
+//
+// This mock is shared by the logout use-case tests.
+//
+// It implements the complete RefreshTokenRepository interface, including
+// Create and Rotate, even though logout only needs FindByTokenHash and Revoke.
+
 type mockRefreshTokenRepository struct {
 	record *ports.RefreshTokenRecord
 
 	createErr error
 	findErr   error
 	revokeErr error
+	rotateErr error
 
 	createdRecord *ports.RefreshTokenRecord
-	revokedID     string
+
+	revokedID string
+	revokedAt time.Time
+
+	rotatedOldTokenID string
+	rotatedAt         time.Time
+	rotatedRecord     ports.RefreshTokenRecord
 }
 
 func (m *mockRefreshTokenRepository) Create(
@@ -59,8 +86,8 @@ func (m *mockRefreshTokenRepository) Create(
 		return m.createErr
 	}
 
-	recordCopy := record
-	m.createdRecord = &recordCopy
+	copiedRecord := record
+	m.createdRecord = &copiedRecord
 
 	return nil
 }
@@ -71,6 +98,10 @@ func (m *mockRefreshTokenRepository) FindByTokenHash(
 ) (*ports.RefreshTokenRecord, error) {
 	if m.findErr != nil {
 		return nil, m.findErr
+	}
+
+	if m.record == nil {
+		return nil, nil
 	}
 
 	return m.record, nil
@@ -86,6 +117,7 @@ func (m *mockRefreshTokenRepository) Revoke(
 	}
 
 	m.revokedID = id
+	m.revokedAt = revokedAt
 
 	return nil
 }
@@ -96,54 +128,15 @@ func (m *mockRefreshTokenRepository) Rotate(
 	revokedAt time.Time,
 	newRecord ports.RefreshTokenRecord,
 ) error {
-	if m.revokeErr != nil {
-		return m.revokeErr
+	if m.rotateErr != nil {
+		return m.rotateErr
 	}
 
-	m.revokedID = oldTokenID
-
-	recordCopy := newRecord
-	m.createdRecord = &recordCopy
+	m.rotatedOldTokenID = oldTokenID
+	m.rotatedAt = revokedAt
+	m.rotatedRecord = newRecord
 
 	return nil
 }
 
-type mockAccessTokenService struct {
-	accessToken string
-	generateErr error
-}
-
-func (m *mockAccessTokenService) GenerateAccessToken(
-	ctx context.Context,
-	userID interface{},
-	role interface{},
-) (string, error) {
-	return m.accessToken, m.generateErr
-}
-
-func TestRefreshTokenUseCase_Refresh_Success(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-
-	refreshTokenService := &mockRefreshTokenService{
-		hashedToken:    "hashed-old-token",
-		generatedToken: "new-refresh-token",
-	}
-
-	repository := &mockRefreshTokenRepository{
-		record: &ports.RefreshTokenRecord{
-			ID:        "session-1",
-			UserID:    "user-1",
-			TokenHash: "hashed-old-token",
-			ExpiresAt: now.Add(time.Hour),
-			CreatedAt: now.Add(-time.Hour),
-		},
-	}
-
-	_ = refreshTokenService
-	_ = repository
-	_ = dto.RefreshTokenCommand{}
-	_ = application_errors.ErrInvalidRefreshToken
-	_ = errors.New
-}
+var _ ports.RefreshTokenRepository = (*mockRefreshTokenRepository)(nil)

@@ -18,20 +18,39 @@ import (
 //   - retrieving the user through the repository abstraction
 //   - converting the domain aggregate into a safe application DTO
 //   - translating a missing user into ErrUserNotFound
+//   - emitting structured observability events
 //
 // Sensitive authentication information such as PasswordHash is never
-// included in the returned DTO.
+// included in the returned DTO or observability events.
 type GetUserUseCase struct {
 	userRepository ports.UserRepository
+	logger         ports.Logger
 }
 
 // NewGetUserUseCase creates a new GetUserUseCase.
 func NewGetUserUseCase(
 	userRepository ports.UserRepository,
+	logger ports.Logger,
 ) *GetUserUseCase {
 	return &GetUserUseCase{
 		userRepository: userRepository,
+		logger:         logger,
 	}
+}
+
+// logGetUserEvent emits a structured Get User event.
+//
+// Logging is intentionally best-effort. Observability must never change the
+// business outcome of the Get User operation.
+func (uc *GetUserUseCase) logGetUserEvent(
+	ctx context.Context,
+	event ports.LogEvent,
+) {
+	if uc.logger == nil {
+		return
+	}
+
+	_ = uc.logger.Log(ctx, event)
 }
 
 // Execute retrieves a single user by ID.
@@ -47,6 +66,12 @@ func (uc *GetUserUseCase) Execute(
 ) (*dto.GetUserResult, error) {
 	id, err := user.UserIDFromString(userID)
 	if err != nil {
+		uc.logGetUserEvent(ctx, ports.LogEvent{
+			Event:           "user.get.validation_failed",
+			Operation:       "get_user",
+			FailureCategory: "validation_failed",
+		})
+
 		return nil, fmt.Errorf(
 			"invalid user ID: %w",
 			err,
@@ -58,6 +83,13 @@ func (uc *GetUserUseCase) Execute(
 		id,
 	)
 	if err != nil {
+		uc.logGetUserEvent(ctx, ports.LogEvent{
+			Event:           "user.get.failed",
+			Operation:       "get_user",
+			UserID:          id.String(),
+			FailureCategory: "user_lookup_failed",
+		})
+
 		return nil, fmt.Errorf(
 			"failed to find user: %w",
 			err,
@@ -67,10 +99,17 @@ func (uc *GetUserUseCase) Execute(
 	// A nil user with no repository error represents a valid
 	// "not found" result at the application boundary.
 	if existingUser == nil {
+		uc.logGetUserEvent(ctx, ports.LogEvent{
+			Event:           "user.get.not_found",
+			Operation:       "get_user",
+			UserID:          id.String(),
+			FailureCategory: "user_not_found",
+		})
+
 		return nil, application_errors.ErrUserNotFound
 	}
 
-	return &dto.GetUserResult{
+	result := &dto.GetUserResult{
 		ID:        existingUser.ID().String(),
 		FullName:  existingUser.FullName().String(),
 		Email:     existingUser.Email().String(),
@@ -78,7 +117,16 @@ func (uc *GetUserUseCase) Execute(
 		Status:    existingUser.Status().String(),
 		CreatedAt: existingUser.CreatedAt(),
 		UpdatedAt: existingUser.UpdatedAt(),
-	}, nil
+	}
+
+	uc.logGetUserEvent(ctx, ports.LogEvent{
+		Event:     "user.get.succeeded",
+		Operation: "get_user",
+		UserID:    result.ID,
+		Role:      result.Role,
+	})
+
+	return result, nil
 }
 
 var _ ports.GetUserService = (*GetUserUseCase)(nil)

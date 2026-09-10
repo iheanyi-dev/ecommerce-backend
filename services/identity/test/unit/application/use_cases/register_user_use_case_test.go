@@ -3,14 +3,116 @@ package use_cases_test
 import (
 	"context"
 	"errors"
-	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"testing"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
+	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/policies"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
+
+// fakeLogger is a test implementation of the Logger port.
+//
+// Registration observability tests use this fake to capture structured
+// application events without depending on the concrete infrastructure
+// logging implementation.
+type fakeLogger struct {
+	events []ports.LogEvent
+	err    error
+}
+
+func (f *fakeLogger) Log(
+	_ context.Context,
+	event ports.LogEvent,
+) error {
+	f.events = append(f.events, event)
+
+	return f.err
+}
+
+// lastEvent returns the most recently recorded log event.
+//
+// Registration tests use this helper after asserting that an event was
+// emitted, keeping the individual tests focused on the event contract.
+func (f *fakeLogger) lastEvent(t *testing.T) ports.LogEvent {
+	t.Helper()
+
+	if len(f.events) == 0 {
+		t.Fatal("expected at least one log event")
+	}
+
+	return f.events[len(f.events)-1]
+}
+
+// assertRegistrationEvent verifies the common fields that identify a
+// registration event.
+//
+// Registration does not authenticate an existing user, so UserID and Role
+// are intentionally only expected on the successful event, where the newly
+// created aggregate is available.
+func assertRegistrationEvent(
+	t *testing.T,
+	event ports.LogEvent,
+	expectedEvent string,
+	expectedOperation string,
+	expectedFailureCategory string,
+) {
+	t.Helper()
+
+	if event.Event != expectedEvent {
+		t.Fatalf(
+			"expected event %q, got %q",
+			expectedEvent,
+			event.Event,
+		)
+	}
+
+	if event.Operation != expectedOperation {
+		t.Fatalf(
+			"expected operation %q, got %q",
+			expectedOperation,
+			event.Operation,
+		)
+	}
+
+	if event.FailureCategory != expectedFailureCategory {
+		t.Fatalf(
+			"expected failure category %q, got %q",
+			expectedFailureCategory,
+			event.FailureCategory,
+		)
+	}
+}
+
+// assertEventDoesNotContainSecret verifies that registration observability
+// never exposes authentication secrets.
+//
+// The plaintext password and generated password hash must not be written to
+// any structured logging field.
+func assertEventDoesNotContainSecret(
+	t *testing.T,
+	event ports.LogEvent,
+	secret string,
+) {
+	t.Helper()
+
+	if event.Event == secret ||
+		event.Operation == secret ||
+		event.UserID == secret ||
+		event.Role == secret ||
+		event.HTTPMethod == secret ||
+		event.Route == secret ||
+		event.FailureCategory == secret ||
+		event.RequiredRole == secret {
+		t.Fatalf(
+			"log event unexpectedly contained secret %q: %+v",
+			secret,
+			event,
+		)
+	}
+}
 
 // fakePasswordHasher is a test implementation of the PasswordHasher port.
 //
@@ -36,8 +138,8 @@ func (f *fakePasswordHasher) Hash(
 
 // Verify satisfies the PasswordHasher interface.
 //
-// Registration does not perform password verification, so this method
-// is intentionally unused by the registration tests.
+// Registration does not perform password verification, so this method is
+// intentionally unused by the registration tests.
 func (f *fakePasswordHasher) Verify(
 	ctx context.Context,
 	plainPassword string,
@@ -115,6 +217,7 @@ func (f *fakeUserRepository) UpdatePasswordHash(
 ) error {
 	return nil
 }
+
 func (f *fakeUserRepository) List(
 	ctx context.Context,
 	limit int,
@@ -144,6 +247,7 @@ func TestRegisterUserUseCase_RegistersUserSuccessfully(t *testing.T) {
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -229,6 +333,7 @@ func TestRegisterUserUseCase_DoesNotRegisterDuplicateEmail(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -274,6 +379,7 @@ func TestRegisterUserUseCase_ReturnsEmailValidationError(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -320,6 +426,7 @@ func TestRegisterUserUseCase_ReturnsRepositoryExistsError(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -370,6 +477,7 @@ func TestRegisterUserUseCase_ReturnsPasswordHasherError(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -410,6 +518,7 @@ func TestRegisterUserUseCase_ReturnsFullNameValidationError(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -450,6 +559,7 @@ func TestRegisterUserUseCase_ReturnsRepositoryCreateError(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -486,6 +596,7 @@ func TestRegisterUserUseCase_DoesNotExposePasswordHash(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -540,6 +651,7 @@ func TestRegisterUserUseCase_RejectsPasswordShorterThanEightCharacters(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -563,7 +675,9 @@ func TestRegisterUserUseCase_RejectsPasswordShorterThanEightCharacters(
 	}
 
 	if hasher.hashCalled {
-		t.Fatal("expected password hashing not to occur for an invalid password")
+		t.Fatal(
+			"expected password hashing not to occur for an invalid password",
+		)
 	}
 
 	if repository.createdUser != nil {
@@ -583,6 +697,7 @@ func TestRegisterUserUseCase_RejectsPasswordLongerThanSixtyFourCharacters(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	password := "A" +
@@ -609,7 +724,9 @@ func TestRegisterUserUseCase_RejectsPasswordLongerThanSixtyFourCharacters(
 	}
 
 	if hasher.hashCalled {
-		t.Fatal("expected password hashing not to occur for an invalid password")
+		t.Fatal(
+			"expected password hashing not to occur for an invalid password",
+		)
 	}
 
 	if repository.createdUser != nil {
@@ -629,6 +746,7 @@ func TestRegisterUserUseCase_RejectsPasswordMissingUppercase(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -652,7 +770,9 @@ func TestRegisterUserUseCase_RejectsPasswordMissingUppercase(
 	}
 
 	if hasher.hashCalled {
-		t.Fatal("expected password hashing not to occur for an invalid password")
+		t.Fatal(
+			"expected password hashing not to occur for an invalid password",
+		)
 	}
 
 	if repository.createdUser != nil {
@@ -672,6 +792,7 @@ func TestRegisterUserUseCase_RejectsPasswordMissingLowercase(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -695,7 +816,9 @@ func TestRegisterUserUseCase_RejectsPasswordMissingLowercase(
 	}
 
 	if hasher.hashCalled {
-		t.Fatal("expected password hashing not to occur for an invalid password")
+		t.Fatal(
+			"expected password hashing not to occur for an invalid password",
+		)
 	}
 
 	if repository.createdUser != nil {
@@ -715,6 +838,7 @@ func TestRegisterUserUseCase_RejectsPasswordMissingNumber(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -738,7 +862,9 @@ func TestRegisterUserUseCase_RejectsPasswordMissingNumber(
 	}
 
 	if hasher.hashCalled {
-		t.Fatal("expected password hashing not to occur for an invalid password")
+		t.Fatal(
+			"expected password hashing not to occur for an invalid password",
+		)
 	}
 
 	if repository.createdUser != nil {
@@ -758,6 +884,7 @@ func TestRegisterUserUseCase_RejectsPasswordMissingSpecialCharacter(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -781,10 +908,522 @@ func TestRegisterUserUseCase_RejectsPasswordMissingSpecialCharacter(
 	}
 
 	if hasher.hashCalled {
-		t.Fatal("expected password hashing not to occur for an invalid password")
+		t.Fatal(
+			"expected password hashing not to occur for an invalid password",
+		)
 	}
 
 	if repository.createdUser != nil {
 		t.Fatal("expected invalid user not to be created")
 	}
+}
+
+// -----------------------------------------------------------------------------
+// Registration observability tests
+// -----------------------------------------------------------------------------
+
+func TestRegisterUserUseCase_LogsSuccessfulRegistration(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+	logger := &fakeLogger{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	result, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if err != nil {
+		t.Fatalf(
+			"expected registration to succeed, got: %v",
+			err,
+		)
+	}
+
+	if result.ID == "" {
+		t.Fatal("expected successful registration to return a user ID")
+	}
+
+	event := logger.lastEvent(t)
+
+	assertRegistrationEvent(
+		t,
+		event,
+		"auth.registration.succeeded",
+		"registration",
+		"",
+	)
+
+	if event.UserID != result.ID {
+		t.Fatalf(
+			"expected event user ID %q, got %q",
+			result.ID,
+			event.UserID,
+		)
+	}
+
+	if event.Role != user.RoleUser.String() {
+		t.Fatalf(
+			"expected event role %q, got %q",
+			user.RoleUser.String(),
+			event.Role,
+		)
+	}
+}
+
+func TestRegisterUserUseCase_LogsDuplicateEmail(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{
+		existingEmail: true,
+	}
+	hasher := &fakePasswordHasher{}
+	logger := &fakeLogger{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, application_errors.ErrEmailAlreadyExists) {
+		t.Fatalf(
+			"expected ErrEmailAlreadyExists, got %v",
+			err,
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertRegistrationEvent(
+		t,
+		event,
+		"auth.registration.duplicate_email",
+		"registration",
+		"duplicate_email",
+	)
+
+	if event.UserID != "" {
+		t.Fatalf(
+			"expected duplicate email event to have no user ID, got %q",
+			event.UserID,
+		)
+	}
+}
+
+func TestRegisterUserUseCase_LogsEmailValidationFailure(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+	logger := &fakeLogger{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "invalid-email",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if err == nil {
+		t.Fatal("expected invalid email to return an error")
+	}
+
+	event := logger.lastEvent(t)
+
+	assertRegistrationEvent(
+		t,
+		event,
+		"auth.registration.validation_failed",
+		"registration",
+		"validation_failed",
+	)
+}
+
+func TestRegisterUserUseCase_LogsPasswordValidationFailure(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+	logger := &fakeLogger{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "weak",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, policies.ErrPasswordTooShort) {
+		t.Fatalf(
+			"expected ErrPasswordTooShort, got %v",
+			err,
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertRegistrationEvent(
+		t,
+		event,
+		"auth.registration.validation_failed",
+		"registration",
+		"validation_failed",
+	)
+}
+
+func TestRegisterUserUseCase_LogsRepositoryExistsFailure(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	expectedErr := errors.New("failed to check existing email")
+
+	repository := &fakeUserRepository{
+		existsError: expectedErr,
+	}
+	hasher := &fakePasswordHasher{}
+	logger := &fakeLogger{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf(
+			"expected repository error %v, got %v",
+			expectedErr,
+			err,
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertRegistrationEvent(
+		t,
+		event,
+		"auth.registration.failed",
+		"registration",
+		"email_existence_check_failed",
+	)
+}
+
+func TestRegisterUserUseCase_LogsPasswordHashingFailure(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	expectedErr := errors.New("password hashing failed")
+
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{
+		hashError: expectedErr,
+	}
+	logger := &fakeLogger{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf(
+			"expected password hasher error %v, got %v",
+			expectedErr,
+			err,
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertRegistrationEvent(
+		t,
+		event,
+		"auth.registration.failed",
+		"registration",
+		"password_hashing_failed",
+	)
+}
+
+func TestRegisterUserUseCase_LogsFullNameValidationFailure(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+	logger := &fakeLogger{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if err == nil {
+		t.Fatal("expected invalid full name to return an error")
+	}
+
+	event := logger.lastEvent(t)
+
+	assertRegistrationEvent(
+		t,
+		event,
+		"auth.registration.validation_failed",
+		"registration",
+		"validation_failed",
+	)
+}
+
+func TestRegisterUserUseCase_LogsRepositoryCreateFailure(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	expectedErr := errors.New("failed to create user")
+
+	repository := &fakeUserRepository{
+		createError: expectedErr,
+	}
+	hasher := &fakePasswordHasher{}
+	logger := &fakeLogger{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf(
+			"expected repository create error %v, got %v",
+			expectedErr,
+			err,
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertRegistrationEvent(
+		t,
+		event,
+		"auth.registration.failed",
+		"registration",
+		"user_creation_failed",
+	)
+}
+
+func TestRegisterUserUseCase_LoggerFailureDoesNotAffectRegistration(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+	logger := &fakeLogger{
+		err: errors.New("logger unavailable"),
+	}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	result, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if err != nil {
+		t.Fatalf(
+			"expected registration to succeed even when logging fails, got: %v",
+			err,
+		)
+	}
+
+	if result.ID == "" {
+		t.Fatal("expected successful registration to return a user ID")
+	}
+
+	if repository.createdUser == nil {
+		t.Fatal("expected user to be created")
+	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected one attempted log event, got %d",
+			len(logger.events),
+		)
+	}
+}
+
+func TestRegisterUserUseCase_DoesNotLogRegistrationSecrets(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+	logger := &fakeLogger{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	const plaintextPassword = "StrongPass@123"
+	const passwordHash = "hashed:" + plaintextPassword
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: plaintextPassword,
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if err != nil {
+		t.Fatalf(
+			"expected registration to succeed, got: %v",
+			err,
+		)
+	}
+
+	event := logger.lastEvent(t)
+
+	assertEventDoesNotContainSecret(
+		t,
+		event,
+		plaintextPassword,
+	)
+
+	assertEventDoesNotContainSecret(
+		t,
+		event,
+		passwordHash,
+	)
 }

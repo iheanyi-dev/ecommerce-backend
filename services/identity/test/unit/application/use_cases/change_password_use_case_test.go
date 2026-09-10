@@ -17,6 +17,19 @@ import (
 // Test doubles
 // -----------------------------------------------------------------------------
 
+type fakeChangePasswordLogger struct {
+	events []ports.LogEvent
+	err    error
+}
+
+func (f *fakeChangePasswordLogger) Log(
+	ctx context.Context,
+	event ports.LogEvent,
+) error {
+	f.events = append(f.events, event)
+	return f.err
+}
+
 // fakeChangePasswordRepository is an in-memory implementation of
 // ports.UserRepository.
 //
@@ -198,6 +211,63 @@ func newChangePasswordUser(t *testing.T) *user.User {
 	)
 }
 
+func assertSinglePasswordChangeEvent(
+	t *testing.T,
+	logger *fakeChangePasswordLogger,
+	expectedEvent string,
+	expectedFailure string,
+	expectedUserID string,
+	expectedRole string,
+) {
+	t.Helper()
+
+	if len(logger.events) != 1 {
+		t.Fatalf("expected 1 log event, got %d", len(logger.events))
+	}
+
+	event := logger.events[0]
+
+	if event.Event != expectedEvent {
+		t.Fatalf(
+			"expected event %q, got %q",
+			expectedEvent,
+			event.Event,
+		)
+	}
+
+	if event.Operation != "change_password" {
+		t.Fatalf(
+			"expected operation %q, got %q",
+			"change_password",
+			event.Operation,
+		)
+	}
+
+	if event.UserID != expectedUserID {
+		t.Fatalf(
+			"expected user ID %q, got %q",
+			expectedUserID,
+			event.UserID,
+		)
+	}
+
+	if event.Role != expectedRole {
+		t.Fatalf(
+			"expected role %q, got %q",
+			expectedRole,
+			event.Role,
+		)
+	}
+
+	if event.FailureCategory != expectedFailure {
+		t.Fatalf(
+			"expected failure category %q, got %q",
+			expectedFailure,
+			event.FailureCategory,
+		)
+	}
+}
+
 // -----------------------------------------------------------------------------
 // Happy path
 // -----------------------------------------------------------------------------
@@ -205,7 +275,6 @@ func newChangePasswordUser(t *testing.T) *user.User {
 func TestChangePasswordUseCase_ChangesPasswordSuccessfully(t *testing.T) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -213,13 +282,16 @@ func TestChangePasswordUseCase_ChangesPasswordSuccessfully(t *testing.T) {
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
+	before := testUser.UpdatedAt()
+
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -227,7 +299,6 @@ func TestChangePasswordUseCase_ChangesPasswordSuccessfully(t *testing.T) {
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -287,6 +358,19 @@ func TestChangePasswordUseCase_ChangesPasswordSuccessfully(t *testing.T) {
 			repository.updatedPasswordHash.String(),
 		)
 	}
+
+	if testUser.UpdatedAt().Before(before) {
+		t.Fatal("expected domain to update UpdatedAt")
+	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.succeeded",
+		"",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 // -----------------------------------------------------------------------------
@@ -296,16 +380,16 @@ func TestChangePasswordUseCase_ChangesPasswordSuccessfully(t *testing.T) {
 func TestChangePasswordUseCase_ReturnsErrorForInvalidUserID(t *testing.T) {
 	t.Parallel()
 
-	// Arrange.
 	repository := &fakeChangePasswordRepository{}
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		"not-a-valid-user-id",
@@ -313,7 +397,6 @@ func TestChangePasswordUseCase_ReturnsErrorForInvalidUserID(t *testing.T) {
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if err == nil {
 		t.Fatal("expected an error for an invalid user ID")
 	}
@@ -329,32 +412,42 @@ func TestChangePasswordUseCase_ReturnsErrorForInvalidUserID(t *testing.T) {
 	if hasher.hashCalled {
 		t.Fatal("expected password hashing not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.validation_failed",
+		"validation_failed",
+		"",
+		"",
+	)
 }
 
 func TestChangePasswordUseCase_ReturnsUserNotFound(t *testing.T) {
 	t.Parallel()
 
-	// Arrange.
 	repository := &fakeChangePasswordRepository{
 		user: nil,
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
+	userID := user.NewUserID().String()
+
 	err := useCase.Execute(
 		context.Background(),
-		user.NewUserID().String(),
+		userID,
 		"OldPassword@123",
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if !errors.Is(err, application_errors.ErrUserNotFound) {
 		t.Fatalf(
 			"expected ErrUserNotFound, got %v",
@@ -373,35 +466,45 @@ func TestChangePasswordUseCase_ReturnsUserNotFound(t *testing.T) {
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.not_found",
+		"user_not_found",
+		userID,
+		"",
+	)
 }
 
 func TestChangePasswordUseCase_ReturnsRepositoryLookupError(t *testing.T) {
 	t.Parallel()
 
-	// Arrange.
 	expectedError := errors.New("database lookup failed")
 
+	testUser := newChangePasswordUser(t)
+
 	repository := &fakeChangePasswordRepository{
-		user:          newChangePasswordUser(t),
+		user:          testUser,
 		findByIDError: expectedError,
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
-		repository.user.ID().String(),
+		testUser.ID().String(),
 		"OldPassword@123",
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if !errors.Is(err, expectedError) {
 		t.Fatalf(
 			"expected repository error to be propagated, got %v",
@@ -420,6 +523,15 @@ func TestChangePasswordUseCase_ReturnsRepositoryLookupError(t *testing.T) {
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.failed",
+		"user_lookup_failed",
+		testUser.ID().String(),
+		"",
+	)
 }
 
 // -----------------------------------------------------------------------------
@@ -429,22 +541,24 @@ func TestChangePasswordUseCase_ReturnsRepositoryLookupError(t *testing.T) {
 func TestChangePasswordUseCase_RejectsSuspendedAccount(t *testing.T) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
-	testUser.Suspend()
+	if err := testUser.Suspend(); err != nil {
+		t.Fatalf("failed to suspend test user: %v", err)
+	}
 
 	repository := &fakeChangePasswordRepository{
 		user: testUser,
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -452,9 +566,11 @@ func TestChangePasswordUseCase_RejectsSuspendedAccount(t *testing.T) {
 		"NewPassword@456",
 	)
 
-	// Assert.
-	if err == nil {
-		t.Fatal("expected suspended account to be rejected")
+	if !errors.Is(err, application_errors.ErrAccountNotActive) {
+		t.Fatalf(
+			"expected ErrAccountNotActive, got %v",
+			err,
+		)
 	}
 
 	if hasher.verifyCalled {
@@ -468,27 +584,38 @@ func TestChangePasswordUseCase_RejectsSuspendedAccount(t *testing.T) {
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.user_inactive",
+		"user_inactive",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 func TestChangePasswordUseCase_RejectsInactiveAccount(t *testing.T) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
-	testUser.Deactivate()
+	if err := testUser.Deactivate(); err != nil {
+		t.Fatalf("failed to deactivate test user: %v", err)
+	}
 
 	repository := &fakeChangePasswordRepository{
 		user: testUser,
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -496,9 +623,11 @@ func TestChangePasswordUseCase_RejectsInactiveAccount(t *testing.T) {
 		"NewPassword@456",
 	)
 
-	// Assert.
-	if err == nil {
-		t.Fatal("expected inactive account to be rejected")
+	if !errors.Is(err, application_errors.ErrAccountNotActive) {
+		t.Fatalf(
+			"expected ErrAccountNotActive, got %v",
+			err,
+		)
 	}
 
 	if hasher.verifyCalled {
@@ -512,16 +641,26 @@ func TestChangePasswordUseCase_RejectsInactiveAccount(t *testing.T) {
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.user_inactive",
+		"user_inactive",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 // -----------------------------------------------------------------------------
 // Current-password verification failures
 // -----------------------------------------------------------------------------
 
-func TestChangePasswordUseCase_ReturnsErrorWhenCurrentPasswordIsIncorrect(t *testing.T) {
+func TestChangePasswordUseCase_ReturnsErrorWhenCurrentPasswordIsIncorrect(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	// Arrange.
 	expectedError := errors.New("invalid current password")
 
 	testUser := newChangePasswordUser(t)
@@ -534,12 +673,14 @@ func TestChangePasswordUseCase_ReturnsErrorWhenCurrentPasswordIsIncorrect(t *tes
 		verifyError: expectedError,
 	}
 
+	logger := &fakeChangePasswordLogger{}
+
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -547,7 +688,6 @@ func TestChangePasswordUseCase_ReturnsErrorWhenCurrentPasswordIsIncorrect(t *tes
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if !errors.Is(err, expectedError) {
 		t.Fatalf(
 			"expected verification error to be returned, got %v",
@@ -559,18 +699,22 @@ func TestChangePasswordUseCase_ReturnsErrorWhenCurrentPasswordIsIncorrect(t *tes
 		t.Fatal("expected password verification to be called")
 	}
 
-	// Security invariant:
-	// Never hash a new password when the current password has not
-	// been successfully verified.
 	if hasher.hashCalled {
 		t.Fatal("expected new password hashing not to occur")
 	}
 
-	// Security invariant:
-	// Never persist a password change when verification fails.
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to occur")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.invalid_credentials",
+		"invalid_credentials",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 func TestChangePasswordUseCase_DoesNotHashOrPersistWhenVerificationFails(
@@ -578,7 +722,6 @@ func TestChangePasswordUseCase_DoesNotHashOrPersistWhenVerificationFails(
 ) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -589,12 +732,14 @@ func TestChangePasswordUseCase_DoesNotHashOrPersistWhenVerificationFails(
 		verifyError: errors.New("password mismatch"),
 	}
 
+	logger := &fakeChangePasswordLogger{}
+
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	_ = useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -602,7 +747,6 @@ func TestChangePasswordUseCase_DoesNotHashOrPersistWhenVerificationFails(
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if hasher.hashCalled {
 		t.Fatal("expected Hash not to be called after Verify failure")
 	}
@@ -621,7 +765,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordShorterThanEightCharacters(
 ) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -629,13 +772,14 @@ func TestChangePasswordUseCase_RejectsNewPasswordShorterThanEightCharacters(
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -643,7 +787,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordShorterThanEightCharacters(
 		"Abc@123",
 	)
 
-	// Assert.
 	if !errors.Is(err, policies.ErrPasswordTooShort) {
 		t.Fatalf(
 			"expected ErrPasswordTooShort, got %v",
@@ -662,6 +805,15 @@ func TestChangePasswordUseCase_RejectsNewPasswordShorterThanEightCharacters(
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.validation_failed",
+		"validation_failed",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 func TestChangePasswordUseCase_RejectsNewPasswordLongerThanSixtyFourCharacters(
@@ -669,7 +821,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordLongerThanSixtyFourCharacters(
 ) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -677,15 +828,16 @@ func TestChangePasswordUseCase_RejectsNewPasswordLongerThanSixtyFourCharacters(
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
 	password := "A" + "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz1234567890@x"
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -693,7 +845,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordLongerThanSixtyFourCharacters(
 		password,
 	)
 
-	// Assert.
 	if !errors.Is(err, policies.ErrPasswordTooLong) {
 		t.Fatalf(
 			"expected ErrPasswordTooLong, got %v",
@@ -712,6 +863,15 @@ func TestChangePasswordUseCase_RejectsNewPasswordLongerThanSixtyFourCharacters(
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.validation_failed",
+		"validation_failed",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 func TestChangePasswordUseCase_RejectsNewPasswordMissingUppercaseLetter(
@@ -719,7 +879,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingUppercaseLetter(
 ) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -727,13 +886,14 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingUppercaseLetter(
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -741,7 +901,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingUppercaseLetter(
 		"strong@123",
 	)
 
-	// Assert.
 	if !errors.Is(err, policies.ErrPasswordMissingUppercase) {
 		t.Fatalf(
 			"expected ErrPasswordMissingUppercase, got %v",
@@ -760,6 +919,15 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingUppercaseLetter(
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.validation_failed",
+		"validation_failed",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 func TestChangePasswordUseCase_RejectsNewPasswordMissingLowercaseLetter(
@@ -767,7 +935,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingLowercaseLetter(
 ) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -775,13 +942,14 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingLowercaseLetter(
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -789,7 +957,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingLowercaseLetter(
 		"STRONG@123",
 	)
 
-	// Assert.
 	if !errors.Is(err, policies.ErrPasswordMissingLowercase) {
 		t.Fatalf(
 			"expected ErrPasswordMissingLowercase, got %v",
@@ -808,6 +975,15 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingLowercaseLetter(
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.validation_failed",
+		"validation_failed",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 func TestChangePasswordUseCase_RejectsNewPasswordMissingNumber(
@@ -815,7 +991,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingNumber(
 ) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -823,13 +998,14 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingNumber(
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -837,7 +1013,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingNumber(
 		"StrongPassword@",
 	)
 
-	// Assert.
 	if !errors.Is(err, policies.ErrPasswordMissingNumber) {
 		t.Fatalf(
 			"expected ErrPasswordMissingNumber, got %v",
@@ -856,6 +1031,15 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingNumber(
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.validation_failed",
+		"validation_failed",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 func TestChangePasswordUseCase_RejectsNewPasswordMissingSpecialCharacter(
@@ -863,7 +1047,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingSpecialCharacter(
 ) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -871,13 +1054,14 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingSpecialCharacter(
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -885,7 +1069,6 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingSpecialCharacter(
 		"StrongPassword123",
 	)
 
-	// Assert.
 	if !errors.Is(err, policies.ErrPasswordMissingSpecialCharacter) {
 		t.Fatalf(
 			"expected ErrPasswordMissingSpecialCharacter, got %v",
@@ -904,16 +1087,26 @@ func TestChangePasswordUseCase_RejectsNewPasswordMissingSpecialCharacter(
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to be called")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.validation_failed",
+		"validation_failed",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
 // -----------------------------------------------------------------------------
 // New-password hashing failures
 // -----------------------------------------------------------------------------
 
-func TestChangePasswordUseCase_ReturnsErrorWhenNewPasswordHashingFails(t *testing.T) {
+func TestChangePasswordUseCase_ReturnsErrorWhenNewPasswordHashingFails(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	// Arrange.
 	expectedError := errors.New("password hashing failed")
 
 	testUser := newChangePasswordUser(t)
@@ -926,12 +1119,14 @@ func TestChangePasswordUseCase_ReturnsErrorWhenNewPasswordHashingFails(t *testin
 		hashError: expectedError,
 	}
 
+	logger := &fakeChangePasswordLogger{}
+
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -939,7 +1134,6 @@ func TestChangePasswordUseCase_ReturnsErrorWhenNewPasswordHashingFails(t *testin
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if !errors.Is(err, expectedError) {
 		t.Fatalf(
 			"expected hashing error to be returned, got %v",
@@ -955,17 +1149,25 @@ func TestChangePasswordUseCase_ReturnsErrorWhenNewPasswordHashingFails(t *testin
 		t.Fatal("expected password hashing to be called")
 	}
 
-	// Security invariant:
-	// A password must never be persisted if hashing failed.
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence not to occur")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.failed",
+		"password_hashing_failed",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
 }
 
-func TestChangePasswordUseCase_DoesNotPersistWhenHashingFails(t *testing.T) {
+func TestChangePasswordUseCase_DoesNotPersistWhenHashingFails(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -976,12 +1178,14 @@ func TestChangePasswordUseCase_DoesNotPersistWhenHashingFails(t *testing.T) {
 		hashError: errors.New("hash generation failed"),
 	}
 
+	logger := &fakeChangePasswordLogger{}
+
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	_ = useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -989,7 +1193,6 @@ func TestChangePasswordUseCase_DoesNotPersistWhenHashingFails(t *testing.T) {
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if repository.updatePasswordHashCalled {
 		t.Fatal("expected UpdatePasswordHash not to be called when hashing fails")
 	}
@@ -999,10 +1202,11 @@ func TestChangePasswordUseCase_DoesNotPersistWhenHashingFails(t *testing.T) {
 // Persistence failures
 // -----------------------------------------------------------------------------
 
-func TestChangePasswordUseCase_ReturnsErrorWhenPasswordPersistenceFails(t *testing.T) {
+func TestChangePasswordUseCase_ReturnsErrorWhenPasswordPersistenceFails(
+	t *testing.T,
+) {
 	t.Parallel()
 
-	// Arrange.
 	expectedError := errors.New("password persistence failed")
 
 	testUser := newChangePasswordUser(t)
@@ -1013,13 +1217,14 @@ func TestChangePasswordUseCase_ReturnsErrorWhenPasswordPersistenceFails(t *testi
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -1027,7 +1232,6 @@ func TestChangePasswordUseCase_ReturnsErrorWhenPasswordPersistenceFails(t *testi
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if !errors.Is(err, expectedError) {
 		t.Fatalf(
 			"expected persistence error to be returned, got %v",
@@ -1046,6 +1250,68 @@ func TestChangePasswordUseCase_ReturnsErrorWhenPasswordPersistenceFails(t *testi
 	if !repository.updatePasswordHashCalled {
 		t.Fatal("expected password persistence to be attempted")
 	}
+
+	assertSinglePasswordChangeEvent(
+		t,
+		logger,
+		"auth.password_change.failed",
+		"password_update_failed",
+		testUser.ID().String(),
+		string(testUser.Role()),
+	)
+}
+
+// -----------------------------------------------------------------------------
+// Observability reliability
+// -----------------------------------------------------------------------------
+
+func TestChangePasswordUseCase_LoggerFailureDoesNotAffectSuccess(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	testUser := newChangePasswordUser(t)
+
+	repository := &fakeChangePasswordRepository{
+		user: testUser,
+	}
+
+	hasher := &fakeChangePasswordHasher{}
+
+	logger := &fakeChangePasswordLogger{
+		err: errors.New("logger unavailable"),
+	}
+
+	useCase := use_cases.NewChangePasswordUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	err := useCase.Execute(
+		context.Background(),
+		testUser.ID().String(),
+		"OldPassword@123",
+		"NewPassword@456",
+	)
+
+	if err != nil {
+		t.Fatalf(
+			"expected logger failure to be ignored, got %v",
+			err,
+		)
+	}
+
+	if !repository.updatePasswordHashCalled {
+		t.Fatal("expected password persistence to be called")
+	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf(
+			"expected 1 attempted log event, got %d",
+			len(logger.events),
+		)
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -1057,7 +1323,6 @@ func TestChangePasswordUseCase_NeverSendsPlaintextPasswordToRepository(
 ) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -1065,16 +1330,17 @@ func TestChangePasswordUseCase_NeverSendsPlaintextPasswordToRepository(
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
 	currentPassword := "OldPassword@123"
 	newPassword := "NewPassword@456"
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -1082,7 +1348,6 @@ func TestChangePasswordUseCase_NeverSendsPlaintextPasswordToRepository(
 		newPassword,
 	)
 
-	// Assert.
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -1100,7 +1365,7 @@ func TestChangePasswordUseCase_NeverSendsPlaintextPasswordToRepository(
 	if persistedHash != "hashed:"+newPassword {
 		t.Fatalf(
 			"expected repository to receive only the hashed password, got %q",
-			"hashed:"+newPassword,
+			persistedHash,
 		)
 	}
 }
@@ -1110,7 +1375,6 @@ func TestChangePasswordUseCase_VerifiesAgainstStoredPasswordHash(
 ) {
 	t.Parallel()
 
-	// Arrange.
 	testUser := newChangePasswordUser(t)
 
 	repository := &fakeChangePasswordRepository{
@@ -1118,13 +1382,14 @@ func TestChangePasswordUseCase_VerifiesAgainstStoredPasswordHash(
 	}
 
 	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
 
 	useCase := use_cases.NewChangePasswordUseCase(
 		repository,
 		hasher,
+		logger,
 	)
 
-	// Act.
 	err := useCase.Execute(
 		context.Background(),
 		testUser.ID().String(),
@@ -1132,7 +1397,6 @@ func TestChangePasswordUseCase_VerifiesAgainstStoredPasswordHash(
 		"NewPassword@456",
 	)
 
-	// Assert.
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -1148,9 +1412,88 @@ func TestChangePasswordUseCase_VerifiesAgainstStoredPasswordHash(
 	}
 }
 
+func TestChangePasswordUseCase_DoesNotLogPasswordsOrPasswordHashes(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	testUser := newChangePasswordUser(t)
+
+	repository := &fakeChangePasswordRepository{
+		user: testUser,
+	}
+
+	hasher := &fakeChangePasswordHasher{}
+	logger := &fakeChangePasswordLogger{}
+
+	useCase := use_cases.NewChangePasswordUseCase(
+		repository,
+		hasher,
+		logger,
+	)
+
+	currentPassword := "OldPassword@123"
+	newPassword := "NewPassword@456"
+
+	err := useCase.Execute(
+		context.Background(),
+		testUser.ID().String(),
+		currentPassword,
+		newPassword,
+	)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if len(logger.events) != 1 {
+		t.Fatalf("expected 1 log event, got %d", len(logger.events))
+	}
+
+	event := logger.events[0]
+
+	if event.UserID != testUser.ID().String() {
+		t.Fatalf(
+			"expected user ID %q, got %q",
+			testUser.ID().String(),
+			event.UserID,
+		)
+	}
+
+	if event.Role != string(testUser.Role()) {
+		t.Fatalf(
+			"expected role %q, got %q",
+			testUser.Role(),
+			event.Role,
+		)
+	}
+
+	if event.Route != "" {
+		t.Fatalf(
+			"expected route to be empty at application layer, got %q",
+			event.Route,
+		)
+	}
+
+	if event.HTTPMethod != "" {
+		t.Fatalf(
+			"expected HTTP method to be empty at application layer, got %q",
+			event.HTTPMethod,
+		)
+	}
+
+	if event.FailureCategory != "" {
+		t.Fatalf(
+			"expected no failure category on success, got %q",
+			event.FailureCategory,
+		)
+	}
+}
+
 // -----------------------------------------------------------------------------
 // Compile-time interface assertions
 // -----------------------------------------------------------------------------
 
 var _ ports.UserRepository = (*fakeChangePasswordRepository)(nil)
 var _ ports.PasswordHasher = (*fakeChangePasswordHasher)(nil)
+var _ ports.Logger = (*fakeChangePasswordLogger)(nil)

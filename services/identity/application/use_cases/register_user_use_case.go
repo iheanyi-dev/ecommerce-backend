@@ -4,128 +4,177 @@ import (
 	"context"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
-	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/policies"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
 
-// RegisterUserUseCase handles the application workflow for registering
-// a new user.
+// RegisterUserUseCase orchestrates the user registration workflow.
 //
-// The use case coordinates the domain and application ports, but does not
-// know how users are persisted or how passwords are hashed.
+// The use case coordinates domain validation, password hashing, and
+// persistence while keeping infrastructure concerns outside the application
+// layer.
 //
-// Business rules remain inside the domain layer.
+// Logging is deliberately best-effort. A logging failure must never cause an
+// otherwise successful registration to fail.
 type RegisterUserUseCase struct {
 	userRepository ports.UserRepository
 	passwordHasher ports.PasswordHasher
+	logger         ports.Logger
 }
 
-// NewRegisterUserUseCase creates a RegisterUserUseCase with its required
-// application dependencies.
+// NewRegisterUserUseCase creates a new RegisterUserUseCase.
 func NewRegisterUserUseCase(
 	userRepository ports.UserRepository,
 	passwordHasher ports.PasswordHasher,
+	logger ports.Logger,
 ) *RegisterUserUseCase {
 	return &RegisterUserUseCase{
 		userRepository: userRepository,
 		passwordHasher: passwordHasher,
+		logger:         logger,
 	}
 }
 
+// logRegistrationEvent emits a structured registration event.
+//
+// Logging is intentionally best-effort. Observability must never change the
+// business outcome of the registration operation.
+func (u *RegisterUserUseCase) logRegistrationEvent(
+	ctx context.Context,
+	event ports.LogEvent,
+) {
+	if u.logger == nil {
+		return
+	}
+
+	_ = u.logger.Log(ctx, event)
+}
+
 // Execute registers a new user.
-//
-// The registration workflow is:
-//
-//  1. Validate the email through the Email value object.
-//  2. Check whether the email already exists.
-//  3. Validate the plaintext password against the application password policy.
-//  4. Hash the supplied password.
-//  5. Validate the full name.
-//  6. Create the User aggregate.
-//  7. Persist the User aggregate through the repository.
-//
-// A Unit of Work is intentionally not used here because registration
-// currently performs a single aggregate persistence operation. Transaction
-// coordination will be introduced when the service actually requires
-// multiple related writes to be atomic.
-func (uc *RegisterUserUseCase) Execute(
+func (u *RegisterUserUseCase) Execute(
 	ctx context.Context,
 	command dto.RegisterUserCommand,
 ) (dto.RegisterUserResult, error) {
-	// Convert the raw email into the domain Email value object.
-	//
-	// This ensures that invalid email values are rejected before any
-	// persistence operation takes place.
+	// Validate and construct the email value object first.
 	email, err := user.NewEmail(command.Email)
 	if err != nil {
+		u.logRegistrationEvent(ctx, ports.LogEvent{
+			Event:           "auth.registration.validation_failed",
+			Operation:       "registration",
+			FailureCategory: "validation_failed",
+		})
+
 		return dto.RegisterUserResult{}, err
 	}
 
-	// Check whether another user already owns this email address.
-	exists, err := uc.userRepository.ExistsByEmail(ctx, email)
+	// Check whether the email is already registered.
+	exists, err := u.userRepository.ExistsByEmail(ctx, email)
 	if err != nil {
+		u.logRegistrationEvent(ctx, ports.LogEvent{
+			Event:           "auth.registration.failed",
+			Operation:       "registration",
+			FailureCategory: "email_existence_check_failed",
+		})
+
 		return dto.RegisterUserResult{}, err
 	}
 
 	if exists {
-		return dto.RegisterUserResult{}, application_errors.ErrEmailAlreadyExists
+		u.logRegistrationEvent(ctx, ports.LogEvent{
+			Event:           "auth.registration.duplicate_email",
+			Operation:       "registration",
+			FailureCategory: "duplicate_email",
+		})
+
+		return dto.RegisterUserResult{}, errors.ErrEmailAlreadyExists
 	}
 
-	// Validate the plaintext password before performing the expensive
-	// password-hashing operation.
-	//
-	// The password policy belongs to the application layer. The domain
-	// never receives the plaintext password; it only receives the
-	// resulting PasswordHash value below.
+	// Apply the application's password policy before hashing.
 	if err := policies.ValidatePassword(command.Password); err != nil {
+		u.logRegistrationEvent(ctx, ports.LogEvent{
+			Event:           "auth.registration.validation_failed",
+			Operation:       "registration",
+			FailureCategory: "validation_failed",
+		})
+
 		return dto.RegisterUserResult{}, err
 	}
 
-	// Password hashing is an application concern rather than a domain
-	// concern. The use case delegates this operation to the PasswordHasher
-	// port.
-	passwordHashValue, err := uc.passwordHasher.Hash(
-		ctx,
-		command.Password,
-	)
+	// Hash the plaintext password. The plaintext password is never logged.
+	passwordHash, err := u.passwordHasher.Hash(ctx, command.Password)
 	if err != nil {
+		u.logRegistrationEvent(ctx, ports.LogEvent{
+			Event:           "auth.registration.failed",
+			Operation:       "registration",
+			FailureCategory: "password_hashing_failed",
+		})
+
 		return dto.RegisterUserResult{}, err
 	}
 
-	passwordHash, err := user.NewPasswordHash(passwordHashValue)
+	// Construct the password-hash value object.
+	hash, err := user.NewPasswordHash(passwordHash)
 	if err != nil {
+		u.logRegistrationEvent(ctx, ports.LogEvent{
+			Event:           "auth.registration.validation_failed",
+			Operation:       "registration",
+			FailureCategory: "validation_failed",
+		})
+
 		return dto.RegisterUserResult{}, err
 	}
 
-	// Convert the supplied name into the corresponding domain value object.
+	// Construct the full-name value object.
 	fullName, err := user.NewFullName(command.FullName)
 	if err != nil {
+		u.logRegistrationEvent(ctx, ports.LogEvent{
+			Event:           "auth.registration.validation_failed",
+			Operation:       "registration",
+			FailureCategory: "validation_failed",
+		})
+
 		return dto.RegisterUserResult{}, err
 	}
 
-	// Create the User aggregate using validated domain value objects.
+	// Construct the User aggregate.
 	newUser, err := user.NewUser(
 		fullName,
 		email,
-		passwordHash,
+		hash,
 	)
 	if err != nil {
+		u.logRegistrationEvent(ctx, ports.LogEvent{
+			Event:           "auth.registration.validation_failed",
+			Operation:       "registration",
+			FailureCategory: "validation_failed",
+		})
+
 		return dto.RegisterUserResult{}, err
 	}
 
-	// Persist the newly created aggregate.
-	//
-	// The repository method is intentionally called Create rather than Save
-	// because registration creates a new user. This keeps the persistence
-	// contract explicit and avoids giving Save multiple meanings.
-	if err := uc.userRepository.Create(ctx, newUser); err != nil {
+	// Persist the newly-created user.
+	if err := u.userRepository.Create(ctx, newUser); err != nil {
+		u.logRegistrationEvent(ctx, ports.LogEvent{
+			Event:           "auth.registration.failed",
+			Operation:       "registration",
+			FailureCategory: "user_creation_failed",
+		})
+
 		return dto.RegisterUserResult{}, err
 	}
 
-	// Convert the domain aggregate into the application result DTO.
-	return dto.NewRegisterUserResult(newUser), nil
+	result := dto.NewRegisterUserResult(newUser)
+
+	// Registration succeeded. Only non-sensitive identity information is
+	// included in the structured event.
+	u.logRegistrationEvent(ctx, ports.LogEvent{
+		Event:     "auth.registration.succeeded",
+		Operation: "registration",
+		UserID:    result.ID,
+		Role:      result.Role,
+	})
+
+	return result, nil
 }
-
-var _ ports.RegisterUserService = (*RegisterUserUseCase)(nil)

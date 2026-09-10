@@ -41,11 +41,16 @@ import (
 //
 // The use case deliberately depends only on application ports. It has no
 // knowledge of PostgreSQL, JWT, bcrypt, crypto/rand, or HTTP.
+//
+// Structured authentication events are emitted through the application
+// logger. Logging is best-effort and never changes the authentication
+// outcome if the logger itself fails.
 type RefreshUserUseCase struct {
 	refreshTokenRepository ports.RefreshTokenRepository
 	userRepository         ports.UserRepository
 	refreshTokenService    ports.RefreshTokenService
 	tokenService           ports.TokenService
+	logger                 ports.Logger
 }
 
 // NewRefreshUserUseCase creates the refresh-token use case.
@@ -57,12 +62,14 @@ func NewRefreshUserUseCase(
 	userRepository ports.UserRepository,
 	refreshTokenService ports.RefreshTokenService,
 	tokenService ports.TokenService,
+	logger ports.Logger,
 ) *RefreshUserUseCase {
 	return &RefreshUserUseCase{
 		refreshTokenRepository: refreshTokenRepository,
 		userRepository:         userRepository,
 		refreshTokenService:    refreshTokenService,
 		tokenService:           tokenService,
+		logger:                 logger,
 	}
 }
 
@@ -73,6 +80,12 @@ func (u *RefreshUserUseCase) Refresh(
 	command dto.RefreshTokenCommand,
 ) (dto.RefreshTokenResult, error) {
 	if strings.TrimSpace(command.RefreshToken) == "" {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.invalid_token",
+			Operation:       "refresh",
+			FailureCategory: "invalid_refresh_token",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
@@ -80,7 +93,7 @@ func (u *RefreshUserUseCase) Refresh(
 	// 1. Hash the supplied refresh token.
 	//
 	// Only the hash is used to locate the persisted refresh-token session.
-	// The raw refresh token must never be persisted.
+	// The raw refresh token must never be persisted or logged.
 	// -------------------------------------------------------------------------
 
 	tokenHash, err := u.refreshTokenService.Hash(
@@ -88,6 +101,12 @@ func (u *RefreshUserUseCase) Refresh(
 		command.RefreshToken,
 	)
 	if err != nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.failed",
+			Operation:       "refresh",
+			FailureCategory: "token_hashing_failed",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenHashing
 	}
 
@@ -100,10 +119,22 @@ func (u *RefreshUserUseCase) Refresh(
 		tokenHash,
 	)
 	if err != nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.invalid_token",
+			Operation:       "refresh",
+			FailureCategory: "invalid_refresh_token",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	if record == nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.invalid_token",
+			Operation:       "refresh",
+			FailureCategory: "invalid_refresh_token",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
@@ -112,10 +143,24 @@ func (u *RefreshUserUseCase) Refresh(
 	// -------------------------------------------------------------------------
 
 	if record.RevokedAt != nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.invalid_token",
+			Operation:       "refresh",
+			UserID:          record.UserID,
+			FailureCategory: "invalid_refresh_token",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	if !record.ExpiresAt.After(time.Now()) {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.invalid_token",
+			Operation:       "refresh",
+			UserID:          record.UserID,
+			FailureCategory: "invalid_refresh_token",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
@@ -125,6 +170,12 @@ func (u *RefreshUserUseCase) Refresh(
 
 	userID, err := user.UserIDFromString(record.UserID)
 	if err != nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.invalid_token",
+			Operation:       "refresh",
+			FailureCategory: "invalid_refresh_token",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
@@ -141,14 +192,36 @@ func (u *RefreshUserUseCase) Refresh(
 		userID,
 	)
 	if err != nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.invalid_token",
+			Operation:       "refresh",
+			UserID:          userID.String(),
+			FailureCategory: "invalid_refresh_token",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	if currentUser == nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.invalid_token",
+			Operation:       "refresh",
+			UserID:          userID.String(),
+			FailureCategory: "invalid_refresh_token",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
 	if currentUser.Status() != user.StatusActive {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.user_inactive",
+			Operation:       "refresh",
+			UserID:          currentUser.ID().String(),
+			Role:            currentUser.Role().String(),
+			FailureCategory: "user_inactive",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
 
@@ -160,10 +233,26 @@ func (u *RefreshUserUseCase) Refresh(
 
 	newRefreshToken, err := u.refreshTokenService.Generate(ctx)
 	if err != nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.failed",
+			Operation:       "refresh",
+			UserID:          currentUser.ID().String(),
+			Role:            currentUser.Role().String(),
+			FailureCategory: "token_generation_failed",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenGeneration
 	}
 
 	if strings.TrimSpace(newRefreshToken) == "" {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.failed",
+			Operation:       "refresh",
+			UserID:          currentUser.ID().String(),
+			Role:            currentUser.Role().String(),
+			FailureCategory: "token_generation_failed",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenGeneration
 	}
 
@@ -178,6 +267,14 @@ func (u *RefreshUserUseCase) Refresh(
 		newRefreshToken,
 	)
 	if err != nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.failed",
+			Operation:       "refresh",
+			UserID:          currentUser.ID().String(),
+			Role:            currentUser.Role().String(),
+			FailureCategory: "token_hashing_failed",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenHashing
 	}
 
@@ -194,6 +291,14 @@ func (u *RefreshUserUseCase) Refresh(
 		currentUser.Role(),
 	)
 	if err != nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.failed",
+			Operation:       "refresh",
+			UserID:          currentUser.ID().String(),
+			Role:            currentUser.Role().String(),
+			FailureCategory: "access_token_generation_failed",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrTokenGeneration
 	}
 
@@ -203,7 +308,7 @@ func (u *RefreshUserUseCase) Refresh(
 	// 9. Revoke the old refresh-token session and persist the replacement.
 	//
 	// The repository's Rotate operation is responsible for performing this
-	// lifecycle transition.
+	// lifecycle transition atomically.
 	// -------------------------------------------------------------------------
 
 	newRecord := ports.RefreshTokenRecord{
@@ -221,13 +326,47 @@ func (u *RefreshUserUseCase) Refresh(
 		now,
 		newRecord,
 	); err != nil {
+		u.logRefreshEvent(ctx, ports.LogEvent{
+			Event:           "auth.refresh.failed",
+			Operation:       "refresh",
+			UserID:          currentUser.ID().String(),
+			Role:            currentUser.Role().String(),
+			FailureCategory: "token_rotation_failed",
+		})
+
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenPersistence
 	}
+
+	u.logRefreshEvent(ctx, ports.LogEvent{
+		Event:     "auth.refresh.succeeded",
+		Operation: "refresh",
+		UserID:    currentUser.ID().String(),
+		Role:      currentUser.Role().String(),
+	})
 
 	return dto.RefreshTokenResult{
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
 	}, nil
+}
+
+// logRefreshEvent records a structured refresh-authentication event.
+//
+// Logging is deliberately best-effort. A logging failure must never turn a
+// successful authentication operation into a failed authentication operation,
+// nor should it replace the original application error.
+//
+// The helper also allows the logger dependency to remain nil in isolated
+// contexts such as tests that are not concerned with observability.
+func (u *RefreshUserUseCase) logRefreshEvent(
+	ctx context.Context,
+	event ports.LogEvent,
+) {
+	if u.logger == nil {
+		return
+	}
+
+	_ = u.logger.Log(ctx, event)
 }
 
 var _ ports.RefreshUserService = (*RefreshUserUseCase)(nil)

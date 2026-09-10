@@ -4,6 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/observability"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/security"
 )
@@ -53,6 +54,13 @@ var Module = fx.Module(
 		fx.Annotate(
 			security.NewRefreshTokenService,
 			fx.As(new(ports.RefreshTokenService)),
+		),
+
+		// Structured logging implementation exposed through the
+		// application-layer Logger port.
+		fx.Annotate(
+			observability.NewProductionLogger,
+			fx.As(new(ports.Logger)),
 		),
 	),
 

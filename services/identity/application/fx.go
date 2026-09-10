@@ -16,67 +16,54 @@ var Module = fx.Module(
 
 	fx.Provide(
 		// RegisterUserUseCase coordinates the user registration workflow.
-		//
-		// Its dependencies are application ports, keeping the application
-		// layer independent of infrastructure details.
 		fx.Annotate(
 			func(
 				userRepository ports.UserRepository,
 				passwordHasher ports.PasswordHasher,
+				logger ports.Logger,
 			) *use_cases.RegisterUserUseCase {
 				return use_cases.NewRegisterUserUseCase(
 					userRepository,
 					passwordHasher,
+					logger,
 				)
 			},
 			fx.As(new(ports.RegisterUserService)),
 		),
 
 		// AuthenticateUserUseCase coordinates the authentication workflow.
-		//
-		// Authentication requires:
-		//   - UserRepository to find the user.
-		//   - PasswordHasher to verify the password.
-		//   - TokenService to generate the access token.
-		//
-		// All three are application ports, so this use case remains
-		// independent of PostgreSQL, bcrypt, JWT, and other infrastructure.
 		fx.Annotate(
 			func(
 				userRepository ports.UserRepository,
 				passwordHasher ports.PasswordHasher,
 				tokenService ports.TokenService,
+				logger ports.Logger,
 			) *use_cases.AuthenticateUserUseCase {
 				return use_cases.NewAuthenticateUserUseCase(
 					userRepository,
 					passwordHasher,
 					tokenService,
+					logger,
 				)
 			},
 			fx.As(new(ports.AuthenticateUserService)),
 		),
 
 		// RefreshUserUseCase coordinates refresh-token rotation.
-		//
-		// It depends exclusively on application ports:
-		//   - RefreshTokenRepository
-		//   - UserRepository
-		//   - RefreshTokenService
-		//   - TokenService
-		//
-		// Infrastructure details remain outside the application layer.
 		fx.Annotate(
 			func(
 				refreshTokenRepository ports.RefreshTokenRepository,
 				userRepository ports.UserRepository,
 				refreshTokenService ports.RefreshTokenService,
 				tokenService ports.TokenService,
+				logger ports.Logger,
 			) *use_cases.RefreshUserUseCase {
 				return use_cases.NewRefreshUserUseCase(
 					refreshTokenRepository,
 					userRepository,
 					refreshTokenService,
 					tokenService,
+					logger,
 				)
 			},
 			fx.As(new(ports.RefreshUserService)),
@@ -84,67 +71,91 @@ var Module = fx.Module(
 
 		// LogoutUserUseCase coordinates revocation of the specific
 		// refresh-token session being logged out.
-		//
-		// It depends only on application ports, keeping the use case
-		// independent of HTTP and infrastructure details.
 		fx.Annotate(
 			func(
 				refreshTokenRepository ports.RefreshTokenRepository,
 				refreshTokenService ports.RefreshTokenService,
+				logger ports.Logger,
 			) *use_cases.LogoutUserUseCase {
 				return use_cases.NewLogoutUserUseCase(
 					refreshTokenRepository,
 					refreshTokenService,
+					logger,
 				)
 			},
 			fx.As(new(ports.LogoutUserService)),
 		),
 
 		// UpdateUserProfileUseCase coordinates self-service profile updates.
-		//
-		// It depends only on the UserRepository application port.
-		// The authenticated user ID is supplied by the presentation/request
-		// context boundary, while the use case remains independent of HTTP and JWT.
 		fx.Annotate(
 			func(
 				userRepository ports.UserRepository,
+				logger ports.Logger,
 			) *use_cases.UpdateUserProfileUseCase {
 				return use_cases.NewUpdateUserProfileUseCase(
 					userRepository,
+					logger,
 				)
 			},
 			fx.As(new(ports.UpdateUserProfileService)),
 		),
 
 		// ListUsersUseCase coordinates administrative user listing.
-		//
-		// It depends only on the UserRepository application port.
-		// Pagination is handled at the application boundary through limit
-		// and offset values supplied by the presentation layer.
 		fx.Annotate(
 			func(
 				userRepository ports.UserRepository,
+				logger ports.Logger,
 			) *use_cases.ListUsersUseCase {
 				return use_cases.NewListUsersUseCase(
 					userRepository,
+					logger,
 				)
 			},
 			fx.As(new(ports.ListUsersService)),
 		),
+
 		// GetUserUseCase coordinates administrative retrieval of a single user.
-		//
-		// It depends only on the UserRepository application port.
-		// Authorization is intentionally handled by the presentation middleware,
-		// not by the use case.
 		fx.Annotate(
 			func(
 				userRepository ports.UserRepository,
+				logger ports.Logger,
 			) *use_cases.GetUserUseCase {
 				return use_cases.NewGetUserUseCase(
 					userRepository,
+					logger,
 				)
 			},
 			fx.As(new(ports.GetUserService)),
+		),
+
+		// UpdateUserStatusUseCase coordinates administrative account-status
+		// updates.
+		fx.Annotate(
+			func(
+				userRepository ports.UserRepository,
+				logger ports.Logger,
+			) *use_cases.UpdateUserStatusUseCase {
+				return use_cases.NewUpdateUserStatusUseCase(
+					userRepository,
+				)
+			},
+			fx.As(new(ports.UpdateUserStatusService)),
+		),
+
+		// ChangePasswordUseCase coordinates authenticated password changes.
+		fx.Annotate(
+			func(
+				userRepository ports.UserRepository,
+				passwordHasher ports.PasswordHasher,
+				logger ports.Logger,
+			) *use_cases.ChangePasswordUseCase {
+				return use_cases.NewChangePasswordUseCase(
+					userRepository,
+					passwordHasher,
+					logger,
+				)
+			},
+			fx.As(new(ports.ChangePasswordService)),
 		),
 	),
 )

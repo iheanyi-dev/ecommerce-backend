@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
 )
@@ -64,9 +65,6 @@ func (f *fakeListUsersRepository) UpdatePasswordHash(
 	return nil
 }
 
-// UpdateStatus satisfies the UserRepository interface.
-//
-// These profile-update tests do not exercise account-status persistence.
 func (f *fakeListUsersRepository) UpdateStatus(
 	ctx context.Context,
 	existingUser *user.User,
@@ -83,6 +81,23 @@ func (f *fakeListUsersRepository) List(
 	f.gotOffset = offset
 
 	return f.users, f.err
+}
+
+// fakeListUsersLogger is a test double for the application Logger port.
+type fakeListUsersLogger struct {
+	event     ports.LogEvent
+	callCount int
+	err       error
+}
+
+func (f *fakeListUsersLogger) Log(
+	ctx context.Context,
+	event ports.LogEvent,
+) error {
+	f.event = event
+	f.callCount++
+
+	return f.err
 }
 
 func newListUsersTestUser(
@@ -119,6 +134,47 @@ func newListUsersTestUser(
 	return newUser
 }
 
+func assertListUsersEvent(
+	t *testing.T,
+	logger *fakeListUsersLogger,
+	event string,
+	operation string,
+	failureCategory string,
+) {
+	t.Helper()
+
+	if logger.callCount != 1 {
+		t.Fatalf(
+			"expected logger to be called once, got %d",
+			logger.callCount,
+		)
+	}
+
+	if logger.event.Event != event {
+		t.Fatalf(
+			"expected event %q, got %q",
+			event,
+			logger.event.Event,
+		)
+	}
+
+	if logger.event.Operation != operation {
+		t.Fatalf(
+			"expected operation %q, got %q",
+			operation,
+			logger.event.Operation,
+		)
+	}
+
+	if logger.event.FailureCategory != failureCategory {
+		t.Fatalf(
+			"expected failure category %q, got %q",
+			failureCategory,
+			logger.event.FailureCategory,
+		)
+	}
+}
+
 func TestListUsersUseCase_Execute_ReturnsUsers(t *testing.T) {
 	firstUser := newListUsersTestUser(
 		t,
@@ -139,7 +195,10 @@ func TestListUsersUseCase_Execute_ReturnsUsers(t *testing.T) {
 		},
 	}
 
-	useCase := use_cases.NewListUsersUseCase(repository)
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		nil,
+	)
 
 	result, err := useCase.Execute(
 		context.Background(),
@@ -192,7 +251,10 @@ func TestListUsersUseCase_Execute_PassesPaginationToRepository(
 ) {
 	repository := &fakeListUsersRepository{}
 
-	useCase := use_cases.NewListUsersUseCase(repository)
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		nil,
+	)
 
 	_, err := useCase.Execute(
 		context.Background(),
@@ -228,7 +290,10 @@ func TestListUsersUseCase_Execute_ReturnsRepositoryError(
 		err: expectedErr,
 	}
 
-	useCase := use_cases.NewListUsersUseCase(repository)
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		nil,
+	)
 
 	_, err := useCase.Execute(
 		context.Background(),
@@ -262,7 +327,10 @@ func TestListUsersUseCase_Execute_DoesNotExposePasswordHash(
 		users: []*user.User{testUser},
 	}
 
-	useCase := use_cases.NewListUsersUseCase(repository)
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		nil,
+	)
 
 	result, err := useCase.Execute(
 		context.Background(),
@@ -278,7 +346,6 @@ func TestListUsersUseCase_Execute_DoesNotExposePasswordHash(
 	// PasswordHash field. This test verifies that the returned DTO
 	// remains the safe administrative representation.
 	_ = result.Users[0].Email
-
 }
 
 func TestListUsersUseCase_Execute_RejectsInvalidLimit(
@@ -286,7 +353,10 @@ func TestListUsersUseCase_Execute_RejectsInvalidLimit(
 ) {
 	repository := &fakeListUsersRepository{}
 
-	useCase := use_cases.NewListUsersUseCase(repository)
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		nil,
+	)
 
 	_, err := useCase.Execute(
 		context.Background(),
@@ -311,7 +381,10 @@ func TestListUsersUseCase_Execute_RejectsNegativeOffset(
 ) {
 	repository := &fakeListUsersRepository{}
 
-	useCase := use_cases.NewListUsersUseCase(repository)
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		nil,
+	)
 
 	_, err := useCase.Execute(
 		context.Background(),
@@ -328,5 +401,230 @@ func TestListUsersUseCase_Execute_RejectsNegativeOffset(
 			"expected repository not to be called, got limit %d",
 			repository.gotLimit,
 		)
+	}
+}
+
+func TestListUsersUseCase_Execute_LogsSuccess(t *testing.T) {
+	testUser := newListUsersTestUser(
+		t,
+		"John Doe",
+		"john@example.com",
+	)
+
+	repository := &fakeListUsersRepository{
+		users: []*user.User{testUser},
+	}
+
+	logger := &fakeListUsersLogger{}
+
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		logger,
+	)
+
+	_, err := useCase.Execute(
+		context.Background(),
+		10,
+		0,
+	)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	assertListUsersEvent(
+		t,
+		logger,
+		"user.list.succeeded",
+		"list_users",
+		"",
+	)
+}
+
+func TestListUsersUseCase_Execute_LogsValidationFailure(
+	t *testing.T,
+) {
+	repository := &fakeListUsersRepository{}
+	logger := &fakeListUsersLogger{}
+
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		logger,
+	)
+
+	_, err := useCase.Execute(
+		context.Background(),
+		0,
+		0,
+	)
+
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+
+	assertListUsersEvent(
+		t,
+		logger,
+		"user.list.validation_failed",
+		"list_users",
+		"validation_failed",
+	)
+
+	if repository.gotLimit != 0 {
+		t.Fatal("expected repository not to be called")
+	}
+}
+
+func TestListUsersUseCase_Execute_LogsRepositoryFailure(
+	t *testing.T,
+) {
+	expectedErr := errors.New("database failure")
+
+	repository := &fakeListUsersRepository{
+		err: expectedErr,
+	}
+
+	logger := &fakeListUsersLogger{}
+
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		logger,
+	)
+
+	_, err := useCase.Execute(
+		context.Background(),
+		10,
+		0,
+	)
+
+	if err == nil {
+		t.Fatal("expected repository error, got nil")
+	}
+
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf(
+			"expected repository error %v, got %v",
+			expectedErr,
+			err,
+		)
+	}
+
+	assertListUsersEvent(
+		t,
+		logger,
+		"user.list.failed",
+		"list_users",
+		"user_lookup_failed",
+	)
+}
+
+func TestListUsersUseCase_Execute_LoggerFailureDoesNotAffectResult(
+	t *testing.T,
+) {
+	testUser := newListUsersTestUser(
+		t,
+		"John Doe",
+		"john@example.com",
+	)
+
+	repository := &fakeListUsersRepository{
+		users: []*user.User{testUser},
+	}
+
+	logger := &fakeListUsersLogger{
+		err: errors.New("logger failure"),
+	}
+
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		logger,
+	)
+
+	result, err := useCase.Execute(
+		context.Background(),
+		10,
+		0,
+	)
+
+	if err != nil {
+		t.Fatalf(
+			"expected logger failure not to affect result, got %v",
+			err,
+		)
+	}
+
+	if result == nil {
+		t.Fatal("expected result, got nil")
+	}
+
+	if len(result.Users) != 1 {
+		t.Fatalf(
+			"expected 1 user, got %d",
+			len(result.Users),
+		)
+	}
+
+	assertListUsersEvent(
+		t,
+		logger,
+		"user.list.succeeded",
+		"list_users",
+		"",
+	)
+}
+
+func TestListUsersUseCase_Execute_DoesNotLogSensitiveAuthenticationData(
+	t *testing.T,
+) {
+	testUser := newListUsersTestUser(
+		t,
+		"John Doe",
+		"john@example.com",
+	)
+
+	repository := &fakeListUsersRepository{
+		users: []*user.User{testUser},
+	}
+
+	logger := &fakeListUsersLogger{}
+
+	useCase := use_cases.NewListUsersUseCase(
+		repository,
+		logger,
+	)
+
+	_, err := useCase.Execute(
+		context.Background(),
+		10,
+		0,
+	)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if logger.event.Event != "user.list.succeeded" {
+		t.Fatalf(
+			"expected success event, got %q",
+			logger.event.Event,
+		)
+	}
+
+	// The List Users observability event must never contain
+	// authentication secrets such as passwords or password hashes.
+	if logger.event.UserID == "hashed-password" {
+		t.Fatal("password hash must never be logged as user ID")
+	}
+
+	if logger.event.Role == "hashed-password" {
+		t.Fatal("password hash must never be logged as role")
+	}
+
+	if logger.event.FailureCategory == "hashed-password" {
+		t.Fatal("password hash must never be logged as failure category")
+	}
+
+	if logger.event.RequiredRole == "hashed-password" {
+		t.Fatal("password hash must never be logged as required role")
 	}
 }

@@ -27,20 +27,37 @@ var Module = fx.Module(
 		// Authenticated-user endpoint handler.
 		handlers.NewMeHandler,
 
+		// Authenticated-user profile update endpoint handler.
+		handlers.NewUpdateUserProfileHandler,
+
 		// Logout endpoint handler.
 		handlers.NewLogoutUserHandler,
 
-		// Administrative user-listing endpoint handler.
+		// Administrative list-users endpoint handler.
 		handlers.NewListUsersHandler,
+
+		// Administrative get-user endpoint handler.
+		handlers.NewGetUserHandler,
+
+		// Administrative update-user-status endpoint handler.
+		handlers.NewUpdateUserStatusHandler,
 
 		// Authentication middleware validates Bearer access tokens
 		// before protected handlers are executed.
 		middleware.NewAuthenticationMiddleware,
 
-		// Administrative single-user retrieval endpoint handler.
-		handlers.NewGetUserHandler,
+		// Request-level observability middleware records the final
+		// HTTP outcome of each request.
+		//
+		// Its logger dependency is supplied explicitly by Fx through
+		// the application's Logger provider.
+		middleware.NewRequestObservabilityMiddleware,
 
 		// HTTP router.
+		//
+		// NewRouter receives the logger and request observability
+		// middleware explicitly; neither dependency is constructed
+		// internally by the router.
 		NewRouter,
 	),
 )
