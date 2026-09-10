@@ -79,6 +79,8 @@ func newRefreshIntegrationRouter(
 		listUsersHandler,
 		getUserHandler,
 		newUpdateUserStatusHandler,
+		nil,
+		nil,
 	)
 }
 
@@ -189,6 +191,7 @@ func TestRefreshUserIntegration(t *testing.T) {
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		nil,
 	)
 
 	// ---------------------------------------------------------
@@ -224,6 +227,7 @@ func TestRefreshUserIntegration(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 	)
 
 	registerResult, err := registerUserUseCase.Execute(
@@ -619,6 +623,7 @@ func TestRefreshUserIntegration_InvalidToken(t *testing.T) {
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		nil,
 	)
 
 	refreshUserHandler := handlers.NewRefreshUserHandler(
@@ -694,6 +699,7 @@ func TestRefreshUserIntegration_ExpiredToken(t *testing.T) {
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		nil,
 	)
 
 	refreshUserHandler := handlers.NewRefreshUserHandler(
@@ -710,6 +716,7 @@ func TestRefreshUserIntegration_ExpiredToken(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 	)
 
 	registerResult, err := registerUserUseCase.Execute(
@@ -851,6 +858,7 @@ func TestRefreshUserIntegration_RevokedToken(t *testing.T) {
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		nil,
 	)
 
 	refreshUserHandler := handlers.NewRefreshUserHandler(
@@ -867,6 +875,7 @@ func TestRefreshUserIntegration_RevokedToken(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 	)
 
 	registerResult, err := registerUserUseCase.Execute(
@@ -1023,6 +1032,7 @@ func TestRefreshUserIntegration_InactiveUser(t *testing.T) {
 		userRepository,
 		refreshTokenService,
 		tokenService,
+		nil,
 	)
 
 	refreshUserHandler := handlers.NewRefreshUserHandler(
@@ -1042,6 +1052,7 @@ func TestRefreshUserIntegration_InactiveUser(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 	)
 
 	registerResult, err := registerUserUseCase.Execute(

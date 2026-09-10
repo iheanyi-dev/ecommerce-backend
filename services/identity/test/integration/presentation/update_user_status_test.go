@@ -80,6 +80,8 @@ func TestUpdateUserStatusIntegration(t *testing.T) {
 		listUsersHandler,
 		getUserHandler,
 		updateUserStatusHandler,
+		nil,
+		nil,
 	)
 
 	email := "status-" + uuid.New().String() + "@example.com"
@@ -89,6 +91,7 @@ func TestUpdateUserStatusIntegration(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 	)
 
 	registerResult, err := registerUserUseCase.Execute(

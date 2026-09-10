@@ -103,6 +103,8 @@ func newLogoutIntegrationRouter(
 		listUsersHandler,
 		getUserHandler,
 		newUpdateUserStatusHandler,
+		nil,
+		nil,
 	)
 }
 
@@ -148,6 +150,7 @@ func TestLogoutUserIntegration(t *testing.T) {
 	logoutUserUseCase := use_cases.NewLogoutUserUseCase(
 		refreshTokenRepository,
 		refreshTokenService,
+		nil,
 	)
 
 	logoutUserHandler := handlers.NewLogoutUserHandler(
@@ -168,6 +171,7 @@ func TestLogoutUserIntegration(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 	)
 
 	registerResult, err := registerUserUseCase.Execute(
@@ -546,6 +550,7 @@ func TestLogoutUserIntegration_AlreadyRevokedToken(t *testing.T) {
 	logoutUserUseCase := use_cases.NewLogoutUserUseCase(
 		refreshTokenRepository,
 		refreshTokenService,
+		nil,
 	)
 
 	logoutUserHandler := handlers.NewLogoutUserHandler(
@@ -565,6 +570,7 @@ func TestLogoutUserIntegration_AlreadyRevokedToken(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		security.NewBcryptPasswordHasher(),
+		nil,
 	)
 
 	registerResult, err := registerUserUseCase.Execute(
@@ -801,6 +807,7 @@ func TestLogoutUserIntegration_RevokesOnlySpecifiedSession(t *testing.T) {
 	logoutUserUseCase := use_cases.NewLogoutUserUseCase(
 		refreshTokenRepository,
 		refreshTokenService,
+		nil,
 	)
 
 	logoutUserHandler := handlers.NewLogoutUserHandler(
@@ -819,6 +826,7 @@ func TestLogoutUserIntegration_RevokesOnlySpecifiedSession(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		security.NewBcryptPasswordHasher(),
+		nil,
 	)
 
 	registerResult, err := registerUserUseCase.Execute(
@@ -1107,6 +1115,7 @@ func setupLogoutIntegration(
 	logoutUserUseCase := use_cases.NewLogoutUserUseCase(
 		refreshTokenRepository,
 		refreshTokenService,
+		nil,
 	)
 
 	logoutUserHandler := handlers.NewLogoutUserHandler(
