@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
@@ -15,7 +16,7 @@ import (
 // events such as login, registration, password changes, refresh, and logout
 // remain the responsibility of the application use cases.
 //
-// The middleware records:
+// Logging records:
 //
 //   - HTTP method
 //   - matched route pattern
@@ -25,27 +26,46 @@ import (
 //   - authenticated role, when available
 //   - a coarse failure category for 4xx/5xx responses
 //
-// It never records request bodies, Authorization headers, passwords,
-// password hashes, access tokens, or refresh tokens.
+// Metrics record:
+//
+//   - completed HTTP request count
+//   - HTTP request duration
+//
+// Metric labels are deliberately limited to stable, low-cardinality transport
+// dimensions:
+//
+//   - method
+//   - route
+//   - status
+//
+// The middleware never records request bodies, Authorization headers,
+// passwords, password hashes, access tokens, or refresh tokens.
 type RequestObservabilityMiddleware struct {
-	logger ports.Logger
+	logger  ports.Logger
+	metrics ports.Metrics
 }
 
 // NewRequestObservabilityMiddleware creates the HTTP request observability
 // middleware.
 //
-// The logger is allowed to be nil so that observability remains optional in
-// tests and in environments where logging has deliberately been disabled.
+// Logger and metrics are allowed to be nil so that observability remains
+// optional in tests and in environments where either capability has
+// deliberately been disabled.
 func NewRequestObservabilityMiddleware(
 	logger ports.Logger,
+	metrics ports.Metrics,
 ) *RequestObservabilityMiddleware {
 	return &RequestObservabilityMiddleware{
-		logger: logger,
+		logger:  logger,
+		metrics: metrics,
 	}
 }
 
-// Middleware wraps an HTTP handler and records one structured observability
-// event after the handler has completed.
+// Middleware wraps an HTTP handler and records observability information
+// after the handler has completed.
+//
+// Both logging and metrics are best-effort. Observability failures must never
+// interfere with the application's HTTP response.
 func (m *RequestObservabilityMiddleware) Middleware(
 	next http.Handler,
 ) http.Handler {
@@ -56,13 +76,25 @@ func (m *RequestObservabilityMiddleware) Middleware(
 		// status code produced by the downstream handler.
 		recorder := newResponseRecorder(w)
 
-		// Always allow the actual request to complete normally. Logging is
-		// performed afterward and must never interfere with the response.
+		// Always allow the actual request to complete normally. Observability
+		// is performed afterward and must never interfere with the response.
 		next.ServeHTTP(recorder, r)
 
-		// Logging is intentionally best-effort. Observability must never turn
-		// a successful request into a failed request.
-		m.logRequest(r.Context(), r, recorder.statusCode, time.Since(start))
+		duration := time.Since(start)
+
+		m.logRequest(
+			r.Context(),
+			r,
+			recorder.statusCode,
+			duration,
+		)
+
+		m.recordMetrics(
+			r.Context(),
+			r,
+			recorder.statusCode,
+			duration,
+		)
 	})
 }
 
@@ -120,6 +152,58 @@ func (m *RequestObservabilityMiddleware) logRequest(
 	// Ignore logger errors. Logging infrastructure must not affect the
 	// application's HTTP response.
 	_ = m.logger.Log(ctx, event)
+}
+
+// recordMetrics records transport-level HTTP metrics.
+//
+// Metrics deliberately use only stable transport dimensions. User IDs,
+// query parameters, request bodies, authorization credentials, and other
+// potentially high-cardinality or sensitive values are never used as labels.
+func (m *RequestObservabilityMiddleware) recordMetrics(
+	ctx context.Context,
+	r *http.Request,
+	statusCode int,
+	duration time.Duration,
+) {
+	if m.metrics == nil {
+		return
+	}
+
+	route := r.Pattern
+	if route == "" {
+		route = r.URL.Path
+	}
+
+	labels := map[string]string{
+		"method": r.Method,
+		"route":  route,
+		"status": strconv.Itoa(statusCode),
+	}
+
+	// Count every completed HTTP request.
+	//
+	// A metrics backend failure must never affect the application response.
+	_ = m.metrics.Increment(ctx, ports.Metric{
+		Name:   "http.requests",
+		Value:  1,
+		Labels: labels,
+	})
+
+	// Record request duration separately so that a metrics backend can later
+	// expose latency distributions, averages, percentiles, or SLOs.
+	//
+	// Duration is represented in milliseconds to remain consistent with the
+	// existing structured logging contract.
+	durationLabels := map[string]string{
+		"method": r.Method,
+		"route":  route,
+	}
+
+	_ = m.metrics.Observe(ctx, ports.Metric{
+		Name:   "http.request.duration",
+		Value:  float64(duration.Milliseconds()),
+		Labels: durationLabels,
+	})
 }
 
 // responseRecorder captures the status code written by the downstream

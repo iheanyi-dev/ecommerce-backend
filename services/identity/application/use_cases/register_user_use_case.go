@@ -2,6 +2,7 @@ package use_cases
 
 import (
 	"context"
+	"time"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
@@ -12,16 +13,17 @@ import (
 
 // RegisterUserUseCase orchestrates the user registration workflow.
 //
-// The use case coordinates domain validation, password hashing, and
-// persistence while keeping infrastructure concerns outside the application
-// layer.
+// The use case coordinates domain validation, password hashing, persistence,
+// structured logging, and registration metrics while keeping infrastructure
+// concerns outside the application layer.
 //
-// Logging is deliberately best-effort. A logging failure must never cause an
-// otherwise successful registration to fail.
+// Logging and metrics are deliberately best-effort. An observability failure
+// must never cause an otherwise valid registration operation to fail.
 type RegisterUserUseCase struct {
 	userRepository ports.UserRepository
 	passwordHasher ports.PasswordHasher
 	logger         ports.Logger
+	metrics        ports.Metrics
 }
 
 // NewRegisterUserUseCase creates a new RegisterUserUseCase.
@@ -29,11 +31,13 @@ func NewRegisterUserUseCase(
 	userRepository ports.UserRepository,
 	passwordHasher ports.PasswordHasher,
 	logger ports.Logger,
+	metrics ports.Metrics,
 ) *RegisterUserUseCase {
 	return &RegisterUserUseCase{
 		userRepository: userRepository,
 		passwordHasher: passwordHasher,
 		logger:         logger,
+		metrics:        metrics,
 	}
 }
 
@@ -52,11 +56,49 @@ func (u *RegisterUserUseCase) logRegistrationEvent(
 	_ = u.logger.Log(ctx, event)
 }
 
+// recordRegistrationMetrics records the registration outcome and duration.
+//
+// Metrics are intentionally best-effort. Registration correctness must not
+// depend on the availability of the metrics infrastructure.
+//
+// Only the low-cardinality result label is recorded. Sensitive or
+// high-cardinality values such as email addresses, user IDs, passwords,
+// password hashes, and error messages are never used as metric labels.
+func (u *RegisterUserUseCase) recordRegistrationMetrics(
+	ctx context.Context,
+	start time.Time,
+	success bool,
+) {
+	if u.metrics == nil {
+		return
+	}
+
+	result := "failure"
+	if success {
+		result = "success"
+	}
+
+	_ = u.metrics.Increment(ctx, ports.Metric{
+		Name:  "auth.registration",
+		Value: 1,
+		Labels: map[string]string{
+			"result": result,
+		},
+	})
+
+	_ = u.metrics.Observe(ctx, ports.Metric{
+		Name:  "auth.registration.duration",
+		Value: float64(time.Since(start).Microseconds()),
+	})
+}
+
 // Execute registers a new user.
 func (u *RegisterUserUseCase) Execute(
 	ctx context.Context,
 	command dto.RegisterUserCommand,
 ) (dto.RegisterUserResult, error) {
+	start := time.Now()
+
 	// Validate and construct the email value object first.
 	email, err := user.NewEmail(command.Email)
 	if err != nil {
@@ -65,6 +107,7 @@ func (u *RegisterUserUseCase) Execute(
 			Operation:       "registration",
 			FailureCategory: "validation_failed",
 		})
+		u.recordRegistrationMetrics(ctx, start, false)
 
 		return dto.RegisterUserResult{}, err
 	}
@@ -77,6 +120,7 @@ func (u *RegisterUserUseCase) Execute(
 			Operation:       "registration",
 			FailureCategory: "email_existence_check_failed",
 		})
+		u.recordRegistrationMetrics(ctx, start, false)
 
 		return dto.RegisterUserResult{}, err
 	}
@@ -87,6 +131,7 @@ func (u *RegisterUserUseCase) Execute(
 			Operation:       "registration",
 			FailureCategory: "duplicate_email",
 		})
+		u.recordRegistrationMetrics(ctx, start, false)
 
 		return dto.RegisterUserResult{}, errors.ErrEmailAlreadyExists
 	}
@@ -98,6 +143,7 @@ func (u *RegisterUserUseCase) Execute(
 			Operation:       "registration",
 			FailureCategory: "validation_failed",
 		})
+		u.recordRegistrationMetrics(ctx, start, false)
 
 		return dto.RegisterUserResult{}, err
 	}
@@ -110,6 +156,7 @@ func (u *RegisterUserUseCase) Execute(
 			Operation:       "registration",
 			FailureCategory: "password_hashing_failed",
 		})
+		u.recordRegistrationMetrics(ctx, start, false)
 
 		return dto.RegisterUserResult{}, err
 	}
@@ -122,6 +169,7 @@ func (u *RegisterUserUseCase) Execute(
 			Operation:       "registration",
 			FailureCategory: "validation_failed",
 		})
+		u.recordRegistrationMetrics(ctx, start, false)
 
 		return dto.RegisterUserResult{}, err
 	}
@@ -134,6 +182,7 @@ func (u *RegisterUserUseCase) Execute(
 			Operation:       "registration",
 			FailureCategory: "validation_failed",
 		})
+		u.recordRegistrationMetrics(ctx, start, false)
 
 		return dto.RegisterUserResult{}, err
 	}
@@ -150,6 +199,7 @@ func (u *RegisterUserUseCase) Execute(
 			Operation:       "registration",
 			FailureCategory: "validation_failed",
 		})
+		u.recordRegistrationMetrics(ctx, start, false)
 
 		return dto.RegisterUserResult{}, err
 	}
@@ -161,6 +211,7 @@ func (u *RegisterUserUseCase) Execute(
 			Operation:       "registration",
 			FailureCategory: "user_creation_failed",
 		})
+		u.recordRegistrationMetrics(ctx, start, false)
 
 		return dto.RegisterUserResult{}, err
 	}
@@ -175,6 +226,8 @@ func (u *RegisterUserUseCase) Execute(
 		UserID:    result.ID,
 		Role:      result.Role,
 	})
+
+	u.recordRegistrationMetrics(ctx, start, true)
 
 	return result, nil
 }

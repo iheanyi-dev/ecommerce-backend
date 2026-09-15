@@ -117,6 +117,13 @@ func WriteError(w http.ResponseWriter, err error) {
 	case stderrors.Is(err, ErrInvalidRequestBody):
 		status = http.StatusBadRequest
 		message = "invalid request body"
+
+	case stderrors.Is(
+		err,
+		application_errors.ErrInvalidServiceCredentials,
+	):
+		status = http.StatusUnauthorized
+		message = "invalid service credentials"
 	}
 
 	// Always return JSON so API clients can consume errors consistently.

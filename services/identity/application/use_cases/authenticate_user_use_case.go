@@ -2,6 +2,7 @@ package use_cases
 
 import (
 	"context"
+	"time"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/dto"
 	application_errors "github.com/iheanyi-dev/ecommerce-backend/services/identity/application/errors"
@@ -18,30 +19,34 @@ import (
 //   - checking the account status
 //   - generating an access token
 //   - recording structured authentication events
+//   - recording authentication metrics
 //   - returning the authenticated user's identity
 type AuthenticateUserUseCase struct {
 	userRepository ports.UserRepository
 	passwordHasher ports.PasswordHasher
 	tokenService   ports.TokenService
 	logger         ports.Logger
+	metrics        ports.Metrics
 }
 
 // NewAuthenticateUserUseCase creates the authentication use case.
 //
 // Dependencies are supplied through application ports, keeping the use
 // case independent from PostgreSQL, bcrypt, JWT, HTTP, infrastructure,
-// and concrete logging libraries.
+// and concrete logging or metrics libraries.
 func NewAuthenticateUserUseCase(
 	userRepository ports.UserRepository,
 	passwordHasher ports.PasswordHasher,
 	tokenService ports.TokenService,
 	logger ports.Logger,
+	metrics ports.Metrics,
 ) *AuthenticateUserUseCase {
 	return &AuthenticateUserUseCase{
 		userRepository: userRepository,
 		passwordHasher: passwordHasher,
 		tokenService:   tokenService,
 		logger:         logger,
+		metrics:        metrics,
 	}
 }
 
@@ -51,12 +56,16 @@ func (u *AuthenticateUserUseCase) Authenticate(
 	ctx context.Context,
 	command dto.LoginUserCommand,
 ) (dto.LoginUserResult, error) {
+	start := time.Now()
+
 	// Convert the supplied email into the domain Email value object.
 	//
 	// Invalid email input is treated as an authentication failure rather
 	// than exposing validation details to an unauthenticated caller.
 	email, err := user.NewEmail(command.Email)
 	if err != nil {
+		u.recordAuthenticationMetrics(ctx, start, false)
+
 		return dto.LoginUserResult{}, application_errors.ErrInvalidCredentials
 	}
 
@@ -72,6 +81,8 @@ func (u *AuthenticateUserUseCase) Authenticate(
 			FailureCategory: "user_not_found",
 		})
 
+		u.recordAuthenticationMetrics(ctx, start, false)
+
 		return dto.LoginUserResult{}, application_errors.ErrInvalidCredentials
 	}
 
@@ -81,6 +92,8 @@ func (u *AuthenticateUserUseCase) Authenticate(
 			Operation:       "login",
 			FailureCategory: "user_not_found",
 		})
+
+		u.recordAuthenticationMetrics(ctx, start, false)
 
 		return dto.LoginUserResult{}, application_errors.ErrInvalidCredentials
 	}
@@ -97,6 +110,8 @@ func (u *AuthenticateUserUseCase) Authenticate(
 			FailureCategory: "invalid_credentials",
 		})
 
+		u.recordAuthenticationMetrics(ctx, start, false)
+
 		return dto.LoginUserResult{}, application_errors.ErrInvalidCredentials
 	}
 
@@ -109,6 +124,8 @@ func (u *AuthenticateUserUseCase) Authenticate(
 			Role:            authenticatedUser.Role().String(),
 			FailureCategory: "user_inactive",
 		})
+
+		u.recordAuthenticationMetrics(ctx, start, false)
 
 		return dto.LoginUserResult{}, application_errors.ErrAccountNotActive
 	}
@@ -129,6 +146,8 @@ func (u *AuthenticateUserUseCase) Authenticate(
 			FailureCategory: "token_generation_failed",
 		})
 
+		u.recordAuthenticationMetrics(ctx, start, false)
+
 		return dto.LoginUserResult{}, application_errors.ErrTokenGeneration
 	}
 
@@ -142,6 +161,8 @@ func (u *AuthenticateUserUseCase) Authenticate(
 		UserID:    authenticatedUser.ID().String(),
 		Role:      authenticatedUser.Role().String(),
 	})
+
+	u.recordAuthenticationMetrics(ctx, start, true)
 
 	// Return the authenticated identity and generated token.
 	return dto.NewLoginUserResult(
@@ -165,6 +186,43 @@ func (u *AuthenticateUserUseCase) logAuthenticationEvent(
 	}
 
 	_ = u.logger.Log(ctx, event)
+}
+
+// recordAuthenticationMetrics records authentication outcome and duration
+// through the application metrics port.
+//
+// Metrics are intentionally best-effort. Authentication correctness must
+// not depend on the availability of the observability infrastructure.
+// Metric labels are deliberately limited to low-cardinality values.
+//
+// Sensitive or high-cardinality values such as email addresses, user IDs,
+// passwords, tokens, and error messages are never used as metric labels.
+func (u *AuthenticateUserUseCase) recordAuthenticationMetrics(
+	ctx context.Context,
+	start time.Time,
+	success bool,
+) {
+	if u.metrics == nil {
+		return
+	}
+
+	result := "failure"
+	if success {
+		result = "success"
+	}
+
+	_ = u.metrics.Increment(ctx, ports.Metric{
+		Name:  "auth.login",
+		Value: 1,
+		Labels: map[string]string{
+			"result": result,
+		},
+	})
+
+	_ = u.metrics.Observe(ctx, ports.Metric{
+		Name:  "auth.login.duration",
+		Value: float64(time.Since(start).Microseconds()),
+	})
 }
 
 // Compile-time assertion.

@@ -1,0 +1,83 @@
+services:
+  identity-db:
+    image: postgres:17
+    container_name: e-identity-db
+    restart: unless-stopped
+
+    env_file:
+      - ./services/identity/.env.db
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - ecommerce
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  identity:
+    build:
+      context: .
+      dockerfile: services/identity/Dockerfile
+
+    container_name: e-identity
+    restart: unless-stopped
+
+    env_file:
+      - ./services/identity/.env
+
+    environment:
+      DATABASE_HOST: identity-db
+      DATABASE_PORT: 5432
+
+    depends_on:
+      identity-db:
+        condition: service_healthy
+
+    ports:
+      - "8080:8080"
+
+    networks:
+      - ecommerce
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+
+    container_name: e-gateway
+    restart: unless-stopped
+
+    env_file:
+      - ./gateway/.env
+
+    environment:
+      IDENTITY_SERVICE_URL: http://identity:8080
+
+    depends_on:
+      identity:
+        condition: service_started
+
+    ports:
+      - "8081:8081"
+
+    networks:
+      - ecommerce
+
+networks:
+  ecommerce:
+    driver: bridge
+
+volumes:
+  postgres_data:

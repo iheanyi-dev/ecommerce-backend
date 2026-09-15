@@ -1,6 +1,7 @@
 package middleware_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -151,3 +152,80 @@ func TestRequireRoles(t *testing.T) {
 		})
 	}
 }
+func TestRequireRolesWithObservability_RecordsAuthorizationDenialMetric(
+	t *testing.T,
+) {
+	metrics := &authorizationMetricsRecorder{}
+
+	next := http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		t.Fatal("expected forbidden request to stop before the next handler")
+	})
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/protected",
+		nil,
+	)
+
+	req = req.WithContext(
+		middleware.WithAuthenticatedIdentity(
+			req.Context(),
+			ports.AuthenticatedIdentity{
+				UserID: "user-123",
+				Role:   "user",
+			},
+		),
+	)
+
+	rec := httptest.NewRecorder()
+
+	handler := middleware.RequireRolesWithObservability(
+		nil,
+		metrics,
+		"admin",
+	)(next)
+
+	handler.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Len(t, metrics.metrics, 1)
+
+	metric := metrics.metrics[0]
+
+	assert.Equal(t, "auth.authorization", metric.Name)
+	assert.Equal(t, float64(1), metric.Value)
+	assert.Equal(
+		t,
+		map[string]string{
+			"result": "denied",
+		},
+		metric.Labels,
+	)
+}
+
+// authorizationMetricsRecorder captures metrics without depending on the
+// infrastructure metrics implementation.
+type authorizationMetricsRecorder struct {
+	metrics []ports.Metric
+}
+
+func (m *authorizationMetricsRecorder) Increment(
+	ctx context.Context,
+	metric ports.Metric,
+) error {
+	m.metrics = append(m.metrics, metric)
+	return nil
+}
+
+func (m *authorizationMetricsRecorder) Observe(
+	ctx context.Context,
+	metric ports.Metric,
+) error {
+	m.metrics = append(m.metrics, metric)
+	return nil
+}
+
+var _ ports.Metrics = (*authorizationMetricsRecorder)(nil)

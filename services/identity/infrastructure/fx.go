@@ -4,6 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/migrations"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/observability"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/security"
@@ -21,6 +22,9 @@ var Module = fx.Module(
 		// SQLC query implementation.
 		postgres.NewQueries,
 
+		// Database migration runner.
+		migrations.NewMigrationRunner,
+
 		// User repository implementation exposed through the
 		// application-layer UserRepository port.
 		fx.Annotate(
@@ -35,8 +39,8 @@ var Module = fx.Module(
 			fx.As(new(ports.RefreshTokenRepository)),
 		),
 
-		// Bcrypt password hashing implementation exposed through
-		// the application-layer PasswordHasher port.
+		// Bcrypt password hashing implementation exposed through the
+		// application-layer PasswordHasher port.
 		fx.Annotate(
 			security.NewBcryptPasswordHasher,
 			fx.As(new(ports.PasswordHasher)),
@@ -62,9 +66,23 @@ var Module = fx.Module(
 			observability.NewProductionLogger,
 			fx.As(new(ports.Logger)),
 		),
+
+		// In-memory metrics implementation exposed through the
+		// application-layer Metrics port.
+		fx.Annotate(
+			observability.NewMetrics,
+			fx.As(new(ports.Metrics)),
+		),
+
+		// OpenTelemetry tracing implementation exposed through the
+		// application-layer Tracer port.
+		func() (ports.Tracer, error) {
+			return observability.NewOpenTelemetryTracer("identity")
+		},
 	),
 
 	fx.Invoke(
 		postgres.RegisterPoolLifecycle,
+		migrations.RegisterLifecycle,
 	),
 )

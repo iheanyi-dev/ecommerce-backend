@@ -317,6 +317,9 @@ func TestNewRouter_RegisterUser(t *testing.T) {
 		newMockUpdateUserStatusHandler(),
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	request := httptest.NewRequest(
@@ -385,6 +388,9 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 		listUsersHandler,
 		getUserHandler,
 		newMockUpdateUserStatusHandler(),
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)
@@ -459,6 +465,9 @@ func TestNewRouter_LoginUser(t *testing.T) {
 		newMockUpdateUserStatusHandler(),
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(
@@ -525,6 +534,9 @@ func TestNewRouter_MeRequiresAuthentication(t *testing.T) {
 		listUsersHandler,
 		getUserHandler,
 		newMockUpdateUserStatusHandler(),
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)
@@ -595,6 +607,9 @@ func TestNewRouter_MeAllowsAuthenticatedUser(t *testing.T) {
 		listUsersHandler,
 		getUserHandler,
 		newMockUpdateUserStatusHandler(),
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)
@@ -672,6 +687,9 @@ func TestNewRouter_MeAllowsAuthenticatedVendor(t *testing.T) {
 		newMockUpdateUserStatusHandler(),
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(
@@ -745,6 +763,9 @@ func TestNewRouter_MeAllowsAuthenticatedAdmin(t *testing.T) {
 		listUsersHandler,
 		getUserHandler,
 		newMockUpdateUserStatusHandler(),
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)
@@ -823,6 +844,9 @@ func TestNewRouter_MeRejectsUnknownRole(t *testing.T) {
 		newMockUpdateUserStatusHandler(),
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(
@@ -898,6 +922,9 @@ func TestNewRouter_RefreshUser(t *testing.T) {
 		newMockUpdateUserStatusHandler(),
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(
@@ -950,6 +977,9 @@ func TestNewRouter_LogoutUserRequiresAuthentication(t *testing.T) {
 		listUsersHandler,
 		newMockGetUserHandler(),
 		newMockUpdateUserStatusHandler(),
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)
@@ -1008,6 +1038,9 @@ func TestNewRouter_LogoutUserAllowsAuthenticatedRequest(t *testing.T) {
 		listUsersHandler,
 		newMockGetUserHandler(),
 		newMockUpdateUserStatusHandler(),
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)
@@ -1101,6 +1134,9 @@ func TestRouter_PatchMe_UsesAuthenticatedIdentity(t *testing.T) {
 		newMockUpdateUserStatusHandler(),
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	body := strings.NewReader(`{
@@ -1182,6 +1218,9 @@ func TestNewRouter_ListUsersAllowsAdmin(t *testing.T) {
 		newMockUpdateUserStatusHandler(),
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(
@@ -1243,6 +1282,9 @@ func TestNewRouter_ListUsersRequiresAuthentication(t *testing.T) {
 		newMockUpdateUserStatusHandler(),
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(
@@ -1296,6 +1338,9 @@ func TestNewRouter_ListUsersRejectsVendor(t *testing.T) {
 		listUsersHandler,
 		newMockGetUserHandler(),
 		newMockUpdateUserStatusHandler(),
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)
@@ -1356,6 +1401,9 @@ func TestNewRouter_ListUsersRejectsRegularUser(t *testing.T) {
 		listUsersHandler,
 		newMockGetUserHandler(),
 		newMockUpdateUserStatusHandler(),
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)
@@ -1419,6 +1467,9 @@ func TestNewRouter_ListUsersRejectsUnknownRole(t *testing.T) {
 		newMockUpdateUserStatusHandler(),
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(
@@ -1476,6 +1527,9 @@ func TestNewRouter_UpdateUserStatusAllowsAdmin(t *testing.T) {
 		handler,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(
@@ -1524,6 +1578,9 @@ func TestNewRouter_UpdateUserStatusRequiresAuthentication(t *testing.T) {
 		handler,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 	req := httptest.NewRequest(
@@ -1565,6 +1622,9 @@ func TestNewRouter_UpdateUserStatusRejectsVendor(t *testing.T) {
 		newMockListUsersHandler(),
 		newMockGetUserHandler(),
 		handler,
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)
@@ -1613,6 +1673,9 @@ func TestNewRouter_UpdateUserStatusRejectsRegularUser(t *testing.T) {
 		newMockListUsersHandler(),
 		newMockGetUserHandler(),
 		handler,
+		nil,
+		nil,
+		nil,
 		nil,
 		nil,
 	)

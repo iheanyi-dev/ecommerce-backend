@@ -32,6 +32,38 @@ func (f *fakeLogger) Log(
 	return f.err
 }
 
+// fakeMetrics is a test implementation of the Metrics port.
+//
+// Registration observability tests use this fake to capture application
+// metrics without depending on the concrete infrastructure metrics
+// implementation.
+type fakeMetrics struct {
+	increments   []ports.Metric
+	observations []ports.Metric
+	incrementErr error
+	observeErr   error
+}
+
+func (f *fakeMetrics) Increment(
+	_ context.Context,
+	metric ports.Metric,
+) error {
+	f.increments = append(f.increments, metric)
+
+	return f.incrementErr
+}
+
+func (f *fakeMetrics) Observe(
+	_ context.Context,
+	metric ports.Metric,
+) error {
+	f.observations = append(f.observations, metric)
+
+	return f.observeErr
+}
+
+var _ ports.Metrics = (*fakeMetrics)(nil)
+
 // lastEvent returns the most recently recorded log event.
 //
 // Registration tests use this helper after asserting that an event was
@@ -248,6 +280,7 @@ func TestRegisterUserUseCase_RegistersUserSuccessfully(t *testing.T) {
 		repository,
 		hasher,
 		nil,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -334,6 +367,7 @@ func TestRegisterUserUseCase_DoesNotRegisterDuplicateEmail(
 		repository,
 		hasher,
 		nil,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -379,6 +413,7 @@ func TestRegisterUserUseCase_ReturnsEmailValidationError(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 		nil,
 	)
 
@@ -426,6 +461,7 @@ func TestRegisterUserUseCase_ReturnsRepositoryExistsError(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 		nil,
 	)
 
@@ -478,6 +514,7 @@ func TestRegisterUserUseCase_ReturnsPasswordHasherError(
 		repository,
 		hasher,
 		nil,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -518,6 +555,7 @@ func TestRegisterUserUseCase_ReturnsFullNameValidationError(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 		nil,
 	)
 
@@ -560,6 +598,7 @@ func TestRegisterUserUseCase_ReturnsRepositoryCreateError(
 		repository,
 		hasher,
 		nil,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -596,6 +635,7 @@ func TestRegisterUserUseCase_DoesNotExposePasswordHash(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 		nil,
 	)
 
@@ -652,6 +692,7 @@ func TestRegisterUserUseCase_RejectsPasswordShorterThanEightCharacters(
 		repository,
 		hasher,
 		nil,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -697,6 +738,7 @@ func TestRegisterUserUseCase_RejectsPasswordLongerThanSixtyFourCharacters(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 		nil,
 	)
 
@@ -747,6 +789,7 @@ func TestRegisterUserUseCase_RejectsPasswordMissingUppercase(
 		repository,
 		hasher,
 		nil,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -792,6 +835,7 @@ func TestRegisterUserUseCase_RejectsPasswordMissingLowercase(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 		nil,
 	)
 
@@ -839,6 +883,7 @@ func TestRegisterUserUseCase_RejectsPasswordMissingNumber(
 		repository,
 		hasher,
 		nil,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -884,6 +929,7 @@ func TestRegisterUserUseCase_RejectsPasswordMissingSpecialCharacter(
 	useCase := use_cases.NewRegisterUserUseCase(
 		repository,
 		hasher,
+		nil,
 		nil,
 	)
 
@@ -934,6 +980,7 @@ func TestRegisterUserUseCase_LogsSuccessfulRegistration(t *testing.T) {
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -1001,6 +1048,7 @@ func TestRegisterUserUseCase_LogsDuplicateEmail(t *testing.T) {
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -1053,6 +1101,7 @@ func TestRegisterUserUseCase_LogsEmailValidationFailure(t *testing.T) {
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -1095,6 +1144,7 @@ func TestRegisterUserUseCase_LogsPasswordValidationFailure(t *testing.T) {
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -1144,6 +1194,7 @@ func TestRegisterUserUseCase_LogsRepositoryExistsFailure(t *testing.T) {
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -1194,6 +1245,7 @@ func TestRegisterUserUseCase_LogsPasswordHashingFailure(t *testing.T) {
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -1240,6 +1292,7 @@ func TestRegisterUserUseCase_LogsFullNameValidationFailure(t *testing.T) {
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -1286,6 +1339,7 @@ func TestRegisterUserUseCase_LogsRepositoryCreateFailure(t *testing.T) {
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -1336,6 +1390,7 @@ func TestRegisterUserUseCase_LoggerFailureDoesNotAffectRegistration(
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	command := dto.RegisterUserCommand{
@@ -1388,6 +1443,7 @@ func TestRegisterUserUseCase_DoesNotLogRegistrationSecrets(
 		repository,
 		hasher,
 		logger,
+		nil,
 	)
 
 	const plaintextPassword = "StrongPass@123"
@@ -1426,4 +1482,352 @@ func TestRegisterUserUseCase_DoesNotLogRegistrationSecrets(
 		event,
 		passwordHash,
 	)
+}
+func TestRegisterUserUseCase_RecordsSuccessfulRegistrationMetrics(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+	metrics := &fakeMetrics{}
+
+	// Metrics are not wired into the current implementation yet.
+	// This test intentionally drives the TDD change.
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		nil,
+		metrics,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	result, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if err != nil {
+		t.Fatalf(
+			"expected registration to succeed, got: %v",
+			err,
+		)
+	}
+
+	if result.ID == "" {
+		t.Fatal("expected successful registration to return a user ID")
+	}
+
+	if len(metrics.increments) != 1 {
+		t.Fatalf(
+			"expected one registration counter metric, got %d",
+			len(metrics.increments),
+		)
+	}
+
+	counter := metrics.increments[0]
+
+	if counter.Name != "auth.registration" {
+		t.Fatalf(
+			"expected metric %q, got %q",
+			"auth.registration",
+			counter.Name,
+		)
+	}
+
+	if counter.Value != 1 {
+		t.Fatalf(
+			"expected metric value 1, got %v",
+			counter.Value,
+		)
+	}
+
+	if counter.Labels["result"] != "success" {
+		t.Fatalf(
+			"expected result label %q, got %q",
+			"success",
+			counter.Labels["result"],
+		)
+	}
+
+	if len(counter.Labels) != 1 {
+		t.Fatalf(
+			"expected only the low-cardinality result label, got %+v",
+			counter.Labels,
+		)
+	}
+
+	if len(metrics.observations) != 1 {
+		t.Fatalf(
+			"expected one registration duration metric, got %d",
+			len(metrics.observations),
+		)
+	}
+
+	duration := metrics.observations[0]
+
+	if duration.Name != "auth.registration.duration" {
+		t.Fatalf(
+			"expected metric %q, got %q",
+			"auth.registration.duration",
+			duration.Name,
+		)
+	}
+
+	if duration.Value < 0 {
+		t.Fatalf(
+			"expected non-negative registration duration, got %v",
+			duration.Value,
+		)
+	}
+}
+
+func TestRegisterUserUseCase_RecordsFailedRegistrationMetrics(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{
+		existingEmail: true,
+	}
+	hasher := &fakePasswordHasher{}
+	metrics := &fakeMetrics{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		nil,
+		metrics,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if !errors.Is(err, application_errors.ErrEmailAlreadyExists) {
+		t.Fatalf(
+			"expected ErrEmailAlreadyExists, got %v",
+			err,
+		)
+	}
+
+	if len(metrics.increments) != 1 {
+		t.Fatalf(
+			"expected one registration counter metric, got %d",
+			len(metrics.increments),
+		)
+	}
+
+	counter := metrics.increments[0]
+
+	if counter.Name != "auth.registration" {
+		t.Fatalf(
+			"expected metric %q, got %q",
+			"auth.registration",
+			counter.Name,
+		)
+	}
+
+	if counter.Value != 1 {
+		t.Fatalf(
+			"expected metric value 1, got %v",
+			counter.Value,
+		)
+	}
+
+	if counter.Labels["result"] != "failure" {
+		t.Fatalf(
+			"expected result label %q, got %q",
+			"failure",
+			counter.Labels["result"],
+		)
+	}
+
+	if len(counter.Labels) != 1 {
+		t.Fatalf(
+			"expected only the low-cardinality result label, got %+v",
+			counter.Labels,
+		)
+	}
+
+	if len(metrics.observations) != 1 {
+		t.Fatalf(
+			"expected one registration duration metric, got %d",
+			len(metrics.observations),
+		)
+	}
+
+	if metrics.observations[0].Value < 0 {
+		t.Fatalf(
+			"expected non-negative registration duration, got %v",
+			metrics.observations[0].Value,
+		)
+	}
+}
+
+func TestRegisterUserUseCase_MetricsFailureDoesNotAffectRegistration(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+	metrics := &fakeMetrics{
+		incrementErr: errors.New("metrics increment unavailable"),
+		observeErr:   errors.New("metrics observation unavailable"),
+	}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		nil,
+		metrics,
+	)
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    "john@example.com",
+		Password: "StrongPass@123",
+	}
+
+	// Act
+	result, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if err != nil {
+		t.Fatalf(
+			"expected registration to succeed when metrics fail, got: %v",
+			err,
+		)
+	}
+
+	if result.ID == "" {
+		t.Fatal("expected successful registration to return a user ID")
+	}
+
+	if repository.createdUser == nil {
+		t.Fatal("expected user to be created")
+	}
+
+	if len(metrics.increments) != 1 {
+		t.Fatalf(
+			"expected one attempted counter metric, got %d",
+			len(metrics.increments),
+		)
+	}
+
+	if len(metrics.observations) != 1 {
+		t.Fatalf(
+			"expected one attempted duration metric, got %d",
+			len(metrics.observations),
+		)
+	}
+}
+
+func TestRegisterUserUseCase_DoesNotUseHighCardinalityRegistrationMetricLabels(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	// Arrange
+	repository := &fakeUserRepository{}
+	hasher := &fakePasswordHasher{}
+	metrics := &fakeMetrics{}
+
+	useCase := use_cases.NewRegisterUserUseCase(
+		repository,
+		hasher,
+		nil,
+		metrics,
+	)
+
+	const email = "john@example.com"
+	const password = "StrongPass@123"
+
+	command := dto.RegisterUserCommand{
+		FullName: "John Doe",
+		Email:    email,
+		Password: password,
+	}
+
+	// Act
+	_, err := useCase.Execute(
+		context.Background(),
+		command,
+	)
+
+	// Assert
+	if err != nil {
+		t.Fatalf(
+			"expected registration to succeed, got: %v",
+			err,
+		)
+	}
+
+	if len(metrics.increments) != 1 {
+		t.Fatalf(
+			"expected one registration counter metric, got %d",
+			len(metrics.increments),
+		)
+	}
+
+	metric := metrics.increments[0]
+
+	if len(metric.Labels) != 1 {
+		t.Fatalf(
+			"expected exactly one low-cardinality label, got %+v",
+			metric.Labels,
+		)
+	}
+
+	if metric.Labels["result"] != "success" {
+		t.Fatalf(
+			"expected result label %q, got %q",
+			"success",
+			metric.Labels["result"],
+		)
+	}
+
+	for key, value := range metric.Labels {
+		if value == email ||
+			value == password ||
+			value == "John Doe" ||
+			value == resultUserID(repository) {
+			t.Fatalf(
+				"metric label %q=%q unexpectedly contains high-cardinality or sensitive data",
+				key,
+				value,
+			)
+		}
+	}
+}
+
+func resultUserID(repository *fakeUserRepository) string {
+	if repository.createdUser == nil {
+		return ""
+	}
+
+	return repository.createdUser.ID().String()
 }

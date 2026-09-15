@@ -27,8 +27,6 @@ CREATE TABLE users (
     updated_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX idx_users_email ON users (email);
-
 -- +goose Down
 
 DROP TABLE IF EXISTS users;

@@ -13,6 +13,40 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+// Fake Metrics
+// -----------------------------------------------------------------------------
+
+// fakeAuthenticationMetrics is a test double for the application Metrics port.
+//
+// It records every metric emitted by the authentication use case so tests
+// can verify metric names, values, and labels without depending on a concrete
+// metrics backend.
+type fakeAuthenticationMetrics struct {
+	increments   []ports.Metric
+	observations []ports.Metric
+	incrementErr error
+	observeErr   error
+}
+
+func (f *fakeAuthenticationMetrics) Increment(
+	ctx context.Context,
+	metric ports.Metric,
+) error {
+	f.increments = append(f.increments, metric)
+	return f.incrementErr
+}
+
+func (f *fakeAuthenticationMetrics) Observe(
+	ctx context.Context,
+	metric ports.Metric,
+) error {
+	f.observations = append(f.observations, metric)
+	return f.observeErr
+}
+
+var _ ports.Metrics = (*fakeAuthenticationMetrics)(nil)
+
+// -----------------------------------------------------------------------------
 // Fake User Repository
 // -----------------------------------------------------------------------------
 
@@ -222,6 +256,74 @@ func (f *fakeAuthenticationLogger) Log(
 	f.events = append(f.events, event)
 
 	return f.logErr
+}
+
+func assertAuthenticationFailureMetrics(
+	t *testing.T,
+	metrics *fakeAuthenticationMetrics,
+) {
+	t.Helper()
+
+	if len(metrics.increments) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication metric increment, got %d",
+			len(metrics.increments),
+		)
+	}
+
+	metric := metrics.increments[0]
+
+	if metric.Name != "auth.login" {
+		t.Fatalf(
+			"expected metric name %q, got %q",
+			"auth.login",
+			metric.Name,
+		)
+	}
+
+	if metric.Value != 1 {
+		t.Fatalf(
+			"expected metric value 1, got %v",
+			metric.Value,
+		)
+	}
+
+	if metric.Labels["result"] != "failure" {
+		t.Fatalf(
+			"expected result label %q, got %q",
+			"failure",
+			metric.Labels["result"],
+		)
+	}
+
+	if len(metric.Labels) != 1 {
+		t.Fatalf(
+			"expected only the low-cardinality result label, got %v",
+			metric.Labels,
+		)
+	}
+
+	if len(metrics.observations) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication duration observation, got %d",
+			len(metrics.observations),
+		)
+	}
+
+	if metrics.observations[0].Name != "auth.login.duration" {
+		t.Fatalf(
+			"expected duration metric name %q, got %q",
+			"auth.login.duration",
+			metrics.observations[0].Name,
+		)
+	}
+
+	if metrics.observations[0].Value < 0 {
+		t.Fatalf(
+			"expected non-negative authentication duration, got %v",
+			metrics.observations[0].Value,
+		)
+	}
 }
 
 // lastEvent returns the most recently recorded event.
@@ -461,6 +563,7 @@ func newAuthenticationUseCase(
 	passwordHasher *fakeAuthenticationPasswordHasher,
 	tokenService *fakeAuthenticationTokenService,
 	logger *fakeAuthenticationLogger,
+	metrics *fakeAuthenticationMetrics,
 ) *use_cases.AuthenticateUserUseCase {
 	t.Helper()
 
@@ -469,6 +572,7 @@ func newAuthenticationUseCase(
 		passwordHasher,
 		tokenService,
 		logger,
+		metrics,
 	)
 }
 
@@ -490,6 +594,7 @@ func TestAuthenticateUser_Success(t *testing.T) {
 	}
 
 	logger := &fakeAuthenticationLogger{}
+	metrics := &fakeAuthenticationMetrics{}
 
 	useCase := newAuthenticationUseCase(
 		t,
@@ -497,6 +602,7 @@ func TestAuthenticateUser_Success(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		logger,
+		metrics,
 	)
 
 	command := dto.LoginUserCommand{
@@ -605,6 +711,61 @@ func TestAuthenticateUser_Success(t *testing.T) {
 	)
 
 	assertAuthenticationEventContainsNoSecrets(t, event)
+	if len(metrics.increments) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication metric increment, got %d",
+			len(metrics.increments),
+		)
+	}
+
+	metric := metrics.increments[0]
+
+	if metric.Name != "auth.login" {
+		t.Fatalf(
+			"expected metric name %q, got %q",
+			"auth.login",
+			metric.Name,
+		)
+	}
+
+	if metric.Value != 1 {
+		t.Fatalf(
+			"expected metric value 1, got %v",
+			metric.Value,
+		)
+	}
+
+	if metric.Labels["result"] != "success" {
+		t.Fatalf(
+			"expected result label %q, got %q",
+			"success",
+			metric.Labels["result"],
+		)
+	}
+
+	if len(metrics.observations) != 1 {
+		t.Fatalf(
+			"expected exactly one authentication duration observation, got %d",
+			len(metrics.observations),
+		)
+	}
+
+	durationMetric := metrics.observations[0]
+
+	if durationMetric.Name != "auth.login.duration" {
+		t.Fatalf(
+			"expected duration metric name %q, got %q",
+			"auth.login.duration",
+			durationMetric.Name,
+		)
+	}
+
+	if durationMetric.Value < 0 {
+		t.Fatalf(
+			"expected non-negative authentication duration, got %v",
+			durationMetric.Value,
+		)
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -621,6 +782,7 @@ func TestAuthenticateUser_UserNotFound(t *testing.T) {
 	}
 
 	logger := &fakeAuthenticationLogger{}
+	metrics := &fakeAuthenticationMetrics{}
 
 	useCase := newAuthenticationUseCase(
 		t,
@@ -628,6 +790,7 @@ func TestAuthenticateUser_UserNotFound(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		logger,
+		metrics,
 	)
 
 	command := dto.LoginUserCommand{
@@ -680,6 +843,7 @@ func TestAuthenticateUser_UserNotFound(t *testing.T) {
 	)
 
 	assertAuthenticationEventContainsNoSecrets(t, event)
+	assertAuthenticationFailureMetrics(t, metrics)
 }
 
 // -----------------------------------------------------------------------------
@@ -702,6 +866,7 @@ func TestAuthenticateUser_InvalidPassword(t *testing.T) {
 	}
 
 	logger := &fakeAuthenticationLogger{}
+	metrics := &fakeAuthenticationMetrics{}
 
 	useCase := newAuthenticationUseCase(
 		t,
@@ -709,6 +874,7 @@ func TestAuthenticateUser_InvalidPassword(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		logger,
+		metrics,
 	)
 
 	command := dto.LoginUserCommand{
@@ -761,6 +927,7 @@ func TestAuthenticateUser_InvalidPassword(t *testing.T) {
 	)
 
 	assertAuthenticationEventContainsNoSecrets(t, event)
+	assertAuthenticationFailureMetrics(t, metrics)
 }
 
 // -----------------------------------------------------------------------------
@@ -785,6 +952,7 @@ func TestAuthenticateUser_InactiveAccount(t *testing.T) {
 	}
 
 	logger := &fakeAuthenticationLogger{}
+	metrics := &fakeAuthenticationMetrics{}
 
 	useCase := newAuthenticationUseCase(
 		t,
@@ -792,6 +960,7 @@ func TestAuthenticateUser_InactiveAccount(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		logger,
+		metrics,
 	)
 
 	command := dto.LoginUserCommand{
@@ -844,6 +1013,7 @@ func TestAuthenticateUser_InactiveAccount(t *testing.T) {
 	)
 
 	assertAuthenticationEventContainsNoSecrets(t, event)
+	assertAuthenticationFailureMetrics(t, metrics)
 }
 
 // -----------------------------------------------------------------------------
@@ -864,6 +1034,7 @@ func TestAuthenticateUser_PendingVerification(t *testing.T) {
 	}
 
 	logger := &fakeAuthenticationLogger{}
+	metrics := &fakeAuthenticationMetrics{}
 
 	useCase := newAuthenticationUseCase(
 		t,
@@ -871,6 +1042,7 @@ func TestAuthenticateUser_PendingVerification(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		logger,
+		metrics,
 	)
 
 	command := dto.LoginUserCommand{
@@ -923,6 +1095,7 @@ func TestAuthenticateUser_PendingVerification(t *testing.T) {
 	)
 
 	assertAuthenticationEventContainsNoSecrets(t, event)
+	assertAuthenticationFailureMetrics(t, metrics)
 }
 
 // -----------------------------------------------------------------------------
@@ -947,6 +1120,7 @@ func TestAuthenticateUser_SuspendedAccount(t *testing.T) {
 	}
 
 	logger := &fakeAuthenticationLogger{}
+	metrics := &fakeAuthenticationMetrics{}
 
 	useCase := newAuthenticationUseCase(
 		t,
@@ -954,6 +1128,7 @@ func TestAuthenticateUser_SuspendedAccount(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		logger,
+		metrics,
 	)
 
 	command := dto.LoginUserCommand{
@@ -1006,6 +1181,7 @@ func TestAuthenticateUser_SuspendedAccount(t *testing.T) {
 	)
 
 	assertAuthenticationEventContainsNoSecrets(t, event)
+	assertAuthenticationFailureMetrics(t, metrics)
 }
 
 // -----------------------------------------------------------------------------
@@ -1022,6 +1198,7 @@ func TestAuthenticateUser_InvalidEmail(t *testing.T) {
 	}
 
 	logger := &fakeAuthenticationLogger{}
+	metrics := &fakeAuthenticationMetrics{}
 
 	useCase := newAuthenticationUseCase(
 		t,
@@ -1029,6 +1206,7 @@ func TestAuthenticateUser_InvalidEmail(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		logger,
+		metrics,
 	)
 
 	command := dto.LoginUserCommand{
@@ -1090,6 +1268,7 @@ func TestAuthenticateUser_TokenGenerationFailure(t *testing.T) {
 	}
 
 	logger := &fakeAuthenticationLogger{}
+	metrics := &fakeAuthenticationMetrics{}
 
 	useCase := newAuthenticationUseCase(
 		t,
@@ -1097,6 +1276,7 @@ func TestAuthenticateUser_TokenGenerationFailure(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		logger,
+		metrics,
 	)
 
 	command := dto.LoginUserCommand{
@@ -1149,4 +1329,5 @@ func TestAuthenticateUser_TokenGenerationFailure(t *testing.T) {
 	)
 
 	assertAuthenticationEventContainsNoSecrets(t, event)
+	assertAuthenticationFailureMetrics(t, metrics)
 }

@@ -24,6 +24,37 @@ func (f *fakeObservabilityLogger) Log(
 	return f.err
 }
 
+// fakeObservabilityMetrics captures metrics emitted by the HTTP
+// observability middleware.
+//
+// The fake deliberately stores the application-level Metric values rather
+// than depending on the concrete infrastructure implementation. This keeps
+// the middleware tests focused on the behavior required from the Metrics
+// port.
+type fakeObservabilityMetrics struct {
+	increments   []ports.Metric
+	observations []ports.Metric
+	err          error
+}
+
+func (f *fakeObservabilityMetrics) Increment(
+	ctx context.Context,
+	metric ports.Metric,
+) error {
+	f.increments = append(f.increments, metric)
+
+	return f.err
+}
+
+func (f *fakeObservabilityMetrics) Observe(
+	ctx context.Context,
+	metric ports.Metric,
+) error {
+	f.observations = append(f.observations, metric)
+
+	return f.err
+}
+
 func TestRequestObservabilityMiddleware_LogsSuccessfulRequest(t *testing.T) {
 	logger := &fakeObservabilityLogger{}
 
@@ -36,6 +67,7 @@ func TestRequestObservabilityMiddleware_LogsSuccessfulRequest(t *testing.T) {
 
 	handler := middleware.NewRequestObservabilityMiddleware(
 		logger,
+		nil,
 	).Middleware(next)
 
 	request := httptest.NewRequest(
@@ -152,6 +184,7 @@ func TestRequestObservabilityMiddleware_LogsClientFailure(t *testing.T) {
 
 	handler := middleware.NewRequestObservabilityMiddleware(
 		logger,
+		nil,
 	).Middleware(next)
 
 	request := httptest.NewRequest(
@@ -228,6 +261,7 @@ func TestRequestObservabilityMiddleware_LogsServerFailure(t *testing.T) {
 
 	handler := middleware.NewRequestObservabilityMiddleware(
 		logger,
+		nil,
 	).Middleware(next)
 
 	request := httptest.NewRequest(
@@ -285,6 +319,7 @@ func TestRequestObservabilityMiddleware_UsesFallbackRouteWhenPatternUnavailable(
 
 	handler := middleware.NewRequestObservabilityMiddleware(
 		logger,
+		nil,
 	).Middleware(next)
 
 	request := httptest.NewRequest(
@@ -337,6 +372,7 @@ func TestRequestObservabilityMiddleware_LoggerFailureDoesNotAffectResponse(
 
 	handler := middleware.NewRequestObservabilityMiddleware(
 		logger,
+		nil,
 	).Middleware(next)
 
 	request := httptest.NewRequest(
@@ -378,6 +414,7 @@ func TestRequestObservabilityMiddleware_NeverLogsSensitiveRequestData(
 
 	handler := middleware.NewRequestObservabilityMiddleware(
 		logger,
+		nil,
 	).Middleware(next)
 
 	request := httptest.NewRequest(
@@ -426,5 +463,264 @@ func TestRequestObservabilityMiddleware_NeverLogsSensitiveRequestData(
 		event.Operation == "password" ||
 		event.Route == "password" {
 		t.Fatal("password data must never be logged")
+	}
+}
+
+// TestRequestObservabilityMiddleware_RecordsHTTPMetrics verifies that one
+// completed HTTP request produces both the request counter and a duration
+// measurement.
+//
+// This is the core transport-level metric behavior. We do not duplicate every
+// logging test with metric assertions because status classification and route
+// selection are already covered by the logging tests.
+func TestRequestObservabilityMiddleware_RecordsHTTPMetrics(t *testing.T) {
+	logger := &fakeObservabilityLogger{}
+	metrics := &fakeObservabilityMetrics{}
+
+	next := http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := middleware.NewRequestObservabilityMiddleware(
+		logger,
+		metrics,
+	).Middleware(next)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/users/me",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf(
+			"expected status 200, got %d",
+			recorder.Code,
+		)
+	}
+
+	if len(metrics.increments) != 1 {
+		t.Fatalf(
+			"expected 1 metric increment, got %d",
+			len(metrics.increments),
+		)
+	}
+
+	requestMetric := metrics.increments[0]
+
+	if requestMetric.Name != "http.requests" {
+		t.Fatalf(
+			"expected metric http.requests, got %q",
+			requestMetric.Name,
+		)
+	}
+
+	if requestMetric.Value != 1 {
+		t.Fatalf(
+			"expected request metric value 1, got %f",
+			requestMetric.Value,
+		)
+	}
+
+	if requestMetric.Labels["method"] != http.MethodGet {
+		t.Fatalf(
+			"expected method label GET, got %q",
+			requestMetric.Labels["method"],
+		)
+	}
+
+	if requestMetric.Labels["route"] != "/api/v1/users/me" {
+		t.Fatalf(
+			"expected route label /api/v1/users/me, got %q",
+			requestMetric.Labels["route"],
+		)
+	}
+
+	if requestMetric.Labels["status"] != "200" {
+		t.Fatalf(
+			"expected status label 200, got %q",
+			requestMetric.Labels["status"],
+		)
+	}
+
+	if len(metrics.observations) != 1 {
+		t.Fatalf(
+			"expected 1 metric observation, got %d",
+			len(metrics.observations),
+		)
+	}
+
+	durationMetric := metrics.observations[0]
+
+	if durationMetric.Name != "http.request.duration" {
+		t.Fatalf(
+			"expected metric http.request.duration, got %q",
+			durationMetric.Name,
+		)
+	}
+
+	if durationMetric.Value < 0 {
+		t.Fatalf(
+			"expected non-negative duration, got %f",
+			durationMetric.Value,
+		)
+	}
+
+	if durationMetric.Labels["method"] != http.MethodGet {
+		t.Fatalf(
+			"expected duration method label GET, got %q",
+			durationMetric.Labels["method"],
+		)
+	}
+
+	if durationMetric.Labels["route"] != "/api/v1/users/me" {
+		t.Fatalf(
+			"expected duration route label /api/v1/users/me, got %q",
+			durationMetric.Labels["route"],
+		)
+	}
+}
+
+// TestRequestObservabilityMiddleware_MetricsFailureDoesNotAffectResponse
+// verifies that metrics are best-effort just like logging.
+//
+// An observability backend failure must never turn an otherwise successful
+// application request into an HTTP failure.
+func TestRequestObservabilityMiddleware_MetricsFailureDoesNotAffectResponse(
+	t *testing.T,
+) {
+	logger := &fakeObservabilityLogger{}
+	metrics := &fakeObservabilityMetrics{
+		err: context.Canceled,
+	}
+
+	next := http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		w.WriteHeader(http.StatusCreated)
+	})
+
+	handler := middleware.NewRequestObservabilityMiddleware(
+		logger,
+		metrics,
+	).Middleware(next)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/users/register",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf(
+			"expected status 201 despite metrics failure, got %d",
+			recorder.Code,
+		)
+	}
+
+	if len(metrics.increments) != 1 {
+		t.Fatalf(
+			"expected 1 attempted metric increment, got %d",
+			len(metrics.increments),
+		)
+	}
+
+	if len(metrics.observations) != 1 {
+		t.Fatalf(
+			"expected 1 attempted metric observation, got %d",
+			len(metrics.observations),
+		)
+	}
+}
+
+// TestRequestObservabilityMiddleware_UsesStableMetricLabels verifies that
+// metrics use stable transport dimensions rather than sensitive or
+// high-cardinality request data.
+//
+// In particular, the request path is the route fallback here, so this test
+// also protects against accidentally putting query strings or request bodies
+// into metric labels.
+func TestRequestObservabilityMiddleware_UsesStableMetricLabels(t *testing.T) {
+	logger := &fakeObservabilityLogger{}
+	metrics := &fakeObservabilityMetrics{}
+
+	next := http.HandlerFunc(func(
+		w http.ResponseWriter,
+		r *http.Request,
+	) {
+		w.WriteHeader(http.StatusBadRequest)
+	})
+
+	handler := middleware.NewRequestObservabilityMiddleware(
+		logger,
+		metrics,
+	).Middleware(next)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/users/login?email=secret@example.com",
+		nil,
+	)
+
+	request.Header.Set(
+		"Authorization",
+		"Bearer-super-secret-token",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if len(metrics.increments) != 1 {
+		t.Fatalf(
+			"expected 1 metric increment, got %d",
+			len(metrics.increments),
+		)
+	}
+
+	metric := metrics.increments[0]
+
+	if metric.Labels["method"] != http.MethodPost {
+		t.Fatalf(
+			"expected method label POST, got %q",
+			metric.Labels["method"],
+		)
+	}
+
+	if metric.Labels["route"] != "/api/v1/users/login" {
+		t.Fatalf(
+			"expected stable route label without query string, got %q",
+			metric.Labels["route"],
+		)
+	}
+
+	if metric.Labels["status"] != "400" {
+		t.Fatalf(
+			"expected status label 400, got %q",
+			metric.Labels["status"],
+		)
+	}
+
+	for key, value := range metric.Labels {
+		if value == "secret@example.com" ||
+			value == "Bearer-super-secret-token" {
+			t.Fatalf(
+				"sensitive request data must never appear in metric label %q=%q",
+				key,
+				value,
+			)
+		}
 	}
 }

@@ -81,6 +81,9 @@ func newRefreshIntegrationRouter(
 		newUpdateUserStatusHandler,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -192,6 +195,7 @@ func TestRefreshUserIntegration(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		nil,
+		nil,
 	)
 
 	// ---------------------------------------------------------
@@ -227,6 +231,7 @@ func TestRefreshUserIntegration(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 
@@ -624,6 +629,7 @@ func TestRefreshUserIntegration_InvalidToken(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		nil,
+		nil,
 	)
 
 	refreshUserHandler := handlers.NewRefreshUserHandler(
@@ -700,6 +706,7 @@ func TestRefreshUserIntegration_ExpiredToken(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		nil,
+		nil,
 	)
 
 	refreshUserHandler := handlers.NewRefreshUserHandler(
@@ -716,6 +723,7 @@ func TestRefreshUserIntegration_ExpiredToken(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 
@@ -859,6 +867,7 @@ func TestRefreshUserIntegration_RevokedToken(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		nil,
+		nil,
 	)
 
 	refreshUserHandler := handlers.NewRefreshUserHandler(
@@ -875,6 +884,7 @@ func TestRefreshUserIntegration_RevokedToken(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 
@@ -1033,6 +1043,7 @@ func TestRefreshUserIntegration_InactiveUser(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		nil,
+		nil,
 	)
 
 	refreshUserHandler := handlers.NewRefreshUserHandler(
@@ -1052,6 +1063,7 @@ func TestRefreshUserIntegration_InactiveUser(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 

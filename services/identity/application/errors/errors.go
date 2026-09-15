@@ -1,16 +1,25 @@
+// services/identity/application/errors/errors.go
+
 package errors
 
 import "errors"
 
 // Authentication errors.
+
 // ErrInvalidAccessToken indicates that an access token could not be
 // validated successfully, including invalid, expired, or otherwise
 // unacceptable access tokens.
 var ErrInvalidAccessToken = errors.New("invalid access token")
 
-// ErrInvalidCredentials indicates that the supplied authentication
+// ErrInvalidCredentials indicates that the supplied user authentication
 // credentials could not be validated.
 var ErrInvalidCredentials = errors.New("invalid credentials")
+
+// ErrInvalidServiceCredentials indicates that an internal service did not
+// provide valid service-to-service authentication credentials.
+var ErrInvalidServiceCredentials = errors.New(
+	"invalid service credentials",
+)
 
 // ErrAccountNotActive indicates that the user's account is not active
 // and therefore cannot authenticate.

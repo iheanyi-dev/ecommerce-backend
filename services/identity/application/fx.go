@@ -21,11 +21,13 @@ var Module = fx.Module(
 				userRepository ports.UserRepository,
 				passwordHasher ports.PasswordHasher,
 				logger ports.Logger,
+				metrics ports.Metrics,
 			) *use_cases.RegisterUserUseCase {
 				return use_cases.NewRegisterUserUseCase(
 					userRepository,
 					passwordHasher,
 					logger,
+					metrics,
 				)
 			},
 			fx.As(new(ports.RegisterUserService)),
@@ -38,12 +40,14 @@ var Module = fx.Module(
 				passwordHasher ports.PasswordHasher,
 				tokenService ports.TokenService,
 				logger ports.Logger,
+				metrics ports.Metrics,
 			) *use_cases.AuthenticateUserUseCase {
 				return use_cases.NewAuthenticateUserUseCase(
 					userRepository,
 					passwordHasher,
 					tokenService,
 					logger,
+					metrics,
 				)
 			},
 			fx.As(new(ports.AuthenticateUserService)),
@@ -57,6 +61,7 @@ var Module = fx.Module(
 				refreshTokenService ports.RefreshTokenService,
 				tokenService ports.TokenService,
 				logger ports.Logger,
+				metrics ports.Metrics,
 			) *use_cases.RefreshUserUseCase {
 				return use_cases.NewRefreshUserUseCase(
 					refreshTokenRepository,
@@ -64,6 +69,7 @@ var Module = fx.Module(
 					refreshTokenService,
 					tokenService,
 					logger,
+					metrics,
 				)
 			},
 			fx.As(new(ports.RefreshUserService)),

@@ -45,12 +45,16 @@ import (
 // Structured authentication events are emitted through the application
 // logger. Logging is best-effort and never changes the authentication
 // outcome if the logger itself fails.
+//
+// Refresh metrics are also best-effort. Metrics failures must never change
+// the authentication outcome.
 type RefreshUserUseCase struct {
 	refreshTokenRepository ports.RefreshTokenRepository
 	userRepository         ports.UserRepository
 	refreshTokenService    ports.RefreshTokenService
 	tokenService           ports.TokenService
 	logger                 ports.Logger
+	metrics                ports.Metrics
 }
 
 // NewRefreshUserUseCase creates the refresh-token use case.
@@ -63,6 +67,7 @@ func NewRefreshUserUseCase(
 	refreshTokenService ports.RefreshTokenService,
 	tokenService ports.TokenService,
 	logger ports.Logger,
+	metrics ports.Metrics,
 ) *RefreshUserUseCase {
 	return &RefreshUserUseCase{
 		refreshTokenRepository: refreshTokenRepository,
@@ -70,6 +75,7 @@ func NewRefreshUserUseCase(
 		refreshTokenService:    refreshTokenService,
 		tokenService:           tokenService,
 		logger:                 logger,
+		metrics:                metrics,
 	}
 }
 
@@ -79,12 +85,15 @@ func (u *RefreshUserUseCase) Refresh(
 	ctx context.Context,
 	command dto.RefreshTokenCommand,
 ) (dto.RefreshTokenResult, error) {
+	start := time.Now()
+
 	if strings.TrimSpace(command.RefreshToken) == "" {
 		u.logRefreshEvent(ctx, ports.LogEvent{
 			Event:           "auth.refresh.invalid_token",
 			Operation:       "refresh",
 			FailureCategory: "invalid_refresh_token",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
@@ -106,6 +115,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Operation:       "refresh",
 			FailureCategory: "token_hashing_failed",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenHashing
 	}
@@ -124,6 +134,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Operation:       "refresh",
 			FailureCategory: "invalid_refresh_token",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
@@ -134,6 +145,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Operation:       "refresh",
 			FailureCategory: "invalid_refresh_token",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
@@ -149,6 +161,7 @@ func (u *RefreshUserUseCase) Refresh(
 			UserID:          record.UserID,
 			FailureCategory: "invalid_refresh_token",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
@@ -160,6 +173,7 @@ func (u *RefreshUserUseCase) Refresh(
 			UserID:          record.UserID,
 			FailureCategory: "invalid_refresh_token",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
@@ -175,6 +189,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Operation:       "refresh",
 			FailureCategory: "invalid_refresh_token",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
@@ -198,6 +213,7 @@ func (u *RefreshUserUseCase) Refresh(
 			UserID:          userID.String(),
 			FailureCategory: "invalid_refresh_token",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
@@ -209,6 +225,7 @@ func (u *RefreshUserUseCase) Refresh(
 			UserID:          userID.String(),
 			FailureCategory: "invalid_refresh_token",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
@@ -221,6 +238,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Role:            currentUser.Role().String(),
 			FailureCategory: "user_inactive",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrInvalidRefreshToken
 	}
@@ -240,6 +258,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Role:            currentUser.Role().String(),
 			FailureCategory: "token_generation_failed",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenGeneration
 	}
@@ -252,6 +271,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Role:            currentUser.Role().String(),
 			FailureCategory: "token_generation_failed",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenGeneration
 	}
@@ -274,6 +294,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Role:            currentUser.Role().String(),
 			FailureCategory: "token_hashing_failed",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenHashing
 	}
@@ -298,6 +319,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Role:            currentUser.Role().String(),
 			FailureCategory: "access_token_generation_failed",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrTokenGeneration
 	}
@@ -333,6 +355,7 @@ func (u *RefreshUserUseCase) Refresh(
 			Role:            currentUser.Role().String(),
 			FailureCategory: "token_rotation_failed",
 		})
+		u.recordRefreshMetrics(ctx, start, false)
 
 		return dto.RefreshTokenResult{}, application_errors.ErrRefreshTokenPersistence
 	}
@@ -344,10 +367,49 @@ func (u *RefreshUserUseCase) Refresh(
 		Role:      currentUser.Role().String(),
 	})
 
+	u.recordRefreshMetrics(ctx, start, true)
+
 	return dto.RefreshTokenResult{
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
 	}, nil
+}
+
+// recordRefreshMetrics records refresh outcome and duration.
+//
+// Metrics are deliberately best-effort. A metrics failure must never change
+// the authentication outcome.
+//
+// Only the low-cardinality result label is recorded. Sensitive or
+// high-cardinality values such as refresh tokens, user IDs, email addresses,
+// roles, and error messages are never used as metric labels.
+func (u *RefreshUserUseCase) recordRefreshMetrics(
+	ctx context.Context,
+	start time.Time,
+	success bool,
+) {
+	if u.metrics == nil {
+		return
+	}
+
+	result := "failure"
+
+	if success {
+		result = "success"
+	}
+
+	_ = u.metrics.Increment(ctx, ports.Metric{
+		Name:  "auth.refresh",
+		Value: 1,
+		Labels: map[string]string{
+			"result": result,
+		},
+	})
+
+	_ = u.metrics.Observe(ctx, ports.Metric{
+		Name:  "auth.refresh.duration",
+		Value: float64(time.Since(start).Microseconds()),
+	})
 }
 
 // logRefreshEvent records a structured refresh-authentication event.

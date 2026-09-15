@@ -146,6 +146,9 @@ func newRegistrationIntegrationRouter(
 		newUpdateUserStatusHandler,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -177,6 +180,7 @@ func TestRegisterUserIntegration(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 
@@ -325,6 +329,7 @@ func TestRegisterUserIntegration_DuplicateEmail(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 
@@ -483,6 +488,7 @@ func TestRegisterUserIntegration_InvalidEmail(t *testing.T) {
 		userRepository,
 		passwordHasher,
 		nil,
+		nil,
 	)
 
 	registerUserHandler := handlers.NewRegisterUserHandler(
@@ -548,6 +554,7 @@ func TestRegisterUserIntegration_InvalidFullName(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 
@@ -638,6 +645,7 @@ func TestRegisterUserIntegration_InvalidJSON(t *testing.T) {
 		userRepository,
 		passwordHasher,
 		nil,
+		nil,
 	)
 
 	registerUserHandler := handlers.NewRegisterUserHandler(
@@ -711,6 +719,7 @@ func TestRegisterUserIntegration_MethodNotAllowed(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 
@@ -787,6 +796,7 @@ func TestRegisterUserIntegration_Route(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 

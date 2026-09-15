@@ -107,6 +107,119 @@ var _ ports.RefreshTokenRepository = (*fakeRefreshTokenRepository)(nil)
 // Fake Refresh Token Service
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Fake Metrics
+// -----------------------------------------------------------------------------
+
+type fakeRefreshMetrics struct {
+	incremented []ports.Metric
+	observed    []ports.Metric
+	err         error
+}
+
+func (f *fakeRefreshMetrics) Increment(
+	_ context.Context,
+	metric ports.Metric,
+) error {
+	f.incremented = append(f.incremented, metric)
+	return f.err
+}
+
+func (f *fakeRefreshMetrics) Observe(
+	_ context.Context,
+	metric ports.Metric,
+) error {
+	f.observed = append(f.observed, metric)
+	return f.err
+}
+
+var _ ports.Metrics = (*fakeRefreshMetrics)(nil)
+
+func assertRefreshCounter(
+	t *testing.T,
+	metrics *fakeRefreshMetrics,
+	expectedResult string,
+) {
+	t.Helper()
+
+	if len(metrics.incremented) != 1 {
+		t.Fatalf(
+			"expected exactly one counter metric, got %d",
+			len(metrics.incremented),
+		)
+	}
+
+	metric := metrics.incremented[0]
+
+	if metric.Name != "auth.refresh" {
+		t.Fatalf(
+			"expected metric name %q, got %q",
+			"auth.refresh",
+			metric.Name,
+		)
+	}
+
+	if metric.Value != 1 {
+		t.Fatalf(
+			"expected metric value 1, got %v",
+			metric.Value,
+		)
+	}
+
+	if metric.Labels["result"] != expectedResult {
+		t.Fatalf(
+			"expected result label %q, got %q",
+			expectedResult,
+			metric.Labels["result"],
+		)
+	}
+
+	if len(metric.Labels) != 1 {
+		t.Fatalf(
+			"expected only the result label, got %d labels",
+			len(metric.Labels),
+		)
+	}
+}
+
+func assertRefreshDurationMetric(
+	t *testing.T,
+	metrics *fakeRefreshMetrics,
+) {
+	t.Helper()
+
+	if len(metrics.observed) != 1 {
+		t.Fatalf(
+			"expected exactly one duration metric, got %d",
+			len(metrics.observed),
+		)
+	}
+
+	metric := metrics.observed[0]
+
+	if metric.Name != "auth.refresh.duration" {
+		t.Fatalf(
+			"expected metric name %q, got %q",
+			"auth.refresh.duration",
+			metric.Name,
+		)
+	}
+
+	if metric.Value < 0 {
+		t.Fatalf(
+			"expected non-negative duration, got %v",
+			metric.Value,
+		)
+	}
+
+	if len(metric.Labels) != 0 {
+		t.Fatalf(
+			"expected duration metric to have no labels, got %d",
+			len(metric.Labels),
+		)
+	}
+}
+
 type fakeRefreshTokenService struct {
 	generatedToken string
 	generateErr    error
@@ -473,6 +586,7 @@ func TestRefreshUser_Success(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	result, err := useCase.Refresh(
@@ -624,6 +738,7 @@ func TestRefreshUser_InvalidRefreshToken(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -700,6 +815,7 @@ func TestRefreshUser_RejectsRevokedToken(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -766,6 +882,7 @@ func TestRefreshUser_RejectsExpiredToken(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -830,6 +947,7 @@ func TestRefreshUser_UserNotFound(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -896,6 +1014,7 @@ func TestRefreshUser_RejectsInactiveUser(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -946,6 +1065,7 @@ func TestRefreshUser_HashFailure(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1008,6 +1128,7 @@ func TestRefreshUser_RotationFailure(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1092,6 +1213,7 @@ func TestRefreshUser_RefreshTokenGenerationFailure(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1159,6 +1281,7 @@ func TestRefreshUser_NewRefreshTokenHashFailure(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1226,6 +1349,7 @@ func TestRefreshUser_AccessTokenGenerationFailure(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1283,6 +1407,7 @@ func TestRefreshUser_LogsSuccess(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1327,6 +1452,7 @@ func TestRefreshUser_LogsInvalidToken(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1385,6 +1511,7 @@ func TestRefreshUser_LogsRevokedToken(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1439,6 +1566,7 @@ func TestRefreshUser_LogsExpiredToken(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1497,6 +1625,7 @@ func TestRefreshUser_LogsInactiveUser(t *testing.T) {
 		refreshTokenService,
 		tokenService,
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1533,6 +1662,7 @@ func TestRefreshUser_LogsHashFailure(t *testing.T) {
 		},
 		&fakeRefreshAccessTokenService{},
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1584,6 +1714,7 @@ func TestRefreshUser_LogsRotationFailure(t *testing.T) {
 			token: "access-token",
 		},
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1639,6 +1770,7 @@ func TestRefreshUser_LoggingFailureDoesNotChangeResult(t *testing.T) {
 			token: "new-access-token",
 		},
 		logger,
+		nil,
 	)
 
 	result, err := useCase.Refresh(
@@ -1699,6 +1831,7 @@ func TestRefreshUser_NeverLogsSecrets(t *testing.T) {
 			token: "new-access-token",
 		},
 		logger,
+		nil,
 	)
 
 	_, err := useCase.Refresh(
@@ -1738,6 +1871,240 @@ func TestRefreshUser_NeverLogsSecrets(t *testing.T) {
 			t.Fatalf(
 				"secret %q was unexpectedly present in structured log event",
 				secret,
+			)
+		}
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Metrics
+// -----------------------------------------------------------------------------
+
+func TestRefreshUser_RecordsSuccessfulRefreshMetrics(t *testing.T) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"old-refresh-token-hash",
+		time.Now().Add(time.Hour),
+	)
+
+	metrics := &fakeRefreshMetrics{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		&fakeRefreshTokenRepository{
+			record: &record,
+		},
+		&fakeRefreshUserRepository{
+			user: testUser,
+		},
+		&fakeRefreshTokenService{
+			generatedToken: "new-refresh-token",
+		},
+		&fakeRefreshAccessTokenService{
+			token: "new-access-token",
+		},
+		&fakeRefreshLogger{},
+		metrics,
+	)
+
+	result, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "old-refresh-token",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("expected refresh to succeed, got %v", err)
+	}
+
+	if result.AccessToken != "new-access-token" {
+		t.Fatalf(
+			"expected access token %q, got %q",
+			"new-access-token",
+			result.AccessToken,
+		)
+	}
+
+	if result.RefreshToken != "new-refresh-token" {
+		t.Fatalf(
+			"expected refresh token %q, got %q",
+			"new-refresh-token",
+			result.RefreshToken,
+		)
+	}
+
+	assertRefreshCounter(t, metrics, "success")
+	assertRefreshDurationMetric(t, metrics)
+}
+
+func TestRefreshUser_RecordsFailedRefreshMetrics(t *testing.T) {
+	t.Parallel()
+
+	metrics := &fakeRefreshMetrics{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		&fakeRefreshTokenRepository{},
+		&fakeRefreshUserRepository{},
+		&fakeRefreshTokenService{
+			hashErr: errors.New("hash failed"),
+		},
+		&fakeRefreshAccessTokenService{},
+		&fakeRefreshLogger{},
+		metrics,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "refresh-token",
+		},
+	)
+
+	if !errors.Is(err, application_errors.ErrRefreshTokenHashing) {
+		t.Fatalf(
+			"expected ErrRefreshTokenHashing, got %v",
+			err,
+		)
+	}
+
+	assertRefreshCounter(t, metrics, "failure")
+	assertRefreshDurationMetric(t, metrics)
+}
+
+func TestRefreshUser_MetricsFailureDoesNotAffectRefresh(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"old-refresh-token-hash",
+		time.Now().Add(time.Hour),
+	)
+
+	metrics := &fakeRefreshMetrics{
+		err: errors.New("metrics unavailable"),
+	}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		&fakeRefreshTokenRepository{
+			record: &record,
+		},
+		&fakeRefreshUserRepository{
+			user: testUser,
+		},
+		&fakeRefreshTokenService{
+			generatedToken: "new-refresh-token",
+		},
+		&fakeRefreshAccessTokenService{
+			token: "new-access-token",
+		},
+		&fakeRefreshLogger{},
+		metrics,
+	)
+
+	result, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "old-refresh-token",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf(
+			"expected metrics failure not to affect refresh, got %v",
+			err,
+		)
+	}
+
+	if result.AccessToken != "new-access-token" {
+		t.Fatalf(
+			"expected access token %q, got %q",
+			"new-access-token",
+			result.AccessToken,
+		)
+	}
+
+	if result.RefreshToken != "new-refresh-token" {
+		t.Fatalf(
+			"expected refresh token %q, got %q",
+			"new-refresh-token",
+			result.RefreshToken,
+		)
+	}
+
+	assertRefreshCounter(t, metrics, "success")
+	assertRefreshDurationMetric(t, metrics)
+}
+
+func TestRefreshUser_DoesNotUseHighCardinalityMetricLabels(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	testUser := newRefreshTestUser(t)
+
+	record := newRefreshTokenRecord(
+		testUser,
+		"old-refresh-token-hash",
+		time.Now().Add(time.Hour),
+	)
+
+	metrics := &fakeRefreshMetrics{}
+
+	useCase := use_cases.NewRefreshUserUseCase(
+		&fakeRefreshTokenRepository{
+			record: &record,
+		},
+		&fakeRefreshUserRepository{
+			user: testUser,
+		},
+		&fakeRefreshTokenService{
+			generatedToken: "new-refresh-token",
+		},
+		&fakeRefreshAccessTokenService{
+			token: "new-access-token",
+		},
+		&fakeRefreshLogger{},
+		metrics,
+	)
+
+	_, err := useCase.Refresh(
+		context.Background(),
+		dto.RefreshTokenCommand{
+			RefreshToken: "old-refresh-token",
+		},
+	)
+
+	if err != nil {
+		t.Fatalf("expected refresh to succeed, got %v", err)
+	}
+
+	if len(metrics.incremented) != 1 {
+		t.Fatalf(
+			"expected one counter metric, got %d",
+			len(metrics.incremented),
+		)
+	}
+
+	metric := metrics.incremented[0]
+
+	for key, value := range metric.Labels {
+		if key == "user_id" ||
+			key == "email" ||
+			key == "token" ||
+			key == "refresh_token" ||
+			key == "role" {
+			t.Fatalf(
+				"high-cardinality or sensitive label %q=%q was recorded",
+				key,
+				value,
 			)
 		}
 	}

@@ -46,18 +46,26 @@ var Module = fx.Module(
 		// before protected handlers are executed.
 		middleware.NewAuthenticationMiddleware,
 
+		// Distributed tracing middleware creates an HTTP server span
+		// and propagates its context to downstream handlers.
+		middleware.NewTracingMiddleware,
+
 		// Request-level observability middleware records the final
 		// HTTP outcome of each request.
-		//
-		// Its logger dependency is supplied explicitly by Fx through
-		// the application's Logger provider.
 		middleware.NewRequestObservabilityMiddleware,
+
+		// Service authentication middleware verifies that requests
+		// reaching Identity originate from a trusted internal service.
+		middleware.NewServiceAuthenticationMiddleware,
+
+		// Request-ID middleware establishes the correlation identifier
+		// used across Gateway and downstream services.
+		middleware.NewRequestIDMiddleware,
 
 		// HTTP router.
 		//
-		// NewRouter receives the logger and request observability
-		// middleware explicitly; neither dependency is constructed
-		// internally by the router.
+		// NewRouter receives middleware dependencies explicitly;
+		// dependencies are not constructed internally by the router.
 		NewRouter,
 	),
 )

@@ -1,10 +1,13 @@
+// services/identity/shared/config/config.go
+
 package config
 
 import (
 	"fmt"
-	"os"
 	"net/url"
+	"os"
 	"time"
+
 	"github.com/joho/godotenv"
 )
 
@@ -18,10 +21,18 @@ type Config struct {
 	DatabasePassword string
 	DatabaseName     string
 	DatabaseSSLMode  string
+
 	// JWT configuration.
-	JWTSecret           string
-	JWTIssuer           string
-	JWTAccessTokenTTL   time.Duration
+	JWTSecret         string
+	JWTIssuer         string
+	JWTAccessTokenTTL time.Duration
+
+	// Service authentication configuration.
+	//
+	// ServiceAuthName identifies the trusted internal caller.
+	// ServiceAuthSecret is shared only between trusted services.
+	ServiceAuthName   string
+	ServiceAuthSecret string
 }
 
 func Load() (*Config, error) {
@@ -29,6 +40,7 @@ func Load() (*Config, error) {
 	// In Docker/production, environment variables can be supplied
 	// directly by the runtime.
 	_ = godotenv.Load("services/identity/.env")
+
 	jwtAccessTokenTTL, err := time.ParseDuration(
 		os.Getenv("JWT_ACCESS_TOKEN_TTL"),
 	)
@@ -40,18 +52,22 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		AppEnv:           getEnv("APP_ENV", "development"),
-		AppPort:          getEnv("APP_PORT", "8080"),
+		AppEnv:  getEnv("APP_ENV", "development"),
+		AppPort: getEnv("APP_PORT", "8080"),
 
 		DatabaseHost:     getEnv("DATABASE_HOST", "localhost"),
 		DatabasePort:     getEnv("DATABASE_PORT", "5432"),
 		DatabaseUser:     os.Getenv("DATABASE_USER"),
 		DatabasePassword: os.Getenv("DATABASE_PASSWORD"),
 		DatabaseName:     os.Getenv("DATABASE_NAME"),
-		DatabaseSSLMode:  getEnv("DATABASE_SSLMODE", "disable"),
+		DatabaseSSLMode:  getEnv("DATABASE_SSL_MODE", "disable"),
+
 		JWTSecret:         os.Getenv("JWT_SECRET"),
 		JWTIssuer:         os.Getenv("JWT_ISSUER"),
 		JWTAccessTokenTTL: jwtAccessTokenTTL,
+
+		ServiceAuthName:   os.Getenv("SERVICE_AUTH_NAME"),
+		ServiceAuthSecret: os.Getenv("SERVICE_AUTH_SECRET"),
 	}
 
 	if cfg.DatabaseUser == "" {
@@ -64,6 +80,14 @@ func Load() (*Config, error) {
 
 	if cfg.DatabaseName == "" {
 		return nil, fmt.Errorf("DATABASE_NAME is required")
+	}
+
+	if cfg.ServiceAuthName == "" {
+		return nil, fmt.Errorf("SERVICE_AUTH_NAME is required")
+	}
+
+	if cfg.ServiceAuthSecret == "" {
+		return nil, fmt.Errorf("SERVICE_AUTH_SECRET is required")
 	}
 
 	return cfg, nil

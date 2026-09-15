@@ -107,6 +107,9 @@ func newLoginIntegrationRouter(
 		newUpdateUserStatusHandler,
 		nil,
 		nil,
+		nil,
+		nil,
+		nil,
 	)
 
 }
@@ -224,6 +227,7 @@ func TestLoginUserIntegration(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		nil,
+		nil,
 	)
 
 	// ---------------------------------------------------------
@@ -246,6 +250,7 @@ func TestLoginUserIntegration(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 
@@ -527,6 +532,7 @@ func TestLoginUserIntegration_InvalidPassword(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		nil,
+		nil,
 	)
 
 	loginUserHandler := handlers.NewLoginUserHandler(
@@ -536,6 +542,7 @@ func TestLoginUserIntegration_InvalidPassword(t *testing.T) {
 	registerUserUseCase := use_cases.NewRegisterUserUseCase(
 		userRepository,
 		passwordHasher,
+		nil,
 		nil,
 	)
 
@@ -730,6 +737,7 @@ func TestLoginUserIntegration_NonExistentUser(t *testing.T) {
 		passwordHasher,
 		tokenService,
 		nil,
+		nil,
 	)
 
 	loginUserHandler := handlers.NewLoginUserHandler(
@@ -740,6 +748,7 @@ func TestLoginUserIntegration_NonExistentUser(t *testing.T) {
 		use_cases.NewRegisterUserUseCase(
 			userRepository,
 			passwordHasher,
+			nil,
 			nil,
 		),
 	)

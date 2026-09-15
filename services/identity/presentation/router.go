@@ -18,6 +18,10 @@ import (
 // The logger is passed explicitly so authorization-denial observability does
 // not depend on hidden or package-level state.
 //
+// Request IDs are applied around the complete router so every Identity
+// request receives a correlation identifier, including requests rejected by
+// service authentication.
+//
 // Request-level observability is applied around the completed router so that
 // it can record the final HTTP status code produced by handlers and
 // middleware.
@@ -34,6 +38,9 @@ func NewRouter(
 	updateUserStatusHandler *handlers.UpdateUserStatusHandler,
 	logger ports.Logger,
 	requestObservabilityMiddleware *middleware.RequestObservabilityMiddleware,
+	tracingMiddleware *middleware.TracingMiddleware,
+	serviceAuthenticationMiddleware *middleware.ServiceAuthenticationMiddleware,
+	requestIDMiddleware *middleware.RequestIDMiddleware,
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -187,17 +194,44 @@ func NewRouter(
 		),
 	)
 
-	// The request observability middleware is deliberately applied around
-	// the complete mux rather than around individual routes.
+	// The middleware order around the complete router is intentionally:
 	//
-	// This ensures that the final HTTP status produced by authentication,
-	// authorization, handlers, and the mux itself can be recorded in one
-	// consistent request-completion event.
-	if requestObservabilityMiddleware != nil {
-		return requestObservabilityMiddleware.Middleware(mux)
+	//      Request ID
+	//          ↓
+	//      Request Observability
+	//          ↓
+	//      Tracing
+	//          ↓
+	//      Service Authentication
+	//          ↓
+	//      Router / endpoint middleware
+	//
+	// Request ID is outermost so every request, including requests rejected
+	// by service authentication, receives a correlation identifier.
+	var handler http.Handler = mux
+
+	// Service authentication is the Identity service boundary.
+	//
+	// This ensures every request reaching Identity has first been
+	// authenticated as a trusted internal service. User authentication
+	// remains a separate concern inside protected routes.
+	if serviceAuthenticationMiddleware != nil {
+		handler = serviceAuthenticationMiddleware.RequireServiceAuthentication(
+			handler,
+		)
 	}
 
-	// Keep the router usable in isolated tests or environments where the
-	// optional observability middleware is intentionally not supplied.
-	return mux
+	if tracingMiddleware != nil {
+		handler = tracingMiddleware.Middleware(handler)
+	}
+
+	if requestObservabilityMiddleware != nil {
+		handler = requestObservabilityMiddleware.Middleware(handler)
+	}
+
+	if requestIDMiddleware != nil {
+		handler = requestIDMiddleware.Middleware(handler)
+	}
+
+	return handler
 }

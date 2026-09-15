@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package identity.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/identity/v1;identityv1";
+
+// IdentityService defines internal service-to-service operations exposed
+// by the Identity service.
+service IdentityService {
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+}
+
+// Retrieves a user by their identity-service user ID.
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string full_name = 3;
+  string role = 4;
+  string status = 5;
+}
