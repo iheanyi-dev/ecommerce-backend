@@ -1,56 +1,73 @@
 package gateway
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/iheanyi-dev/ecommerce-backend/gateway/infrastructure/observability"
 	"github.com/iheanyi-dev/ecommerce-backend/gateway/infrastructure/proxy"
+	"github.com/iheanyi-dev/ecommerce-backend/gateway/infrastructure/security"
 	"github.com/iheanyi-dev/ecommerce-backend/gateway/presentation/handlers"
 	gatewayhttp "github.com/iheanyi-dev/ecommerce-backend/gateway/presentation/http"
 	"github.com/iheanyi-dev/ecommerce-backend/gateway/presentation/middleware"
 	"github.com/iheanyi-dev/ecommerce-backend/gateway/shared/config"
+	"go.uber.org/fx"
 )
 
-// Module provides the Gateway dependency graph.
+// Module defines the complete dependency graph for the API Gateway.
 var Module = fx.Module(
 	"gateway",
 
 	fx.Provide(
+		// Application configuration.
 		config.Load,
 
-		// Structured Gateway logger.
+		// Observability dependencies.
 		observability.NewLogger,
 
-		// Gateway HTTP handlers.
+		// HTTP handlers.
 		handlers.NewHealthHandler,
 
-		// Request correlation.
+		// Request-level middleware.
 		middleware.NewRequestIDMiddleware,
-
-		// Gateway request observability.
 		middleware.NewRequestObservabilityMiddleware,
 
-		// Downstream Identity proxy.
+		// Gateway authentication.
+		//
+		// The JWT validator validates access tokens issued by the
+		// Identity Service. The authentication middleware will later
+		// be applied only to protected business-service routes.
+		newJWTValidator,
+		middleware.NewAuthenticationMiddleware,
+		middleware.NewIdentityPropagationMiddleware,
+		// Downstream service proxies.
 		newIdentityProxy,
 
-		// HTTP router and server.
+		// HTTP server and router.
 		gatewayhttp.NewRouter,
 		gatewayhttp.NewServer,
 	),
 )
 
-// newIdentityProxy creates the Identity reverse proxy from Gateway
-// configuration.
+// newIdentityProxy constructs the Gateway → Identity reverse proxy.
 //
-// The proxy itself only needs the Identity service URL. Keeping the
-// configuration dependency here prevents infrastructure components from
-// depending on the entire Gateway configuration object.
-func newIdentityProxy(
-	cfg *config.Config,
-) (*proxy.IdentityProxy, error) {
+// Identity is intentionally kept outside the Gateway JWT
+// authentication boundary because endpoints such as login,
+// registration, and token refresh must be callable before the
+// client has an access token.
+func newIdentityProxy(cfg *config.Config) (*proxy.IdentityProxy, error) {
 	return proxy.NewIdentityProxy(
 		cfg.IdentityServiceURL,
 		cfg.IdentityServiceName,
 		cfg.IdentityServiceSecret,
+	)
+}
+
+// newJWTValidator constructs the Gateway's access-token validator.
+//
+// The Gateway uses the same JWT signing secret and issuer as the
+// Identity Service because Identity is responsible for issuing the
+// access tokens that the Gateway validates.
+func newJWTValidator(cfg *config.Config) (*security.JWTValidator, error) {
+	return security.NewJWTValidator(
+		cfg.JWTSecret,
+		cfg.JWTIssuer,
 	)
 }

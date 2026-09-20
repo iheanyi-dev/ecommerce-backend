@@ -9,6 +9,7 @@ import (
 
 	"github.com/iheanyi-dev/ecommerce-backend/gateway/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/gateway/infrastructure/proxy"
+	"github.com/iheanyi-dev/ecommerce-backend/gateway/infrastructure/security"
 	"github.com/iheanyi-dev/ecommerce-backend/gateway/presentation/handlers"
 	gatewayhttp "github.com/iheanyi-dev/ecommerce-backend/gateway/presentation/http"
 	"github.com/iheanyi-dev/ecommerce-backend/gateway/presentation/middleware"
@@ -61,6 +62,7 @@ func TestNewRouter_Health(t *testing.T) {
 		identityProxy,
 		requestIDMiddleware,
 		observabilityMiddleware,
+		nil,
 	)
 
 	request := httptest.NewRequest(
@@ -120,6 +122,7 @@ func TestNewRouter_IdentityRoute(t *testing.T) {
 		identityProxy,
 		requestIDMiddleware,
 		observabilityMiddleware,
+		nil,
 	)
 
 	request := httptest.NewRequest(
@@ -138,6 +141,108 @@ func TestNewRouter_IdentityRoute(t *testing.T) {
 	assert.NotEmpty(t, requestID)
 }
 
+func TestNewRouter_IdentityRoute_BypassesJWTValidation(t *testing.T) {
+	downstream := httptest.NewServer(
+		http.HandlerFunc(func(
+			w http.ResponseWriter,
+			r *http.Request,
+		) {
+			// The invalid JWT must reach Identity unchanged.
+			assert.Equal(
+				t,
+				"Bearer invalid-token",
+				r.Header.Get("Authorization"),
+			)
+
+			// Identity routes bypass Gateway identity propagation,
+			// so client-supplied identity headers remain untouched.
+			assert.Equal(
+				t,
+				"client-user-id",
+				r.Header.Get(middleware.AuthenticatedUserIDHeader),
+			)
+
+			assert.Equal(
+				t,
+				"client-role",
+				r.Header.Get(middleware.AuthenticatedRoleHeader),
+			)
+
+			w.WriteHeader(http.StatusOK)
+
+			_, err := fmt.Fprint(
+				w,
+				`{"status":"identity-bypassed"}`,
+			)
+			require.NoError(t, err)
+		}),
+	)
+	defer downstream.Close()
+
+	identityProxy, err := proxy.NewIdentityProxy(
+		downstream.URL,
+		"gateway",
+		"test-secret",
+	)
+	require.NoError(t, err)
+
+	healthHandler := handlers.NewHealthHandler()
+	requestIDMiddleware := middleware.NewRequestIDMiddleware()
+	observabilityMiddleware :=
+		middleware.NewRequestObservabilityMiddleware(&fakeLogger{})
+
+	// Construct the real Gateway JWT validator.
+	//
+	// The Identity route should bypass this validator completely.
+	jwtValidator, err := security.NewJWTValidator(
+		"test-secret-that-is-at-least-32-characters-long",
+		"identity-service",
+	)
+	require.NoError(t, err)
+
+	identityPropagationMiddleware :=
+		middleware.NewIdentityPropagationMiddleware(jwtValidator)
+
+	router := gatewayhttp.NewRouter(
+		healthHandler,
+		identityProxy,
+		requestIDMiddleware,
+		observabilityMiddleware,
+		identityPropagationMiddleware,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/users/login",
+		nil,
+	)
+
+	request.Header.Set(
+		"Authorization",
+		"Bearer invalid-token",
+	)
+
+	request.Header.Set(
+		middleware.AuthenticatedUserIDHeader,
+		"client-user-id",
+	)
+
+	request.Header.Set(
+		middleware.AuthenticatedRoleHeader,
+		"client-role",
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(
+		t,
+		`{"status":"identity-bypassed"}`,
+		recorder.Body.String(),
+	)
+}
 func TestNewRouter_UnknownRoute(t *testing.T) {
 	healthHandler := handlers.NewHealthHandler()
 
@@ -167,6 +272,7 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 		identityProxy,
 		requestIDMiddleware,
 		observabilityMiddleware,
+		nil,
 	)
 
 	request := httptest.NewRequest(
