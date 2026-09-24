@@ -282,6 +282,19 @@ func (f *fakeGetStoreByOwnerRepository) Update(
 ) error {
 	return nil
 }
+func (f *fakeGetStoreByOwnerRepository) ChangePlan(
+	_ context.Context,
+	_ *entities.Store,
+) error {
+	return nil
+}
+func (f *fakeGetStoreByOwnerRepository) ChangeStatus(
+	_ context.Context,
+	storeID uuid.UUID,
+	status string,
+) error {
+	return nil
+}
 
 type fakeGetStoreByOwnerLogger struct {
 	events []ports.LogEvent

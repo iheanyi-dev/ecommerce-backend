@@ -105,6 +105,21 @@ func (f *fakeUpdateStoreRepository) Update(
 	return f.updateErr
 }
 
+func (s *fakeUpdateStoreRepository) ChangePlan(
+	context.Context,
+	*entities.Store,
+) error {
+	return nil
+}
+
+func (f *fakeUpdateStoreRepository) ChangeStatus(
+	_ context.Context,
+	storeID uuid.UUID,
+	status string,
+) error {
+	return nil
+}
+
 type fakeUpdateStoreLogger struct{}
 
 func (f *fakeUpdateStoreLogger) Log(

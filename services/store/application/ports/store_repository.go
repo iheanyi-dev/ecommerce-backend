@@ -44,4 +44,23 @@ type StoreRepository interface {
 
 	// Update persists changes made to an existing Store aggregate.
 	Update(ctx context.Context, store *entities.Store) error
+
+	// ChangePlan persists a Store aggregate after its plan has been changed.
+	//
+	// The complete aggregate is supplied because changing a plan may also
+	// change other aggregate state as part of the Store's plan-transition
+	// workflow, such as its status.
+	ChangePlan(ctx context.Context, store *entities.Store) error
+	// ChangeStatus persists a Store status transition independently of the
+	// Store plan workflow.
+	//
+	// The Store aggregate owns the status transition itself. The repository
+	// receives only the resulting Store identifier and validated status
+	// because Billing/Subscription status changes are independent of plan
+	// persistence.
+	ChangeStatus(
+		ctx context.Context,
+		storeID uuid.UUID,
+		status string,
+	) error
 }

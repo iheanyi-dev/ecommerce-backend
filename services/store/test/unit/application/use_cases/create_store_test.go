@@ -14,10 +14,11 @@ import (
 	usecases "github.com/iheanyi-dev/ecommerce-backend/services/store/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/entities"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/valueobjects"
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/test/unit/fixtures"
 )
 
 func TestCreateStoreUseCase_RequiresAuthentication(t *testing.T) {
-	repo := &fakeStoreRepository{}
+	repo := &MockStoreRepository{}
 	identity := &fakeIdentityProvider{}
 	resolver := &fakeImageFormatResolver{}
 	imageDispatcher := &fakeImageStorageDispatcher{}
@@ -42,16 +43,16 @@ func TestCreateStoreUseCase_RequiresAuthentication(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, applicationerrors.ErrUnauthenticated)
-	require.False(t, repo.createCalled)
-	require.False(t, identity.isVendorCalled)
+	require.False(t, repo.CreateCalled)
+	require.False(t, identity.IsVendorCalled)
 }
 
 func TestCreateStoreUseCase_CreatesStoreAndPromotesOwnerToVendor(t *testing.T) {
 	ownerID := uuid.New()
 
-	repo := &fakeStoreRepository{}
+	repo := &MockStoreRepository{}
 	identity := &fakeIdentityProvider{
-		isVendor: false,
+		Vendor: false,
 	}
 	resolver := &fakeImageFormatResolver{}
 	imageDispatcher := &fakeImageStorageDispatcher{}
@@ -86,28 +87,32 @@ func TestCreateStoreUseCase_CreatesStoreAndPromotesOwnerToVendor(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, output)
 
-	require.True(t, repo.createCalled)
-	require.NotNil(t, repo.createdStore)
-	require.Equal(t, ownerID, repo.createdStore.OwnerID().Value())
+	require.True(t, repo.CreateCalled)
+	require.NotNil(t, repo.CreatedStore)
+	require.Equal(t, ownerID, repo.CreatedStore.OwnerID().Value())
 
-	require.True(t, identity.isVendorCalled)
-	require.True(t, identity.promoteCalled)
-	require.Equal(t, ownerID, identity.promotedUserID)
+	require.True(t, identity.IsVendorCalled)
+	require.True(t, identity.PromoteCalled)
+	require.Equal(t, ownerID, identity.PromotedUserID)
 
-	require.True(t, embeddingDispatcher.called)
-	require.Equal(t, repo.createdStore.ID().Value(), embeddingDispatcher.embedding.StoreID)
+	require.True(t, embeddingDispatcher.Called)
+	require.Equal(
+		t,
+		repo.CreatedStore.ID().Value(),
+		embeddingDispatcher.Embedding.StoreID,
+	)
 
-	require.True(t, logger.successCalled)
-	require.GreaterOrEqual(t, metrics.incrementCalls, 1)
+	require.True(t, logger.SuccessCalled)
+	require.GreaterOrEqual(t, metrics.IncrementCalls, 1)
 }
 
 func TestCreateStoreUseCase_GeneratesImageReferenceFromStoreIDAndContentType(t *testing.T) {
 	ownerID := uuid.New()
 
-	repo := &fakeStoreRepository{}
+	repo := &MockStoreRepository{}
 	identity := &fakeIdentityProvider{}
 	resolver := &fakeImageFormatResolver{
-		extension: "png",
+		Extension: "png",
 	}
 	imageDispatcher := &fakeImageStorageDispatcher{}
 	embeddingDispatcher := &fakeEmbeddingDispatcher{}
@@ -139,19 +144,30 @@ func TestCreateStoreUseCase_GeneratesImageReferenceFromStoreIDAndContentType(t *
 
 	require.NoError(t, err)
 	require.NotNil(t, output)
-	require.NotNil(t, repo.createdStore.ImageReference())
+	require.NotNil(t, repo.CreatedStore.ImageReference())
 
-	expectedReference := "stores/" + repo.createdStore.ID().Value().String() + ".png"
-	require.Equal(t, expectedReference, *repo.createdStore.ImageReference())
+	expectedReference := "stores/" +
+		repo.CreatedStore.ID().Value().String() +
+		".png"
 
-	require.True(t, resolver.called)
-	require.Equal(t, "image/png", resolver.contentType)
+	require.Equal(
+		t,
+		expectedReference,
+		*repo.CreatedStore.ImageReference(),
+	)
 
-	require.True(t, imageDispatcher.called)
-	require.Equal(t, repo.createdStore.ID().Value(), imageDispatcher.image.StoreID)
-	require.Equal(t, expectedReference, imageDispatcher.image.Reference)
-	require.Equal(t, []byte("image-bytes"), imageDispatcher.image.Content)
-	require.Equal(t, "image/png", imageDispatcher.image.ContentType)
+	require.True(t, resolver.Called)
+	require.Equal(t, "image/png", resolver.ContentType)
+
+	require.True(t, imageDispatcher.Called)
+	require.Equal(
+		t,
+		repo.CreatedStore.ID().Value(),
+		imageDispatcher.Image.StoreID,
+	)
+	require.Equal(t, expectedReference, imageDispatcher.Image.Reference)
+	require.Equal(t, []byte("image-bytes"), imageDispatcher.Image.Content)
+	require.Equal(t, "image/png", imageDispatcher.Image.ContentType)
 }
 
 func TestCreateStoreUseCase_OwnerAlreadyExists_ReconcilesIdentityAndDispatchesExistingStore(t *testing.T) {
@@ -167,12 +183,12 @@ func TestCreateStoreUseCase_OwnerAlreadyExists_ReconcilesIdentityAndDispatchesEx
 	)
 	require.NoError(t, err)
 
-	repo := &fakeStoreRepository{
-		createError: applicationerrors.ErrStoreAlreadyExists,
-		ownerStore:  existingStore,
+	repo := &fixtures.MockStoreRepository{
+		CreateError: applicationerrors.ErrStoreAlreadyExists,
+		OwnerStore:  existingStore,
 	}
 	identity := &fakeIdentityProvider{
-		isVendor: false,
+		Vendor: false,
 	}
 	resolver := &fakeImageFormatResolver{}
 	imageDispatcher := &fakeImageStorageDispatcher{}
@@ -203,14 +219,18 @@ func TestCreateStoreUseCase_OwnerAlreadyExists_ReconcilesIdentityAndDispatchesEx
 	require.NotNil(t, output)
 	require.Equal(t, existingStore.ID().Value(), output.ID.Value())
 
-	require.True(t, repo.findByOwnerCalled)
-	require.Equal(t, ownerID, repo.findByOwnerID)
+	require.True(t, repo.FindByOwnerCalled)
+	require.Equal(t, ownerID, repo.FindByOwnerID)
 
-	require.True(t, identity.promoteCalled)
-	require.Equal(t, ownerID, identity.promotedUserID)
+	require.True(t, identity.PromoteCalled)
+	require.Equal(t, ownerID, identity.PromotedUserID)
 
-	require.True(t, embeddingDispatcher.called)
-	require.Equal(t, existingStore.ID().Value(), embeddingDispatcher.embedding.StoreID)
+	require.True(t, embeddingDispatcher.Called)
+	require.Equal(
+		t,
+		existingStore.ID().Value(),
+		embeddingDispatcher.Embedding.StoreID,
+	)
 }
 
 func TestCreateStoreUseCase_OwnerAlreadyExists_IdentityPromotionFailure_DeletesExistingStore(t *testing.T) {
@@ -228,13 +248,13 @@ func TestCreateStoreUseCase_OwnerAlreadyExists_IdentityPromotionFailure_DeletesE
 
 	promotionError := errors.New("identity promotion failed")
 
-	repo := &fakeStoreRepository{
-		createError: applicationerrors.ErrStoreAlreadyExists,
-		ownerStore:  existingStore,
+	repo := &fixtures.MockStoreRepository{
+		CreateError: applicationerrors.ErrStoreAlreadyExists,
+		OwnerStore:  existingStore,
 	}
 	identity := &fakeIdentityProvider{
-		isVendor:     false,
-		promoteError: promotionError,
+		Vendor:       false,
+		PromoteError: promotionError,
 	}
 	logger := &fakeLogger{}
 	metrics := &fakeMetrics{}
@@ -259,18 +279,18 @@ func TestCreateStoreUseCase_OwnerAlreadyExists_IdentityPromotionFailure_DeletesE
 	)
 
 	require.Error(t, err)
-	require.True(t, repo.deleteCalled)
-	require.Equal(t, existingStore.ID().Value(), repo.deletedStoreID)
+	require.True(t, repo.DeleteCalled)
+	require.Equal(t, existingStore.ID().Value(), repo.DeletedStoreID)
 }
 
 func TestCreateStoreUseCase_IdentityPromotionFailure_DeletesPersistedStore(t *testing.T) {
 	ownerID := uuid.New()
 	promotionError := errors.New("identity promotion failed")
 
-	repo := &fakeStoreRepository{}
+	repo := &MockStoreRepository{}
 	identity := &fakeIdentityProvider{
-		isVendor:     false,
-		promoteError: promotionError,
+		Vendor:       false,
+		PromoteError: promotionError,
 	}
 	logger := &fakeLogger{}
 	metrics := &fakeMetrics{}
@@ -295,19 +315,23 @@ func TestCreateStoreUseCase_IdentityPromotionFailure_DeletesPersistedStore(t *te
 	)
 
 	require.Error(t, err)
-	require.True(t, repo.deleteCalled)
-	require.Equal(t, repo.createdStore.ID().Value(), repo.deletedStoreID)
+	require.True(t, repo.DeleteCalled)
+	require.Equal(
+		t,
+		repo.CreatedStore.ID().Value(),
+		repo.DeletedStoreID,
+	)
 }
 
 func TestCreateStoreUseCase_IdentityPromotionFailureAndDeleteFailure_ReturnsError(t *testing.T) {
 	ownerID := uuid.New()
 
-	repo := &fakeStoreRepository{
-		deleteError: errors.New("delete failed"),
+	repo := &fixtures.MockStoreRepository{
+		DeleteError: errors.New("delete failed"),
 	}
 	identity := &fakeIdentityProvider{
-		isVendor:     false,
-		promoteError: errors.New("identity promotion failed"),
+		Vendor:       false,
+		PromoteError: errors.New("identity promotion failed"),
 	}
 	logger := &fakeLogger{}
 	metrics := &fakeMetrics{}
@@ -332,21 +356,21 @@ func TestCreateStoreUseCase_IdentityPromotionFailureAndDeleteFailure_ReturnsErro
 	)
 
 	require.Error(t, err)
-	require.True(t, repo.deleteCalled)
+	require.True(t, repo.DeleteCalled)
 }
 
 func TestCreateStoreUseCase_AsynchronousDispatchFailuresDoNotFailStoreCreation(t *testing.T) {
 	ownerID := uuid.New()
 
-	repo := &fakeStoreRepository{}
+	repo := &MockStoreRepository{}
 	identity := &fakeIdentityProvider{
-		isVendor: false,
+		Vendor: false,
 	}
 	imageDispatcher := &fakeImageStorageDispatcher{
-		dispatchError: errors.New("image dispatch failed"),
+		DispatchError: errors.New("image dispatch failed"),
 	}
 	embeddingDispatcher := &fakeEmbeddingDispatcher{
-		dispatchError: errors.New("embedding dispatch failed"),
+		DispatchError: errors.New("embedding dispatch failed"),
 	}
 	logger := &fakeLogger{}
 	metrics := &fakeMetrics{}
@@ -355,7 +379,7 @@ func TestCreateStoreUseCase_AsynchronousDispatchFailuresDoNotFailStoreCreation(t
 		repo,
 		identity,
 		&fakeImageFormatResolver{
-			extension: "webp",
+			Extension: "webp",
 		},
 		imageDispatcher,
 		embeddingDispatcher,
@@ -379,10 +403,10 @@ func TestCreateStoreUseCase_AsynchronousDispatchFailuresDoNotFailStoreCreation(t
 
 	require.NoError(t, err)
 	require.NotNil(t, output)
-	require.True(t, imageDispatcher.called)
-	require.True(t, embeddingDispatcher.called)
-	require.True(t, logger.imageDispatchFailureCalled)
-	require.True(t, logger.embeddingDispatchFailureCalled)
+	require.True(t, imageDispatcher.Called)
+	require.True(t, embeddingDispatcher.Called)
+	require.True(t, logger.ImageDispatchFailureCalled)
+	require.True(t, logger.EmbeddingDispatchFailureCalled)
 }
 
 func TestCreateStoreUseCase_ObservesSuccessfulCreation(t *testing.T) {
@@ -392,7 +416,7 @@ func TestCreateStoreUseCase_ObservesSuccessfulCreation(t *testing.T) {
 	metrics := &fakeMetrics{}
 
 	uc := usecases.NewCreateStoreUseCase(
-		&fakeStoreRepository{},
+		&MockStoreRepository{},
 		&fakeIdentityProvider{},
 		&fakeImageFormatResolver{},
 		&fakeImageStorageDispatcher{},
@@ -411,17 +435,17 @@ func TestCreateStoreUseCase_ObservesSuccessfulCreation(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	require.True(t, logger.successCalled)
-	require.GreaterOrEqual(t, metrics.incrementCalls, 1)
-	require.GreaterOrEqual(t, metrics.observeCalls, 1)
+	require.True(t, logger.SuccessCalled)
+	require.GreaterOrEqual(t, metrics.IncrementCalls, 1)
+	require.GreaterOrEqual(t, metrics.ObserveCalls, 1)
 }
 
 func TestCreateStoreUseCase_IdentityCheckFailureDoesNotPersistStore(t *testing.T) {
 	ownerID := uuid.New()
 
-	repo := &fakeStoreRepository{}
+	repo := &MockStoreRepository{}
 	identity := &fakeIdentityProvider{
-		isVendorError: errors.New("identity unavailable"),
+		IsVendorError: errors.New("identity unavailable"),
 	}
 	logger := &fakeLogger{}
 	metrics := &fakeMetrics{}
@@ -446,7 +470,7 @@ func TestCreateStoreUseCase_IdentityCheckFailureDoesNotPersistStore(t *testing.T
 	)
 
 	require.Error(t, err)
-	require.False(t, repo.createCalled)
+	require.False(t, repo.CreateCalled)
 }
 
 func authenticatedContext(userID uuid.UUID) context.Context {
@@ -459,157 +483,242 @@ func authenticatedContext(userID uuid.UUID) context.Context {
 	)
 }
 
-type fakeStoreRepository struct {
-	createCalled      bool
-	createdStore      *entities.Store
-	createError       error
-	ownerStore        *entities.Store
-	findByOwnerCalled bool
-	findByOwnerID     uuid.UUID
-	deleteCalled      bool
-	deletedStoreID    uuid.UUID
-	deleteError       error
-}
-
-func (f *fakeStoreRepository) Create(_ context.Context, store *entities.Store) error {
-	f.createCalled = true
-	f.createdStore = store
-	return f.createError
-}
-
-func (f *fakeStoreRepository) FindByID(_ context.Context, _ uuid.UUID) (*entities.Store, error) {
-	return nil, nil
-}
-
-func (f *fakeStoreRepository) FindByOwnerID(_ context.Context, ownerID uuid.UUID) (*entities.Store, error) {
-	f.findByOwnerCalled = true
-	f.findByOwnerID = ownerID
-	return f.ownerStore, nil
-}
-
-func (f *fakeStoreRepository) FindBySlug(_ context.Context, _ string) (*entities.Store, error) {
-	return nil, nil
-}
-
-func (f *fakeStoreRepository) ExistsBySlug(_ context.Context, _ string) (bool, error) {
-	return true, nil
-}
-
-func (f *fakeStoreRepository) ListActive(
-	ctx context.Context,
-	query string,
-	page int,
-	pageSize int,
-) ([]*entities.Store, int, error) {
-	return nil, 0, nil
-}
-
-func (f *fakeStoreRepository) Update(_ context.Context, _ *entities.Store) error {
-	return nil
-}
-
-func (f *fakeStoreRepository) Delete(_ context.Context, storeID uuid.UUID) error {
-	f.deleteCalled = true
-	f.deletedStoreID = storeID
-	return f.deleteError
-}
-
 type fakeIdentityProvider struct {
-	isVendor       bool
-	isVendorCalled bool
-	isVendorError  error
-	promoteCalled  bool
-	promotedUserID uuid.UUID
-	promoteError   error
+	Vendor         bool
+	IsVendorCalled bool
+	IsVendorError  error
+	PromoteCalled  bool
+	PromotedUserID uuid.UUID
+	PromoteError   error
 }
 
-func (f *fakeIdentityProvider) IsVendor(_ context.Context, _ uuid.UUID) (bool, error) {
-	f.isVendorCalled = true
-	return f.isVendor, f.isVendorError
+func (f *fakeIdentityProvider) IsVendor(
+	_ context.Context,
+	_ uuid.UUID,
+) (bool, error) {
+	f.IsVendorCalled = true
+
+	return f.Vendor, f.IsVendorError
 }
 
-func (f *fakeIdentityProvider) PromoteToVendor(_ context.Context, userID uuid.UUID) error {
-	f.promoteCalled = true
-	f.promotedUserID = userID
-	return f.promoteError
+func (f *fakeIdentityProvider) PromoteToVendor(
+	_ context.Context,
+	userID uuid.UUID,
+) error {
+	f.PromoteCalled = true
+	f.PromotedUserID = userID
+
+	return f.PromoteError
 }
 
 type fakeImageFormatResolver struct {
-	called      bool
-	contentType string
-	extension   string
-	err         error
+	Called      bool
+	ContentType string
+	Extension   string
+	Err         error
 }
 
 func (f *fakeImageFormatResolver) ResolveExtension(
 	_ context.Context,
 	contentType string,
 ) (string, error) {
-	f.called = true
-	f.contentType = contentType
-	return f.extension, f.err
+	f.Called = true
+	f.ContentType = contentType
+
+	return f.Extension, f.Err
 }
 
 type fakeImageStorageDispatcher struct {
-	called        bool
-	image         ports.StoreImage
-	dispatchError error
+	Called        bool
+	Image         ports.StoreImage
+	DispatchError error
 }
 
 func (f *fakeImageStorageDispatcher) DispatchStoreImage(
 	_ context.Context,
 	image ports.StoreImage,
 ) error {
-	f.called = true
-	f.image = image
-	return f.dispatchError
+	f.Called = true
+	f.Image = image
+
+	return f.DispatchError
 }
 
 type fakeEmbeddingDispatcher struct {
-	called        bool
-	embedding     ports.StoreEmbedding
-	dispatchError error
+	Called        bool
+	Embedding     ports.StoreEmbedding
+	DispatchError error
 }
 
 func (f *fakeEmbeddingDispatcher) DispatchStoreEmbedding(
 	_ context.Context,
 	embedding ports.StoreEmbedding,
 ) error {
-	f.called = true
-	f.embedding = embedding
-	return f.dispatchError
+	f.Called = true
+	f.Embedding = embedding
+
+	return f.DispatchError
 }
 
 type fakeLogger struct {
-	successCalled                  bool
-	imageDispatchFailureCalled     bool
-	embeddingDispatchFailureCalled bool
+	SuccessCalled                  bool
+	ImageDispatchFailureCalled     bool
+	EmbeddingDispatchFailureCalled bool
 }
 
-func (f *fakeLogger) Log(_ context.Context, event ports.LogEvent) error {
+func (f *fakeLogger) Log(
+	_ context.Context,
+	event ports.LogEvent,
+) error {
 	switch event.Event {
 	case "store.create.succeeded":
-		f.successCalled = true
+		f.SuccessCalled = true
+
 	case "store.create.image_dispatch_failed":
-		f.imageDispatchFailureCalled = true
+		f.ImageDispatchFailureCalled = true
+
 	case "store.create.embedding_dispatch_failed":
-		f.embeddingDispatchFailureCalled = true
+		f.EmbeddingDispatchFailureCalled = true
 	}
 
 	return nil
 }
 
 type fakeMetrics struct {
-	incrementCalls int
-	observeCalls   int
+	IncrementCalls int
+	ObserveCalls   int
 }
 
-func (f *fakeMetrics) Increment(_ context.Context, _ ports.Metric) error {
-	f.incrementCalls++
+func (f *fakeMetrics) Increment(
+	_ context.Context,
+	_ ports.Metric,
+) error {
+	f.IncrementCalls++
+
 	return nil
 }
 
-func (f *fakeMetrics) Observe(_ context.Context, _ ports.Metric) error {
-	f.observeCalls++
+func (f *fakeMetrics) Observe(
+	_ context.Context,
+	_ ports.Metric,
+) error {
+	f.ObserveCalls++
+
+	return nil
+}
+
+type MockStoreRepository struct {
+	CreateCalled      bool
+	CreatedStore      *entities.Store
+	CreateError       error
+	OwnerStore        *entities.Store
+	FindByOwnerCalled bool
+	OwnerID           uuid.UUID
+
+	DeleteCalled   bool
+	DeletedStoreID uuid.UUID
+	DeleteError    error
+
+	ChangePlanCalled  bool
+	ChangePlanStoreID uuid.UUID
+	ChangedPlanStore  *entities.Store
+	ChangePlanErr     error
+	Store             *entities.Store
+
+	FindByIDCalled bool
+	FindByIDErr    error
+
+	ChangeStatusCalled  bool
+	ChangeStatusStoreID uuid.UUID
+	ChangeStatusValue   string
+	ChangeStatusErr     error
+}
+
+func (f *MockStoreRepository) Create(
+	_ context.Context,
+	store *entities.Store,
+) error {
+	f.CreateCalled = true
+	f.CreatedStore = store
+
+	return f.CreateError
+}
+
+func (f *MockStoreRepository) FindByID(
+	_ context.Context,
+	storeID uuid.UUID,
+) (*entities.Store, error) {
+	f.FindByIDCalled = true
+
+	// Keep the requested ID available through the mock's public state.
+	f.Store = nil
+
+	_ = storeID
+
+	return nil, f.FindByIDErr
+}
+
+func (f *MockStoreRepository) FindByOwnerID(
+	_ context.Context,
+	ownerID uuid.UUID,
+) (*entities.Store, error) {
+	f.FindByOwnerCalled = true
+	f.OwnerID = ownerID
+
+	return f.OwnerStore, nil
+}
+
+func (f *MockStoreRepository) FindBySlug(
+	_ context.Context,
+	_ string,
+) (*entities.Store, error) {
+	return nil, nil
+}
+
+func (f *MockStoreRepository) ExistsBySlug(
+	_ context.Context,
+	_ string,
+) (bool, error) {
+	return true, nil
+}
+
+func (f *MockStoreRepository) ListActive(
+	_ context.Context,
+	_ string,
+	_ int,
+	_ int,
+) ([]*entities.Store, int, error) {
+	return nil, 0, nil
+}
+
+func (f *MockStoreRepository) Update(
+	_ context.Context,
+	_ *entities.Store,
+) error {
+	return nil
+}
+
+func (f *MockStoreRepository) Delete(
+	_ context.Context,
+	storeID uuid.UUID,
+) error {
+	f.DeleteCalled = true
+	f.DeletedStoreID = storeID
+
+	return f.DeleteError
+}
+
+func (f *MockStoreRepository) ChangePlan(
+	_ context.Context,
+	store *entities.Store,
+) error {
+	return nil
+}
+
+func (f *MockStoreRepository) ChangeStatus(
+	_ context.Context,
+	storeID uuid.UUID,
+	status string,
+) error {
 	return nil
 }

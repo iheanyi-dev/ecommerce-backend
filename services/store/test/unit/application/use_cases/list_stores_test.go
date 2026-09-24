@@ -81,6 +81,19 @@ func (s *listStoresRepositoryStub) Update(
 ) error {
 	return nil
 }
+func (s *listStoresRepositoryStub) ChangePlan(
+	context.Context,
+	*entities.Store,
+) error {
+	return nil
+}
+func (f *listStoresRepositoryStub) ChangeStatus(
+	_ context.Context,
+	storeID uuid.UUID,
+	status string,
+) error {
+	return nil
+}
 
 type listStoresLoggerStub struct {
 	events []ports.LogEvent

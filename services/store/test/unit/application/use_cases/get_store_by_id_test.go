@@ -218,6 +218,20 @@ func (f *fakeGetStoreByIDRepository) Update(
 ) error {
 	return nil
 }
+func (f *fakeGetStoreByIDRepository) ChangePlan(
+	_ context.Context,
+	_ *entities.Store,
+) error {
+	return nil
+}
+
+func (f *fakeGetStoreByIDRepository) ChangeStatus(
+	_ context.Context,
+	storeID uuid.UUID,
+	status string,
+) error {
+	return nil
+}
 
 type fakeGetStoreByIDLogger struct {
 	successCalled bool

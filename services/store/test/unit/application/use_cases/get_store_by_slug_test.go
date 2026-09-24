@@ -78,6 +78,20 @@ func (s *getStoreBySlugRepositoryStub) Update(
 ) error {
 	return nil
 }
+func (s *getStoreBySlugRepositoryStub) ChangePlan(
+	context.Context,
+	*entities.Store,
+) error {
+	return nil
+}
+
+func (f *getStoreBySlugRepositoryStub) ChangeStatus(
+	_ context.Context,
+	storeID uuid.UUID,
+	status string,
+) error {
+	return nil
+}
 
 type getStoreBySlugLoggerStub struct {
 	events []ports.LogEvent
