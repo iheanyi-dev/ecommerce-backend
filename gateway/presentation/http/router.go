@@ -11,8 +11,8 @@ import (
 // NewRouter creates the root HTTP router for the Gateway.
 //
 // The Gateway does not decide which downstream routes require
-// authentication. Instead, the identity propagation middleware
-// runs for every request:
+// authentication. Instead, identity propagation runs for every
+// business-service request:
 //
 //   - Anonymous requests are forwarded without authenticated identity.
 //   - Valid JWTs are validated and trusted identity is propagated.
@@ -35,6 +35,7 @@ import (
 func NewRouter(
 	healthHandler *handlers.HealthHandler,
 	identityProxy *proxy.IdentityProxy,
+	storeProxy *proxy.StoreProxy,
 	requestIDMiddleware *middleware.RequestIDMiddleware,
 	requestObservabilityMiddleware *middleware.RequestObservabilityMiddleware,
 	identityPropagationMiddleware *middleware.IdentityPropagationMiddleware,
@@ -51,13 +52,18 @@ func NewRouter(
 	// unchanged. Identity performs its own JWT validation.
 	mux.Handle("/api/v1/users/", identityProxy)
 
+	// Store owns the Store API namespace.
+	//
+	// Store is still protected by its own service-authentication boundary.
+	// The Gateway supplies those credentials through StoreProxy.
+	//
+	// Identity propagation runs before this proxy so a validated user
+	// identity is forwarded to Store through trusted internal headers.
+	mux.Handle("/api/v1/stores", storeProxy)
+	mux.Handle("/api/v1/stores/", storeProxy)
+
 	var handler nethttp.Handler = mux
 
-	// Identity propagation is intentionally global.
-	//
-	// The Gateway does not maintain a list of protected routes.
-	// Instead, downstream services decide whether the authenticated
-	// identity is required for a particular endpoint.
 	if identityPropagationMiddleware != nil {
 		handler = identityPropagationMiddleware.Middleware(handler)
 	}

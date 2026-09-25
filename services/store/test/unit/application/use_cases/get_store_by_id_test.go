@@ -14,6 +14,7 @@ import (
 	usecases "github.com/iheanyi-dev/ecommerce-backend/services/store/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/entities"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/valueobjects"
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/test/unit/fixtures"
 )
 
 func TestGetStoreByIDUseCase_ReturnsStore(t *testing.T) {
@@ -34,8 +35,8 @@ func TestGetStoreByIDUseCase_ReturnsStore(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	repo := &fakeGetStoreByIDRepository{
-		store: store,
+	repo := &fixtures.MockStoreRepository{
+		Store: store,
 	}
 	logger := &fakeGetStoreByIDLogger{}
 	metrics := &fakeGetStoreByIDMetrics{}
@@ -62,8 +63,8 @@ func TestGetStoreByIDUseCase_ReturnsStore(t *testing.T) {
 	require.Equal(t, store.CreatedAt(), output.CreatedAt)
 	require.Equal(t, store.UpdatedAt(), output.UpdatedAt)
 
-	require.True(t, repo.findByIDCalled)
-	require.Equal(t, storeID, repo.findByIDValue)
+	require.True(t, repo.FindByIDCalled)
+	require.Equal(t, storeID, repo.FindByIDValue)
 
 	require.True(t, logger.successCalled)
 	require.GreaterOrEqual(t, metrics.incrementCalls, 1)
@@ -73,8 +74,8 @@ func TestGetStoreByIDUseCase_ReturnsStore(t *testing.T) {
 func TestGetStoreByIDUseCase_ReturnsNotFound(t *testing.T) {
 	storeID := uuid.New()
 
-	repo := &fakeGetStoreByIDRepository{
-		findByIDError: applicationerrors.ErrStoreNotFound,
+	repo := &fixtures.MockStoreRepository{
+		FindByIDErr: applicationerrors.ErrStoreNotFound,
 	}
 	logger := &fakeGetStoreByIDLogger{}
 	metrics := &fakeGetStoreByIDMetrics{}
@@ -90,7 +91,7 @@ func TestGetStoreByIDUseCase_ReturnsNotFound(t *testing.T) {
 	require.ErrorIs(t, err, applicationerrors.ErrStoreNotFound)
 	require.Equal(t, uuid.Nil, output.ID.Value())
 
-	require.True(t, repo.findByIDCalled)
+	require.True(t, repo.FindByIDCalled)
 	require.True(t, logger.failureCalled)
 	require.GreaterOrEqual(t, metrics.incrementCalls, 1)
 	require.GreaterOrEqual(t, metrics.observeCalls, 1)
@@ -100,8 +101,8 @@ func TestGetStoreByIDUseCase_PropagatesRepositoryFailure(t *testing.T) {
 	storeID := uuid.New()
 	repositoryError := errors.New("database unavailable")
 
-	repo := &fakeGetStoreByIDRepository{
-		findByIDError: repositoryError,
+	repo := &fixtures.MockStoreRepository{
+		FindByIDErr: repositoryError,
 	}
 	logger := &fakeGetStoreByIDLogger{}
 	metrics := &fakeGetStoreByIDMetrics{}
@@ -137,7 +138,7 @@ func TestGetStoreByIDUseCase_LogsAndMeasuresSuccessfulRead(t *testing.T) {
 	metrics := &fakeGetStoreByIDMetrics{}
 
 	uc := usecases.NewGetStoreByIDUseCase(
-		&fakeGetStoreByIDRepository{store: store},
+		&fixtures.MockStoreRepository{Store: store},
 		logger,
 		metrics,
 	)
@@ -148,89 +149,6 @@ func TestGetStoreByIDUseCase_LogsAndMeasuresSuccessfulRead(t *testing.T) {
 	require.True(t, logger.successCalled)
 	require.GreaterOrEqual(t, metrics.incrementCalls, 1)
 	require.GreaterOrEqual(t, metrics.observeCalls, 1)
-}
-
-type fakeGetStoreByIDRepository struct {
-	store          *entities.Store
-	findByIDCalled bool
-	findByIDValue  uuid.UUID
-	findByIDError  error
-}
-
-func (f *fakeGetStoreByIDRepository) Create(
-	_ context.Context,
-	_ *entities.Store,
-) error {
-	return nil
-}
-
-func (f *fakeGetStoreByIDRepository) Delete(
-	_ context.Context,
-	_ uuid.UUID,
-) error {
-	return nil
-}
-
-func (f *fakeGetStoreByIDRepository) FindByID(
-	_ context.Context,
-	storeID uuid.UUID,
-) (*entities.Store, error) {
-	f.findByIDCalled = true
-	f.findByIDValue = storeID
-
-	if f.findByIDError != nil {
-		return nil, f.findByIDError
-	}
-
-	return f.store, nil
-}
-
-func (f *fakeGetStoreByIDRepository) FindByOwnerID(
-	_ context.Context,
-	_ uuid.UUID,
-) (*entities.Store, error) {
-	return nil, nil
-}
-
-func (f *fakeGetStoreByIDRepository) FindBySlug(
-	_ context.Context,
-	_ string,
-) (*entities.Store, error) {
-	return nil, nil
-}
-
-func (f *fakeGetStoreByIDRepository) ListActive(
-	ctx context.Context,
-	query string,
-	page int,
-	pageSize int,
-) ([]*entities.Store, int, error) {
-	return nil, 0, nil
-}
-
-func (f *fakeGetStoreByIDRepository) ExistsBySlug(_ context.Context, _ string) (bool, error) {
-	return true, nil
-}
-
-func (f *fakeGetStoreByIDRepository) Update(
-	_ context.Context,
-	_ *entities.Store,
-) error {
-	return nil
-}
-func (f *fakeGetStoreByIDRepository) ChangePlan(
-	_ context.Context,
-	_ *entities.Store,
-) error {
-	return nil
-}
-
-func (f *fakeGetStoreByIDRepository) ChangeStatus(
-	_ context.Context,
-	storeID uuid.UUID,
-	status string,
-) error {
-	return nil
 }
 
 type fakeGetStoreByIDLogger struct {

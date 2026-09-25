@@ -60,6 +60,7 @@ func TestNewRouter_Health(t *testing.T) {
 	router := gatewayhttp.NewRouter(
 		healthHandler,
 		identityProxy,
+		nil,
 		requestIDMiddleware,
 		observabilityMiddleware,
 		nil,
@@ -120,6 +121,7 @@ func TestNewRouter_IdentityRoute(t *testing.T) {
 	router := gatewayhttp.NewRouter(
 		healthHandler,
 		identityProxy,
+		nil,
 		requestIDMiddleware,
 		observabilityMiddleware,
 		nil,
@@ -206,6 +208,7 @@ func TestNewRouter_IdentityRoute_BypassesJWTValidation(t *testing.T) {
 	router := gatewayhttp.NewRouter(
 		healthHandler,
 		identityProxy,
+		nil,
 		requestIDMiddleware,
 		observabilityMiddleware,
 		identityPropagationMiddleware,
@@ -270,6 +273,7 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 	router := gatewayhttp.NewRouter(
 		healthHandler,
 		identityProxy,
+		nil,
 		requestIDMiddleware,
 		observabilityMiddleware,
 		nil,
@@ -288,4 +292,84 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 
 	requestID := recorder.Header().Get("X-Request-ID")
 	assert.NotEmpty(t, requestID)
+}
+func TestNewRouter_StoreRoute(t *testing.T) {
+	downstream := httptest.NewServer(
+		http.HandlerFunc(func(
+			w http.ResponseWriter,
+			r *http.Request,
+		) {
+			assert.Equal(
+				t,
+				"/api/v1/stores",
+				r.URL.Path,
+			)
+
+			assert.Equal(
+				t,
+				"gateway",
+				r.Header.Get("X-Service-Name"),
+			)
+
+			assert.Equal(
+				t,
+				"test-secret",
+				r.Header.Get("X-Service-Secret"),
+			)
+
+			w.WriteHeader(http.StatusOK)
+
+			_, err := fmt.Fprint(
+				w,
+				`{"status":"store"}`,
+			)
+			require.NoError(t, err)
+		}),
+	)
+	defer downstream.Close()
+
+	storeProxy, err := proxy.NewStoreProxy(
+		downstream.URL,
+		"gateway",
+		"test-secret",
+	)
+	require.NoError(t, err)
+
+	identityProxy, err := proxy.NewIdentityProxy(
+		downstream.URL,
+		"gateway",
+		"test-secret",
+	)
+	require.NoError(t, err)
+
+	healthHandler := handlers.NewHealthHandler()
+	requestIDMiddleware := middleware.NewRequestIDMiddleware()
+	observabilityMiddleware :=
+		middleware.NewRequestObservabilityMiddleware(&fakeLogger{})
+
+	router := gatewayhttp.NewRouter(
+		healthHandler,
+		identityProxy,
+		storeProxy,
+		requestIDMiddleware,
+		observabilityMiddleware,
+		nil,
+	)
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/stores",
+		nil,
+	)
+
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(
+		t,
+		`{"status":"store"}`,
+		recorder.Body.String(),
+	)
 }

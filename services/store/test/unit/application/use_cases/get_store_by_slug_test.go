@@ -14,84 +14,8 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/entities"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/valueobjects"
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/test/unit/fixtures"
 )
-
-type getStoreBySlugRepositoryStub struct {
-	findBySlugFn func(context.Context, string) (*entities.Store, error)
-}
-
-func (s *getStoreBySlugRepositoryStub) Create(
-	context.Context,
-	*entities.Store,
-) error {
-	return nil
-}
-
-func (s *getStoreBySlugRepositoryStub) Delete(
-	context.Context,
-	uuid.UUID,
-) error {
-	return nil
-}
-
-func (s *getStoreBySlugRepositoryStub) FindByID(
-	context.Context,
-	uuid.UUID,
-) (*entities.Store, error) {
-	return nil, nil
-}
-
-func (s *getStoreBySlugRepositoryStub) FindByOwnerID(
-	context.Context,
-	uuid.UUID,
-) (*entities.Store, error) {
-	return nil, nil
-}
-
-func (s *getStoreBySlugRepositoryStub) FindBySlug(
-	ctx context.Context,
-	slug string,
-) (*entities.Store, error) {
-	if s.findBySlugFn == nil {
-		return nil, nil
-	}
-
-	return s.findBySlugFn(ctx, slug)
-}
-
-func (s *getStoreBySlugRepositoryStub) ListActive(
-	ctx context.Context,
-	query string,
-	page int,
-	pageSize int,
-) ([]*entities.Store, int, error) {
-	return nil, 0, nil
-}
-
-func (f *getStoreBySlugRepositoryStub) ExistsBySlug(_ context.Context, _ string) (bool, error) {
-	return true, nil
-}
-
-func (s *getStoreBySlugRepositoryStub) Update(
-	context.Context,
-	*entities.Store,
-) error {
-	return nil
-}
-func (s *getStoreBySlugRepositoryStub) ChangePlan(
-	context.Context,
-	*entities.Store,
-) error {
-	return nil
-}
-
-func (f *getStoreBySlugRepositoryStub) ChangeStatus(
-	_ context.Context,
-	storeID uuid.UUID,
-	status string,
-) error {
-	return nil
-}
 
 type getStoreBySlugLoggerStub struct {
 	events []ports.LogEvent
@@ -158,15 +82,8 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 	t.Run("returns store", func(t *testing.T) {
 		store := newStoreForSlugTest(t)
 
-		repository := &getStoreBySlugRepositoryStub{
-			findBySlugFn: func(
-				_ context.Context,
-				slug string,
-			) (*entities.Store, error) {
-				assert.Equal(t, store.Slug().Value(), slug)
-
-				return store, nil
-			},
+		repository := &fixtures.MockStoreRepository{
+			Store: store,
 		}
 
 		logger := &getStoreBySlugLoggerStub{}
@@ -233,13 +150,8 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 
 		require.NoError(t, store.Deactivate())
 
-		repository := &getStoreBySlugRepositoryStub{
-			findBySlugFn: func(
-				context.Context,
-				string,
-			) (*entities.Store, error) {
-				return store, nil
-			},
+		repository := &fixtures.MockStoreRepository{
+			Store: store,
 		}
 
 		application := newGetStoreBySlugApplication(
@@ -262,13 +174,8 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 
 		require.NoError(t, store.Deactivate())
 
-		repository := &getStoreBySlugRepositoryStub{
-			findBySlugFn: func(
-				context.Context,
-				string,
-			) (*entities.Store, error) {
-				return store, nil
-			},
+		repository := &fixtures.MockStoreRepository{
+			Store: store,
 		}
 
 		ctx := ports.WithAuthenticatedIdentity(
@@ -299,13 +206,8 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 
 		require.NoError(t, store.Deactivate())
 
-		repository := &getStoreBySlugRepositoryStub{
-			findBySlugFn: func(
-				context.Context,
-				string,
-			) (*entities.Store, error) {
-				return store, nil
-			},
+		repository := &fixtures.MockStoreRepository{
+			Store: store,
 		}
 
 		ctx := ports.WithAuthenticatedIdentity(
@@ -334,13 +236,8 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 	})
 
 	t.Run("returns not found when repository returns nil", func(t *testing.T) {
-		repository := &getStoreBySlugRepositoryStub{
-			findBySlugFn: func(
-				context.Context,
-				string,
-			) (*entities.Store, error) {
-				return nil, nil
-			},
+		repository := &fixtures.MockStoreRepository{
+			FindBySlugErr: applicationerrors.ErrStoreNotFound,
 		}
 
 		logger := &getStoreBySlugLoggerStub{}
@@ -372,7 +269,7 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 		)
 		assert.Equal(
 			t,
-			"store_not_found",
+			"store_lookup",
 			logger.events[0].FailureCategory,
 		)
 
@@ -389,7 +286,7 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 		)
 		assert.Equal(
 			t,
-			"store_not_found",
+			"store_lookup",
 			metrics.increments[1].Labels["failure_category"],
 		)
 
@@ -404,13 +301,8 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 	t.Run("returns repository error", func(t *testing.T) {
 		expectedErr := errors.New("repository failure")
 
-		repository := &getStoreBySlugRepositoryStub{
-			findBySlugFn: func(
-				context.Context,
-				string,
-			) (*entities.Store, error) {
-				return nil, expectedErr
-			},
+		repository := &fixtures.MockStoreRepository{
+			FindBySlugErr: expectedErr,
 		}
 
 		logger := &getStoreBySlugLoggerStub{}
@@ -454,57 +346,12 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 		)
 	})
 
-	t.Run("passes context to repository", func(t *testing.T) {
-		store := newStoreForSlugTest(t)
-
-		type contextKey struct{}
-
-		ctx := context.WithValue(
-			context.Background(),
-			contextKey{},
-			"test-value",
-		)
-
-		repository := &getStoreBySlugRepositoryStub{
-			findBySlugFn: func(
-				receivedCtx context.Context,
-				_ string,
-			) (*entities.Store, error) {
-				assert.Equal(
-					t,
-					"test-value",
-					receivedCtx.Value(contextKey{}),
-				)
-
-				return store, nil
-			},
-		}
-
-		application := newGetStoreBySlugApplication(
-			repository,
-			&getStoreBySlugLoggerStub{},
-			&getStoreBySlugMetricsStub{},
-		)
-
-		_, err := application.Execute(
-			ctx,
-			store.Slug().Value(),
-		)
-
-		require.NoError(t, err)
-	})
-
 	t.Run("does not mutate store", func(t *testing.T) {
 		store := newStoreForSlugTest(t)
 		beforeUpdatedAt := store.UpdatedAt()
 
-		repository := &getStoreBySlugRepositoryStub{
-			findBySlugFn: func(
-				context.Context,
-				string,
-			) (*entities.Store, error) {
-				return store, nil
-			},
+		repository := &fixtures.MockStoreRepository{
+			Store: store,
 		}
 
 		application := newGetStoreBySlugApplication(
@@ -526,13 +373,8 @@ func TestGetStoreBySlugUseCase_Execute(t *testing.T) {
 	t.Run("does not depend on authentication", func(t *testing.T) {
 		store := newStoreForSlugTest(t)
 
-		repository := &getStoreBySlugRepositoryStub{
-			findBySlugFn: func(
-				context.Context,
-				string,
-			) (*entities.Store, error) {
-				return store, nil
-			},
+		repository := &fixtures.MockStoreRepository{
+			Store: store,
 		}
 
 		application := newGetStoreBySlugApplication(

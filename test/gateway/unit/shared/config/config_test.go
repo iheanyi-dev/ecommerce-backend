@@ -14,6 +14,9 @@ func TestLoad(t *testing.T) {
 	t.Setenv("IDENTITY_SERVICE_URL", "http://identity:8080")
 	t.Setenv("IDENTITY_SERVICE_NAME", "gateway")
 	t.Setenv("IDENTITY_SERVICE_SECRET", "gateway-secret")
+	t.Setenv("STORE_SERVICE_URL", "http://store:8082")
+	t.Setenv("STORE_SERVICE_NAME", "gateway")
+	t.Setenv("STORE_SERVICE_SECRET", "store-secret")
 	t.Setenv("JWT_SECRET", "this-is-a-valid-development-jwt-secret-123456")
 	t.Setenv("JWT_ISSUER", "identity-service")
 
@@ -35,6 +38,9 @@ func TestLoad_UsesDefaults(t *testing.T) {
 	t.Setenv("IDENTITY_SERVICE_URL", "")
 	t.Setenv("IDENTITY_SERVICE_NAME", "gateway")
 	t.Setenv("IDENTITY_SERVICE_SECRET", "gateway-secret")
+	t.Setenv("STORE_SERVICE_URL", "http://store:8082")
+	t.Setenv("STORE_SERVICE_NAME", "gateway")
+	t.Setenv("STORE_SERVICE_SECRET", "store-secret")
 	t.Setenv("JWT_SECRET", "this-is-a-valid-development-jwt-secret-123456")
 	t.Setenv("JWT_ISSUER", "identity-service")
 
@@ -54,6 +60,9 @@ func TestLoad_RejectsInvalidIdentityServiceURL(t *testing.T) {
 	t.Setenv("IDENTITY_SERVICE_URL", "://invalid-url")
 	t.Setenv("IDENTITY_SERVICE_NAME", "gateway")
 	t.Setenv("IDENTITY_SERVICE_SECRET", "gateway-secret")
+	t.Setenv("STORE_SERVICE_URL", "http://store:8082")
+	t.Setenv("STORE_SERVICE_NAME", "gateway")
+	t.Setenv("STORE_SERVICE_SECRET", "store-secret")
 	t.Setenv("JWT_SECRET", "this-is-a-valid-development-jwt-secret-123456")
 	t.Setenv("JWT_ISSUER", "identity-service")
 
@@ -66,6 +75,9 @@ func TestLoad_RejectsMissingIdentityServiceName(t *testing.T) {
 	t.Setenv("IDENTITY_SERVICE_URL", "http://localhost:8080")
 	t.Setenv("IDENTITY_SERVICE_NAME", "")
 	t.Setenv("IDENTITY_SERVICE_SECRET", "gateway-secret")
+	t.Setenv("STORE_SERVICE_URL", "http://store:8082")
+	t.Setenv("STORE_SERVICE_NAME", "gateway")
+	t.Setenv("STORE_SERVICE_SECRET", "store-secret")
 	t.Setenv("JWT_SECRET", "this-is-a-valid-development-jwt-secret-123456")
 	t.Setenv("JWT_ISSUER", "identity-service")
 

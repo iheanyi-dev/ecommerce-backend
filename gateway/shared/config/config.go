@@ -33,6 +33,17 @@ type Config struct {
 	// service authentication.
 	IdentityServiceSecret string
 
+	// StoreServiceURL is the base URL used by the Gateway when forwarding
+	// Store API requests.
+	StoreServiceURL string
+
+	// StoreServiceName is the service identity presented to Store.
+	StoreServiceName string
+
+	// StoreServiceSecret is the shared secret used for Gateway-to-Store
+	// service authentication.
+	StoreServiceSecret string
+
 	// JWTSecret is the secret used by Identity to sign access tokens.
 	//
 	// The Gateway uses this secret only to validate client access tokens.
@@ -63,6 +74,18 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	storeServiceURL := getEnv(
+		"STORE_SERVICE_URL",
+		"http://localhost:8082",
+	)
+
+	if err := validateServiceURL(
+		"STORE_SERVICE_URL",
+		storeServiceURL,
+	); err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		AppEnv:  getEnv("APP_ENV", "development"),
 		AppPort: getEnv("APP_PORT", "8081"),
@@ -70,6 +93,10 @@ func Load() (*Config, error) {
 		IdentityServiceURL:    identityServiceURL,
 		IdentityServiceName:   os.Getenv("IDENTITY_SERVICE_NAME"),
 		IdentityServiceSecret: os.Getenv("IDENTITY_SERVICE_SECRET"),
+
+		StoreServiceURL:    storeServiceURL,
+		StoreServiceName:   os.Getenv("STORE_SERVICE_NAME"),
+		StoreServiceSecret: os.Getenv("STORE_SERVICE_SECRET"),
 
 		JWTSecret: os.Getenv("JWT_SECRET"),
 		JWTIssuer: os.Getenv("JWT_ISSUER"),
@@ -81,6 +108,14 @@ func Load() (*Config, error) {
 
 	if cfg.IdentityServiceSecret == "" {
 		return nil, fmt.Errorf("IDENTITY_SERVICE_SECRET is required")
+	}
+
+	if cfg.StoreServiceName == "" {
+		return nil, fmt.Errorf("STORE_SERVICE_NAME is required")
+	}
+
+	if cfg.StoreServiceSecret == "" {
+		return nil, fmt.Errorf("STORE_SERVICE_SECRET is required")
 	}
 
 	if cfg.JWTSecret == "" {

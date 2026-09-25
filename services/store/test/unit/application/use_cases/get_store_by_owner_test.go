@@ -13,6 +13,7 @@ import (
 	usecases "github.com/iheanyi-dev/ecommerce-backend/services/store/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/entities"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/valueobjects"
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/test/unit/fixtures"
 )
 
 func TestGetStoreByOwnerUseCase_ReturnsStore(t *testing.T) {
@@ -33,8 +34,8 @@ func TestGetStoreByOwnerUseCase_ReturnsStore(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	repo := &fakeGetStoreByOwnerRepository{
-		store: store,
+	repo := &fixtures.MockStoreRepository{
+		Store: store,
 	}
 	logger := &fakeGetStoreByOwnerLogger{}
 	metrics := &fakeGetStoreByOwnerMetrics{}
@@ -69,8 +70,8 @@ func TestGetStoreByOwnerUseCase_ReturnsStore(t *testing.T) {
 	require.Equal(t, store.CreatedAt(), output.CreatedAt)
 	require.Equal(t, store.UpdatedAt(), output.UpdatedAt)
 
-	require.Equal(t, ownerID, repo.ownerID)
-	require.True(t, repo.findByOwnerIDCalled)
+	require.Equal(t, ownerID, repo.OwnerID)
+	require.True(t, repo.FindByOwnerIDCalled)
 
 	require.Len(t, logger.events, 1)
 	require.Equal(
@@ -103,7 +104,7 @@ func TestGetStoreByOwnerUseCase_ReturnsStore(t *testing.T) {
 }
 
 func TestGetStoreByOwnerUseCase_RejectsUnauthenticatedRequest(t *testing.T) {
-	repo := &fakeGetStoreByOwnerRepository{}
+	repo := &fixtures.MockStoreRepository{}
 	logger := &fakeGetStoreByOwnerLogger{}
 	metrics := &fakeGetStoreByOwnerMetrics{}
 
@@ -118,7 +119,7 @@ func TestGetStoreByOwnerUseCase_RejectsUnauthenticatedRequest(t *testing.T) {
 	require.ErrorIs(t, err, applicationerrors.ErrUnauthenticated)
 	require.Nil(t, output)
 
-	require.False(t, repo.findByOwnerIDCalled)
+	require.False(t, repo.FindByOwnerIDCalled)
 
 	require.Len(t, logger.events, 1)
 	require.Equal(
@@ -138,7 +139,7 @@ func TestGetStoreByOwnerUseCase_ReturnsNotFoundWhenOwnerHasNoStore(
 ) {
 	ownerID := uuid.New()
 
-	repo := &fakeGetStoreByOwnerRepository{}
+	repo := &fixtures.MockStoreRepository{}
 	logger := &fakeGetStoreByOwnerLogger{}
 	metrics := &fakeGetStoreByOwnerMetrics{}
 
@@ -161,7 +162,7 @@ func TestGetStoreByOwnerUseCase_ReturnsNotFoundWhenOwnerHasNoStore(
 	require.ErrorIs(t, err, applicationerrors.ErrStoreNotFound)
 	require.Nil(t, output)
 
-	require.True(t, repo.findByOwnerIDCalled)
+	require.True(t, repo.FindByOwnerIDCalled)
 
 	require.Len(t, logger.events, 1)
 	require.Equal(
@@ -180,8 +181,8 @@ func TestGetStoreByOwnerUseCase_PropagatesRepositoryError(t *testing.T) {
 	ownerID := uuid.New()
 	repositoryError := errors.New("repository failure")
 
-	repo := &fakeGetStoreByOwnerRepository{
-		err: repositoryError,
+	repo := &fixtures.MockStoreRepository{
+		FindByOwnerIDErr: repositoryError,
 	}
 	logger := &fakeGetStoreByOwnerLogger{}
 	metrics := &fakeGetStoreByOwnerMetrics{}
@@ -205,7 +206,7 @@ func TestGetStoreByOwnerUseCase_PropagatesRepositoryError(t *testing.T) {
 	require.ErrorIs(t, err, repositoryError)
 	require.Nil(t, output)
 
-	require.True(t, repo.findByOwnerIDCalled)
+	require.True(t, repo.FindByOwnerIDCalled)
 
 	require.Len(t, logger.events, 1)
 	require.Equal(
@@ -218,82 +219,6 @@ func TestGetStoreByOwnerUseCase_PropagatesRepositoryError(t *testing.T) {
 		"store_lookup",
 		logger.events[0].FailureCategory,
 	)
-}
-
-type fakeGetStoreByOwnerRepository struct {
-	store               *entities.Store
-	err                 error
-	ownerID             uuid.UUID
-	findByOwnerIDCalled bool
-}
-
-func (f *fakeGetStoreByOwnerRepository) Create(
-	_ context.Context,
-	_ *entities.Store,
-) error {
-	return nil
-}
-func (f *fakeGetStoreByOwnerRepository) ExistsBySlug(_ context.Context, _ string) (bool, error) {
-	return true, nil
-}
-func (f *fakeGetStoreByOwnerRepository) Delete(
-	_ context.Context,
-	_ uuid.UUID,
-) error {
-	return nil
-}
-
-func (f *fakeGetStoreByOwnerRepository) FindByID(
-	_ context.Context,
-	_ uuid.UUID,
-) (*entities.Store, error) {
-	return nil, nil
-}
-
-func (f *fakeGetStoreByOwnerRepository) FindByOwnerID(
-	_ context.Context,
-	ownerID uuid.UUID,
-) (*entities.Store, error) {
-	f.findByOwnerIDCalled = true
-	f.ownerID = ownerID
-
-	return f.store, f.err
-}
-
-func (f *fakeGetStoreByOwnerRepository) FindBySlug(
-	_ context.Context,
-	_ string,
-) (*entities.Store, error) {
-	return nil, nil
-}
-
-func (f *fakeGetStoreByOwnerRepository) ListActive(
-	_ context.Context,
-	_ string,
-	_ int,
-	_ int,
-) ([]*entities.Store, int, error) {
-	return nil, 0, nil
-}
-
-func (f *fakeGetStoreByOwnerRepository) Update(
-	_ context.Context,
-	_ *entities.Store,
-) error {
-	return nil
-}
-func (f *fakeGetStoreByOwnerRepository) ChangePlan(
-	_ context.Context,
-	_ *entities.Store,
-) error {
-	return nil
-}
-func (f *fakeGetStoreByOwnerRepository) ChangeStatus(
-	_ context.Context,
-	storeID uuid.UUID,
-	status string,
-) error {
-	return nil
 }
 
 type fakeGetStoreByOwnerLogger struct {

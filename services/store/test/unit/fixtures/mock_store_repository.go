@@ -8,12 +8,9 @@ import (
 )
 
 type MockStoreRepository struct {
-	CreateCalled      bool
-	CreatedStore      *entities.Store
-	CreateError       error
-	OwnerStore        *entities.Store
-	FindByOwnerCalled bool
-	OwnerID           uuid.UUID
+	CreateCalled bool
+	CreateError  error
+	OwnerID      uuid.UUID
 
 	DeleteCalled   bool
 	DeletedStoreID uuid.UUID
@@ -27,6 +24,12 @@ type MockStoreRepository struct {
 
 	FindByIDCalled bool
 	FindByIDErr    error
+	FindByIDValue  uuid.UUID
+
+	FindByOwnerIDCalled bool
+	FindByOwnerIDErr    error
+
+	FindBySlugErr error
 
 	ChangeStatusCalled  bool
 	ChangeStatusStoreID uuid.UUID
@@ -39,40 +42,71 @@ func (f *MockStoreRepository) Create(
 	store *entities.Store,
 ) error {
 	f.CreateCalled = true
-	f.CreatedStore = store
+	f.Store = store
 
 	return f.CreateError
 }
+
+// func (f *MockStoreRepository) FindByID(
+// 	_ context.Context,
+// 	storeID uuid.UUID,
+// ) (*entities.Store, error) {
+// 	f.FindByIDCalled = true
+
+// 	// Keep the requested ID available through the mock's public state.
+// 	f.Store = nil
+
+// 	_ = storeID
+
+// 	return nil, f.FindByIDErr
+// }
 
 func (f *MockStoreRepository) FindByID(
 	_ context.Context,
 	storeID uuid.UUID,
 ) (*entities.Store, error) {
 	f.FindByIDCalled = true
+	f.FindByIDValue = storeID
 
-	// Keep the requested ID available through the mock's public state.
-	f.Store = nil
+	if f.FindByIDErr != nil {
+		return nil, f.FindByIDErr
+	}
 
-	_ = storeID
-
-	return nil, f.FindByIDErr
+	return f.Store, nil
 }
 
 func (f *MockStoreRepository) FindByOwnerID(
 	_ context.Context,
 	ownerID uuid.UUID,
 ) (*entities.Store, error) {
-	f.FindByOwnerCalled = true
+	f.FindByOwnerIDCalled = true
 	f.OwnerID = ownerID
 
-	return f.OwnerStore, nil
+	if f.FindByOwnerIDErr != nil {
+		return nil, f.FindByOwnerIDErr
+	}
+
+	return f.Store, nil
 }
+
+// func (f *MockStoreRepository) FindByOwnerID(
+// 	_ context.Context,
+// 	ownerID uuid.UUID,
+// ) (*entities.Store, error) {
+// 	f.FindByOwnerCalled = true
+// 	f.OwnerID = ownerID
+
+// 	return f.Store, nil
+// }
 
 func (f *MockStoreRepository) FindBySlug(
 	_ context.Context,
 	_ string,
 ) (*entities.Store, error) {
-	return nil, nil
+	if f.FindBySlugErr != nil {
+		return nil, f.FindBySlugErr
+	}
+	return f.Store, nil
 }
 
 func (f *MockStoreRepository) ExistsBySlug(

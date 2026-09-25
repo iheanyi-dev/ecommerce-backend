@@ -1,1 +1,3 @@
 .envservices/identity/.env.db
+
+services/store/.env

@@ -16,31 +16,22 @@ var Module = fx.Module(
 	"gateway",
 
 	fx.Provide(
-		// Application configuration.
 		config.Load,
 
-		// Observability dependencies.
 		observability.NewLogger,
 
-		// HTTP handlers.
 		handlers.NewHealthHandler,
 
-		// Request-level middleware.
 		middleware.NewRequestIDMiddleware,
 		middleware.NewRequestObservabilityMiddleware,
 
-		// Gateway authentication.
-		//
-		// The JWT validator validates access tokens issued by the
-		// Identity Service. The authentication middleware will later
-		// be applied only to protected business-service routes.
 		newJWTValidator,
 		middleware.NewAuthenticationMiddleware,
 		middleware.NewIdentityPropagationMiddleware,
-		// Downstream service proxies.
-		newIdentityProxy,
 
-		// HTTP server and router.
+		newIdentityProxy,
+		newStoreProxy,
+
 		gatewayhttp.NewRouter,
 		gatewayhttp.NewServer,
 	),
@@ -57,6 +48,22 @@ func newIdentityProxy(cfg *config.Config) (*proxy.IdentityProxy, error) {
 		cfg.IdentityServiceURL,
 		cfg.IdentityServiceName,
 		cfg.IdentityServiceSecret,
+	)
+}
+
+// newStoreProxy constructs the Gateway → Store reverse proxy.
+//
+// Store is a business service. The Gateway therefore runs its normal
+// identity-propagation middleware before this proxy, allowing anonymous
+// requests through while propagating a validated user identity when a
+// valid access token is present.
+//
+// Store itself decides whether the requested endpoint requires a user.
+func newStoreProxy(cfg *config.Config) (*proxy.StoreProxy, error) {
+	return proxy.NewStoreProxy(
+		cfg.StoreServiceURL,
+		cfg.StoreServiceName,
+		cfg.StoreServiceSecret,
 	)
 }
 

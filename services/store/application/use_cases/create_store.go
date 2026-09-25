@@ -480,3 +480,10 @@ func toStoreOutput(store *entities.Store) dto.CreateStoreOutput {
 		UpdatedAt:      store.UpdatedAt(),
 	}
 }
+
+// Compile-time contract check.
+//
+// Keeping this assertion next to the concrete use case makes a broken
+// presentation/application boundary fail during compilation rather than
+// later when dependency injection is assembled.
+var _ ports.CreateStoreService = (*CreateStoreUseCase)(nil)
