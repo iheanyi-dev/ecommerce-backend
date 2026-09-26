@@ -51,6 +51,14 @@ func (f *fakeListUsersRepository) FindByID(
 	return nil, nil
 }
 
+// UpdateRole satisfies the UserRepository interface.
+func (f *fakeListUsersRepository) UpdateRole(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 func (f *fakeListUsersRepository) UpdateFullName(
 	ctx context.Context,
 	existingUser *user.User,

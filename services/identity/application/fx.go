@@ -163,5 +163,19 @@ var Module = fx.Module(
 			},
 			fx.As(new(ports.ChangePasswordService)),
 		),
+
+		// PromoteUserToVendorUseCase coordinates vendor-role promotion.
+		fx.Annotate(
+			func(
+				userRepository ports.UserRepository,
+				logger ports.Logger,
+			) *use_cases.PromoteUserToVendorUseCase {
+				return use_cases.NewPromoteUserToVendorUseCase(
+					userRepository,
+					logger,
+				)
+			},
+			fx.As(new(ports.PromoteUserToVendorService)),
+		),
 	),
 )

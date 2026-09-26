@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package storage.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/storage/v1;storagev1";
+
+// StorageService exposes generic internal object-storage operations.
+//
+// Storage is never directly public. Every RPC is protected by trusted
+// service-to-service authentication. Business authorization remains with
+// the calling service.
+service StorageService {
+  // Stores an object using client-streamed content.
+  //
+  // The first message must contain object metadata. Subsequent messages
+  // contain content chunks.
+  rpc PutObject(stream PutObjectRequest) returns (PutObjectResponse);
+
+  // Retrieves a private object using server-streamed content.
+  rpc GetPrivateObject(GetPrivateObjectRequest) returns (stream GetPrivateObjectResponse);
+
+  // Deletes an object.
+  rpc DeleteObject(DeleteObjectRequest) returns (DeleteObjectResponse);
+}
+
+// PutObjectRequest carries either the object metadata or one content chunk.
+//
+// Metadata must be sent exactly once and before any content chunks.
+message PutObjectRequest {
+  oneof payload {
+    PutObjectMetadata metadata = 1;
+    bytes data = 2;
+  }
+}
+
+// Metadata required to create an object.
+message PutObjectMetadata {
+  string reference = 1;
+  string content_type = 2;
+}
+
+message PutObjectResponse {}
+
+// Retrieves a private object by its complete storage reference.
+message GetPrivateObjectRequest {
+  string reference = 1;
+}
+
+// A chunk of a private object's content.
+//
+// The first response contains content_type. Subsequent responses may
+// contain only data. For an empty object, the server still sends one
+// response containing the content type.
+message GetPrivateObjectResponse {
+  string content_type = 1;
+  bytes data = 2;
+}
+
+// Deletes an object by its complete storage reference.
+message DeleteObjectRequest {
+  string reference = 1;
+}
+
+message DeleteObjectResponse {}

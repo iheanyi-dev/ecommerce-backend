@@ -4,9 +4,13 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/ports"
+	identityinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/identity"
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/image"
+	kafkainfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/messaging/kafka"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/migrations"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/observability"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/persistence/postgres"
+	storageinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/storage"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/shared/config"
 )
 
@@ -23,6 +27,43 @@ var Module = fx.Module(
 
 		postgres.NewPool,
 		postgres.NewQueries,
+
+		fx.Annotate(
+			image.NewImageFormatResolver,
+			fx.As(new(ports.ImageFormatResolver)),
+		),
+
+		fx.Annotate(
+			identityinfra.NewClient,
+		),
+
+		fx.Annotate(
+			identityinfra.NewProvider,
+			fx.As(new(ports.IdentityProvider)),
+		),
+
+		// Store's synchronous image operations use Storage through the
+		// application-layer ImageStorage port.
+		fx.Annotate(
+			storageinfra.NewClient,
+			fx.As(new(ports.ImageStorage)),
+		),
+
+		// Kafka producer used by Store asynchronous image workflows.
+		fx.Annotate(
+			kafkainfra.NewClient,
+			fx.As(new(kafkainfra.MessagePublisher)),
+		),
+
+		fx.Annotate(
+			kafkainfra.NewImageDispatcher,
+			fx.As(new(ports.ImageStorageDispatcher)),
+		),
+
+		fx.Annotate(
+			kafkainfra.NewImageDeletionDispatcher,
+			fx.As(new(ports.StoreImageDeletionDispatcher)),
+		),
 
 		fx.Annotate(
 			postgres.NewStoreRepository,

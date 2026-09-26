@@ -25,14 +25,16 @@ func TestChangeStoreImageUseCase_RequiresAuthentication(t *testing.T) {
 	resolver := &changeStoreImageFormatResolver{
 		extension: "png",
 	}
-	imageDispatcher := &changeStoreImageDispatcher{}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
 	logger := &changeStoreImageLogger{}
 	metrics := &changeStoreImageMetrics{}
 
 	uc := usecases.NewChangeStoreImageUseCase(
 		repo,
 		resolver,
-		imageDispatcher,
+		imageStorage,
+		imageDeletionDispatcher,
 		logger,
 		metrics,
 	)
@@ -51,7 +53,7 @@ func TestChangeStoreImageUseCase_RequiresAuthentication(t *testing.T) {
 
 	require.ErrorIs(t, err, applicationerrors.ErrUnauthenticated)
 	require.False(t, repo.findByIDCalled)
-	require.False(t, imageDispatcher.called)
+	require.False(t, imageStorage.called)
 	require.False(t, repo.updateCalled)
 }
 
@@ -65,14 +67,16 @@ func TestChangeStoreImageUseCase_StoreNotFound(t *testing.T) {
 	resolver := &changeStoreImageFormatResolver{
 		extension: "png",
 	}
-	imageDispatcher := &changeStoreImageDispatcher{}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
 	logger := &changeStoreImageLogger{}
 	metrics := &changeStoreImageMetrics{}
 
 	uc := usecases.NewChangeStoreImageUseCase(
 		repo,
 		resolver,
-		imageDispatcher,
+		imageStorage,
+		imageDeletionDispatcher,
 		logger,
 		metrics,
 	)
@@ -91,7 +95,7 @@ func TestChangeStoreImageUseCase_StoreNotFound(t *testing.T) {
 
 	require.ErrorIs(t, err, applicationerrors.ErrStoreNotFound)
 	require.True(t, repo.findByIDCalled)
-	require.False(t, imageDispatcher.called)
+	require.False(t, imageStorage.called)
 	require.False(t, repo.updateCalled)
 }
 
@@ -106,14 +110,16 @@ func TestChangeStoreImageUseCase_RepositoryLookupFailure(t *testing.T) {
 	resolver := &changeStoreImageFormatResolver{
 		extension: "png",
 	}
-	imageDispatcher := &changeStoreImageDispatcher{}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
 	logger := &changeStoreImageLogger{}
 	metrics := &changeStoreImageMetrics{}
 
 	uc := usecases.NewChangeStoreImageUseCase(
 		repo,
 		resolver,
-		imageDispatcher,
+		imageStorage,
+		imageDeletionDispatcher,
 		logger,
 		metrics,
 	)
@@ -132,7 +138,7 @@ func TestChangeStoreImageUseCase_RepositoryLookupFailure(t *testing.T) {
 
 	require.Error(t, err)
 	require.ErrorIs(t, err, lookupError)
-	require.False(t, imageDispatcher.called)
+	require.False(t, imageStorage.called)
 	require.False(t, repo.updateCalled)
 }
 
@@ -148,14 +154,16 @@ func TestChangeStoreImageUseCase_NonOwnerReceivesStoreNotFound(t *testing.T) {
 	resolver := &changeStoreImageFormatResolver{
 		extension: "png",
 	}
-	imageDispatcher := &changeStoreImageDispatcher{}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
 	logger := &changeStoreImageLogger{}
 	metrics := &changeStoreImageMetrics{}
 
 	uc := usecases.NewChangeStoreImageUseCase(
 		repo,
 		resolver,
-		imageDispatcher,
+		imageStorage,
+		imageDeletionDispatcher,
 		logger,
 		metrics,
 	)
@@ -174,7 +182,7 @@ func TestChangeStoreImageUseCase_NonOwnerReceivesStoreNotFound(t *testing.T) {
 
 	require.ErrorIs(t, err, applicationerrors.ErrStoreNotFound)
 	require.False(t, resolver.called)
-	require.False(t, imageDispatcher.called)
+	require.False(t, imageStorage.called)
 	require.False(t, repo.updateCalled)
 }
 
@@ -188,14 +196,16 @@ func TestChangeStoreImageUseCase_StoresImageBeforePersistingNewReference(t *test
 	resolver := &changeStoreImageFormatResolver{
 		extension: "png",
 	}
-	imageDispatcher := &changeStoreImageDispatcher{}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
 	logger := &changeStoreImageLogger{}
 	metrics := &changeStoreImageMetrics{}
 
 	uc := usecases.NewChangeStoreImageUseCase(
 		repo,
 		resolver,
-		imageDispatcher,
+		imageStorage,
+		imageDeletionDispatcher,
 		logger,
 		metrics,
 	)
@@ -223,11 +233,11 @@ func TestChangeStoreImageUseCase_StoresImageBeforePersistingNewReference(t *test
 	require.True(t, resolver.called)
 	require.Equal(t, "image/png", resolver.contentType)
 
-	require.True(t, imageDispatcher.called)
-	require.Equal(t, store.ID().Value(), imageDispatcher.image.StoreID)
-	require.Equal(t, expectedReference, imageDispatcher.image.Reference)
-	require.Equal(t, []byte("new-image-bytes"), imageDispatcher.image.Content)
-	require.Equal(t, "image/png", imageDispatcher.image.ContentType)
+	require.True(t, imageStorage.called)
+	require.Equal(t, store.ID().Value(), imageStorage.image.StoreID)
+	require.Equal(t, expectedReference, imageStorage.image.Reference)
+	require.Equal(t, []byte("new-image-bytes"), imageStorage.image.Content)
+	require.Equal(t, "image/png", imageStorage.image.ContentType)
 
 	require.True(t, repo.updateCalled)
 	require.Same(t, store, repo.updatedStore)
@@ -235,7 +245,7 @@ func TestChangeStoreImageUseCase_StoresImageBeforePersistingNewReference(t *test
 
 	require.Equal(t, expectedReference, *output.ImageReference)
 
-	require.True(t, imageDispatcher.calledBeforeRepositoryUpdate)
+	require.True(t, imageStorage.calledBeforeRepositoryUpdate)
 }
 
 func TestChangeStoreImageUseCase_StorageFailureDoesNotChangeOrPersistImageReference(t *testing.T) {
@@ -253,16 +263,18 @@ func TestChangeStoreImageUseCase_StorageFailureDoesNotChangeOrPersistImageRefere
 	resolver := &changeStoreImageFormatResolver{
 		extension: "png",
 	}
-	imageDispatcher := &changeStoreImageDispatcher{
+	imageStorage := &changeStoreImageStorage{
 		dispatchError: storageError,
 	}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
 	logger := &changeStoreImageLogger{}
 	metrics := &changeStoreImageMetrics{}
 
 	uc := usecases.NewChangeStoreImageUseCase(
 		repo,
 		resolver,
-		imageDispatcher,
+		imageStorage,
+		imageDeletionDispatcher,
 		logger,
 		metrics,
 	)
@@ -286,7 +298,143 @@ func TestChangeStoreImageUseCase_StorageFailureDoesNotChangeOrPersistImageRefere
 	require.Equal(t, originalReference, *store.ImageReference())
 
 	require.False(t, repo.updateCalled)
-	require.True(t, imageDispatcher.called)
+	require.True(t, imageStorage.called)
+}
+
+func TestChangeStoreImageUseCase_DispatchesOldImageDeletionAfterPersistence(t *testing.T) {
+	ownerID := uuid.New()
+	store := newChangeImageTestStoreWithOwner(t, ownerID)
+
+	originalReference := "stores/" + store.ID().Value().String() + ".jpg"
+	store.SetImageReference(originalReference)
+
+	repo := &changeStoreImageRepository{
+		store: store,
+	}
+	resolver := &changeStoreImageFormatResolver{
+		extension: "png",
+	}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
+	logger := &changeStoreImageLogger{}
+	metrics := &changeStoreImageMetrics{}
+
+	uc := usecases.NewChangeStoreImageUseCase(
+		repo,
+		resolver,
+		imageStorage,
+		imageDeletionDispatcher,
+		logger,
+		metrics,
+	)
+
+	_, err := uc.Execute(
+		authenticatedChangeImageContext(ownerID),
+		dto.ChangeStoreImageInput{
+			StoreID: store.ID().Value(),
+			Image: &dto.StoreImageInput{
+				Content:     []byte("new-image"),
+				Filename:    "logo.png",
+				ContentType: "image/png",
+			},
+		},
+	)
+
+	require.NoError(t, err)
+
+	<-imageDeletionDispatcher.called
+
+	require.True(t, repo.updateCalled)
+	require.Equal(t, originalReference, imageDeletionDispatcher.image.Reference)
+	require.Equal(t, store.ID().Value(), imageDeletionDispatcher.image.StoreID)
+}
+
+func TestChangeStoreImageUseCase_DoesNotDispatchDeletionWithoutPreviousImage(t *testing.T) {
+	ownerID := uuid.New()
+	store := newChangeImageTestStoreWithOwner(t, ownerID)
+
+	repo := &changeStoreImageRepository{store: store}
+	resolver := &changeStoreImageFormatResolver{extension: "png"}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
+	logger := &changeStoreImageLogger{}
+	metrics := &changeStoreImageMetrics{}
+
+	uc := usecases.NewChangeStoreImageUseCase(
+		repo,
+		resolver,
+		imageStorage,
+		imageDeletionDispatcher,
+		logger,
+		metrics,
+	)
+
+	_, err := uc.Execute(
+		authenticatedChangeImageContext(ownerID),
+		dto.ChangeStoreImageInput{
+			StoreID: store.ID().Value(),
+			Image: &dto.StoreImageInput{
+				Content:     []byte("new-image"),
+				Filename:    "logo.png",
+				ContentType: "image/png",
+			},
+		},
+	)
+
+	require.NoError(t, err)
+
+	select {
+	case <-imageDeletionDispatcher.called:
+		t.Fatal("old-image deletion should not be dispatched")
+	default:
+	}
+}
+
+func TestChangeStoreImageUseCase_DoesNotDispatchDeletionAfterPersistenceFailure(t *testing.T) {
+	ownerID := uuid.New()
+	store := newChangeImageTestStoreWithOwner(t, ownerID)
+
+	originalReference := "stores/" + store.ID().Value().String() + ".jpg"
+	store.SetImageReference(originalReference)
+
+	repo := &changeStoreImageRepository{
+		store:       store,
+		updateError: errors.New("database update failed"),
+	}
+	resolver := &changeStoreImageFormatResolver{extension: "png"}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
+	logger := &changeStoreImageLogger{}
+	metrics := &changeStoreImageMetrics{}
+
+	uc := usecases.NewChangeStoreImageUseCase(
+		repo,
+		resolver,
+		imageStorage,
+		imageDeletionDispatcher,
+		logger,
+		metrics,
+	)
+
+	_, err := uc.Execute(
+		authenticatedChangeImageContext(ownerID),
+		dto.ChangeStoreImageInput{
+			StoreID: store.ID().Value(),
+			Image: &dto.StoreImageInput{
+				Content:     []byte("new-image"),
+				Filename:    "logo.png",
+				ContentType: "image/png",
+			},
+		},
+	)
+
+	require.Error(t, err)
+
+	select {
+	case <-imageDeletionDispatcher.called:
+		t.Fatal("old-image deletion must not be dispatched after persistence failure")
+	default:
+	}
 }
 
 func TestChangeStoreImageUseCase_ImageFormatResolutionFailureDoesNotStoreOrPersist(t *testing.T) {
@@ -301,14 +449,16 @@ func TestChangeStoreImageUseCase_ImageFormatResolutionFailureDoesNotStoreOrPersi
 	resolver := &changeStoreImageFormatResolver{
 		err: resolverError,
 	}
-	imageDispatcher := &changeStoreImageDispatcher{}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
 	logger := &changeStoreImageLogger{}
 	metrics := &changeStoreImageMetrics{}
 
 	uc := usecases.NewChangeStoreImageUseCase(
 		repo,
 		resolver,
-		imageDispatcher,
+		imageStorage,
+		imageDeletionDispatcher,
 		logger,
 		metrics,
 	)
@@ -328,7 +478,7 @@ func TestChangeStoreImageUseCase_ImageFormatResolutionFailureDoesNotStoreOrPersi
 	require.Error(t, err)
 	require.ErrorIs(t, err, resolverError)
 
-	require.False(t, imageDispatcher.called)
+	require.False(t, imageStorage.called)
 	require.False(t, repo.updateCalled)
 	require.Nil(t, store.ImageReference())
 }
@@ -346,14 +496,16 @@ func TestChangeStoreImageUseCase_PersistenceFailureOccursAfterSuccessfulStorage(
 	resolver := &changeStoreImageFormatResolver{
 		extension: "webp",
 	}
-	imageDispatcher := &changeStoreImageDispatcher{}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
 	logger := &changeStoreImageLogger{}
 	metrics := &changeStoreImageMetrics{}
 
 	uc := usecases.NewChangeStoreImageUseCase(
 		repo,
 		resolver,
-		imageDispatcher,
+		imageStorage,
+		imageDeletionDispatcher,
 		logger,
 		metrics,
 	)
@@ -373,7 +525,7 @@ func TestChangeStoreImageUseCase_PersistenceFailureOccursAfterSuccessfulStorage(
 	require.Error(t, err)
 	require.ErrorIs(t, err, persistenceError)
 
-	require.True(t, imageDispatcher.called)
+	require.True(t, imageStorage.called)
 	require.True(t, repo.updateCalled)
 
 	expectedReference := "stores/" + store.ID().Value().String() + ".webp"
@@ -390,14 +542,16 @@ func TestChangeStoreImageUseCase_ObservesSuccessfulChange(t *testing.T) {
 	resolver := &changeStoreImageFormatResolver{
 		extension: "png",
 	}
-	imageDispatcher := &changeStoreImageDispatcher{}
+	imageStorage := &changeStoreImageStorage{}
+	imageDeletionDispatcher := newChangeStoreImageDeletionDispatcher()
 	logger := &changeStoreImageLogger{}
 	metrics := &changeStoreImageMetrics{}
 
 	uc := usecases.NewChangeStoreImageUseCase(
 		repo,
 		resolver,
-		imageDispatcher,
+		imageStorage,
+		imageDeletionDispatcher,
 		logger,
 		metrics,
 	)
@@ -566,7 +720,7 @@ func (f *changeStoreImageFormatResolver) ResolveExtension(
 	return f.extension, f.err
 }
 
-type changeStoreImageDispatcher struct {
+type changeStoreImageStorage struct {
 	called                       bool
 	image                        ports.StoreImage
 	dispatchError                error
@@ -574,7 +728,7 @@ type changeStoreImageDispatcher struct {
 	repositoryUpdateObserved     bool
 }
 
-func (f *changeStoreImageDispatcher) DispatchStoreImage(
+func (f *changeStoreImageStorage) PutStoreImage(
 	_ context.Context,
 	image ports.StoreImage,
 ) error {
@@ -582,6 +736,33 @@ func (f *changeStoreImageDispatcher) DispatchStoreImage(
 	f.image = image
 	f.calledBeforeRepositoryUpdate = !f.repositoryUpdateObserved
 	return f.dispatchError
+}
+
+type changeStoreImageDeletionDispatcher struct {
+	called chan struct{}
+	image  ports.StoreImageDeletion
+	err    error
+}
+
+func newChangeStoreImageDeletionDispatcher() *changeStoreImageDeletionDispatcher {
+	return &changeStoreImageDeletionDispatcher{
+		called: make(chan struct{}),
+	}
+}
+
+func (f *changeStoreImageDeletionDispatcher) DispatchStoreImageDeletion(
+	_ context.Context,
+	image ports.StoreImageDeletion,
+) error {
+	f.image = image
+
+	select {
+	case <-f.called:
+	default:
+		close(f.called)
+	}
+
+	return f.err
 }
 
 type changeStoreImageLogger struct {

@@ -8,7 +8,6 @@ package identityv1
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -20,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	IdentityService_GetUser_FullMethodName = "/identity.v1.IdentityService/GetUser"
+	IdentityService_GetUser_FullMethodName         = "/identity.v1.IdentityService/GetUser"
+	IdentityService_PromoteToVendor_FullMethodName = "/identity.v1.IdentityService/PromoteToVendor"
 )
 
 // IdentityServiceClient is the client API for IdentityService service.
@@ -31,6 +31,7 @@ const (
 // by the Identity service.
 type IdentityServiceClient interface {
 	GetUser(ctx context.Context, in *GetUserRequest, opts ...grpc.CallOption) (*GetUserResponse, error)
+	PromoteToVendor(ctx context.Context, in *PromoteToVendorRequest, opts ...grpc.CallOption) (*PromoteToVendorResponse, error)
 }
 
 type identityServiceClient struct {
@@ -51,6 +52,16 @@ func (c *identityServiceClient) GetUser(ctx context.Context, in *GetUserRequest,
 	return out, nil
 }
 
+func (c *identityServiceClient) PromoteToVendor(ctx context.Context, in *PromoteToVendorRequest, opts ...grpc.CallOption) (*PromoteToVendorResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PromoteToVendorResponse)
+	err := c.cc.Invoke(ctx, IdentityService_PromoteToVendor_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IdentityServiceServer is the server API for IdentityService service.
 // All implementations must embed UnimplementedIdentityServiceServer
 // for forward compatibility.
@@ -59,6 +70,7 @@ func (c *identityServiceClient) GetUser(ctx context.Context, in *GetUserRequest,
 // by the Identity service.
 type IdentityServiceServer interface {
 	GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error)
+	PromoteToVendor(context.Context, *PromoteToVendorRequest) (*PromoteToVendorResponse, error)
 	mustEmbedUnimplementedIdentityServiceServer()
 }
 
@@ -71,6 +83,9 @@ type UnimplementedIdentityServiceServer struct{}
 
 func (UnimplementedIdentityServiceServer) GetUser(context.Context, *GetUserRequest) (*GetUserResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetUser not implemented")
+}
+func (UnimplementedIdentityServiceServer) PromoteToVendor(context.Context, *PromoteToVendorRequest) (*PromoteToVendorResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PromoteToVendor not implemented")
 }
 func (UnimplementedIdentityServiceServer) mustEmbedUnimplementedIdentityServiceServer() {}
 func (UnimplementedIdentityServiceServer) testEmbeddedByValue()                         {}
@@ -111,6 +126,24 @@ func _IdentityService_GetUser_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IdentityService_PromoteToVendor_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromoteToVendorRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IdentityServiceServer).PromoteToVendor(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IdentityService_PromoteToVendor_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IdentityServiceServer).PromoteToVendor(ctx, req.(*PromoteToVendorRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IdentityService_ServiceDesc is the grpc.ServiceDesc for IdentityService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -121,6 +154,10 @@ var IdentityService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetUser",
 			Handler:    _IdentityService_GetUser_Handler,
+		},
+		{
+			MethodName: "PromoteToVendor",
+			Handler:    _IdentityService_PromoteToVendor_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

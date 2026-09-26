@@ -116,3 +116,12 @@ SET
     status = $2,
     updated_at = $3
 WHERE id = $1;
+-- name: UpdateUserRole :exec
+--
+-- Updates only the user's role and the domain-generated UpdatedAt value.
+-- Account status, email, password, and profile fields are intentionally untouched.
+UPDATE users
+SET
+    role = $2,
+    updated_at = $3
+WHERE id = $1;

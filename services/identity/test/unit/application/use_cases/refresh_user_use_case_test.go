@@ -329,6 +329,15 @@ func (f *fakeRefreshUserRepository) FindByID(
 //
 // These refresh-token tests do not exercise password persistence,
 // so the fake intentionally performs no operation.
+
+// UpdateRole satisfies the UserRepository interface.
+func (f *fakeRefreshUserRepository) UpdateRole(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 func (f *fakeRefreshUserRepository) UpdatePasswordHash(
 	ctx context.Context,
 	existingUser *user.User,

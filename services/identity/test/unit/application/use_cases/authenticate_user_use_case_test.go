@@ -124,6 +124,15 @@ func (f *fakeAuthenticationUserRepository) FindByID(
 //
 // Authentication tests do not exercise profile updates, so this fake
 // intentionally performs no operation.
+
+// UpdateRole satisfies the UserRepository interface.
+func (f *fakeAuthenticationUserRepository) UpdateRole(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 func (f *fakeAuthenticationUserRepository) UpdateFullName(
 	ctx context.Context,
 	existingUser *user.User,

@@ -57,10 +57,18 @@ func TestNewRouter_Health(t *testing.T) {
 	observabilityMiddleware :=
 		middleware.NewRequestObservabilityMiddleware(&fakeLogger{})
 
+	storageProxy, err := proxy.NewStorageProxy(
+		downstream.URL,
+		"storage",
+		"test-secret",
+	)
+	require.NoError(t, err)
+
 	router := gatewayhttp.NewRouter(
 		healthHandler,
 		identityProxy,
 		nil,
+		storageProxy,
 		requestIDMiddleware,
 		observabilityMiddleware,
 		nil,
@@ -118,10 +126,18 @@ func TestNewRouter_IdentityRoute(t *testing.T) {
 	observabilityMiddleware :=
 		middleware.NewRequestObservabilityMiddleware(&fakeLogger{})
 
+	storageProxy, err := proxy.NewStorageProxy(
+		downstream.URL,
+		"storage",
+		"test-secret",
+	)
+	require.NoError(t, err)
+
 	router := gatewayhttp.NewRouter(
 		healthHandler,
 		identityProxy,
 		nil,
+		storageProxy,
 		requestIDMiddleware,
 		observabilityMiddleware,
 		nil,
@@ -205,10 +221,18 @@ func TestNewRouter_IdentityRoute_BypassesJWTValidation(t *testing.T) {
 	identityPropagationMiddleware :=
 		middleware.NewIdentityPropagationMiddleware(jwtValidator)
 
+	storageProxy, err := proxy.NewStorageProxy(
+		downstream.URL,
+		"storage",
+		"test-secret",
+	)
+	require.NoError(t, err)
+
 	router := gatewayhttp.NewRouter(
 		healthHandler,
 		identityProxy,
 		nil,
+		storageProxy,
 		requestIDMiddleware,
 		observabilityMiddleware,
 		identityPropagationMiddleware,
@@ -270,10 +294,18 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 	observabilityMiddleware :=
 		middleware.NewRequestObservabilityMiddleware(&fakeLogger{})
 
+	storageProxy, err := proxy.NewStorageProxy(
+		downstream.URL,
+		"storage",
+		"test-secret",
+	)
+	require.NoError(t, err)
+
 	router := gatewayhttp.NewRouter(
 		healthHandler,
 		identityProxy,
 		nil,
+		storageProxy,
 		requestIDMiddleware,
 		observabilityMiddleware,
 		nil,
@@ -347,10 +379,18 @@ func TestNewRouter_StoreRoute(t *testing.T) {
 	observabilityMiddleware :=
 		middleware.NewRequestObservabilityMiddleware(&fakeLogger{})
 
+	storageProxy, err := proxy.NewStorageProxy(
+		downstream.URL,
+		"storage",
+		"test-secret",
+	)
+	require.NoError(t, err)
+
 	router := gatewayhttp.NewRouter(
 		healthHandler,
 		identityProxy,
 		storeProxy,
+		storageProxy,
 		requestIDMiddleware,
 		observabilityMiddleware,
 		nil,

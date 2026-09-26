@@ -75,9 +75,43 @@ services:
     networks:
       - ecommerce
 
+  redpanda:
+    image: redpandadata/redpanda:v25.2.1
+    container_name: e-redpanda
+    restart: unless-stopped
+
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr=internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr=internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr=0.0.0.0:33145
+      - --advertise-rpc-addr=redpanda:33145
+
+    ports:
+      - "19092:19092"
+      - "18081:18081"
+      - "18082:18082"
+
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+
+    networks:
+      - ecommerce
+
 networks:
   ecommerce:
     driver: bridge
 
 volumes:
   postgres_data:
+  redpanda_data:

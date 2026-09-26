@@ -36,6 +36,7 @@ func NewRouter(
 	healthHandler *handlers.HealthHandler,
 	identityProxy *proxy.IdentityProxy,
 	storeProxy *proxy.StoreProxy,
+	storageProxy *proxy.StorageProxy,
 	requestIDMiddleware *middleware.RequestIDMiddleware,
 	requestObservabilityMiddleware *middleware.RequestObservabilityMiddleware,
 	identityPropagationMiddleware *middleware.IdentityPropagationMiddleware,
@@ -61,6 +62,12 @@ func NewRouter(
 	// identity is forwarded to Store through trusted internal headers.
 	mux.Handle("/api/v1/stores", storeProxy)
 	mux.Handle("/api/v1/stores/", storeProxy)
+
+	// Storage exposes only its public-object HTTP endpoint through the
+	// Gateway. Storage itself remains internal-only and validates the
+	// trusted service credentials supplied by StorageProxy.
+	mux.Handle("/api/v1/storage", storageProxy)
+	mux.Handle("/api/v1/storage/", storageProxy)
 
 	var handler nethttp.Handler = mux
 

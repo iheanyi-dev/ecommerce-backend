@@ -58,3 +58,39 @@ type ImageStorageDispatcher interface {
 	// completed its synchronous creation workflow at this point.
 	DispatchStoreImage(ctx context.Context, image StoreImage) error
 }
+
+// ImageStorage synchronously stores a Store image.
+//
+// This capability is used when the Store database must not persist the new
+// image reference until Storage has successfully accepted the image.
+type ImageStorage interface {
+	// PutStoreImage stores the supplied Store image synchronously.
+	//
+	// A returned error means Storage did not successfully accept the image,
+	// so the caller must not persist the new Store image reference.
+	PutStoreImage(ctx context.Context, image StoreImage) error
+}
+
+// StoreImageDeletion represents an existing Store image that should be
+// removed from Storage after a successful image replacement.
+type StoreImageDeletion struct {
+	// StoreID identifies the Store whose obsolete image is being removed.
+	StoreID uuid.UUID
+
+	// Reference is the old Storage object reference that is no longer used.
+	Reference string
+}
+
+// StoreImageDeletionDispatcher asynchronously schedules deletion of an old
+// Store image.
+//
+// Image replacement must not fail merely because cleanup of the previous
+// object fails. The infrastructure implementation is responsible for
+// delivering this operation reliably, for example through a message broker.
+type StoreImageDeletionDispatcher interface {
+	// DispatchStoreImageDeletion schedules deletion of the obsolete image.
+	DispatchStoreImageDeletion(
+		ctx context.Context,
+		image StoreImageDeletion,
+	) error
+}

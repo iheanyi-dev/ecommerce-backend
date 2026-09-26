@@ -68,6 +68,14 @@ func (f *fakeGetUserRepository) UpdateFullName(
 	return nil
 }
 
+// UpdateRole satisfies the UserRepository interface.
+func (f *fakeGetUserRepository) UpdateRole(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 // UpdateStatus satisfies ports.UserRepository.
 func (f *fakeGetUserRepository) UpdateStatus(
 	ctx context.Context,

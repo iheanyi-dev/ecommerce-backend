@@ -4,6 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
+	identitygrpc "github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/grpc"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/migrations"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/observability"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/infrastructure/persistence/postgres"
@@ -73,6 +74,9 @@ var Module = fx.Module(
 			observability.NewMetrics,
 			fx.As(new(ports.Metrics)),
 		),
+
+		// Identity gRPC server adapter.
+		identitygrpc.NewServer,
 
 		// OpenTelemetry tracing implementation exposed through the
 		// application-layer Tracer port.

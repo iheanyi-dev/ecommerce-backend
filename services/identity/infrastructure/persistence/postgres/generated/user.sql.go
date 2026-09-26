@@ -243,6 +243,27 @@ func (q *Queries) UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPass
 	return err
 }
 
+const updateUserRole = `-- name: UpdateUserRole :exec
+UPDATE users
+SET
+    role = $2,
+    updated_at = $3
+WHERE id = $1
+`
+
+type UpdateUserRoleParams struct {
+	ID        pgtype.UUID        `json:"id"`
+	Role      string             `json:"role"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Updates only the user's role and the domain-generated UpdatedAt value.
+// Account status, email, password, and profile fields are intentionally untouched.
+func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error {
+	_, err := q.db.Exec(ctx, updateUserRole, arg.ID, arg.Role, arg.UpdatedAt)
+	return err
+}
+
 const updateUserStatus = `-- name: UpdateUserStatus :exec
 UPDATE users
 SET

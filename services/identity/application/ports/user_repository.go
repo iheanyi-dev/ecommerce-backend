@@ -34,6 +34,9 @@ type UserRepository interface {
 	// timestamp. Plaintext passwords never cross the persistence boundary.
 	UpdatePasswordHash(ctx context.Context, existingUser *user.User) error
 
+	// UpdateRole persists a domain-approved role change.
+	UpdateRole(ctx context.Context, existingUser *user.User) error
+
 	// UpdateStatus persists an administrator-approved account-status change.
 	//
 	// The aggregate is passed so persistence stores the status and the

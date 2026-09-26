@@ -35,6 +35,7 @@ func TestLoad(t *testing.T) {
 	require.Equal(t, "disable", cfg.DatabaseSSLMode)
 	require.Equal(t, "gateway", cfg.ServiceAuthName)
 	require.Equal(t, "store-secret", cfg.ServiceAuthSecret)
+	require.Equal(t, "localhost:9082", cfg.StorageServiceAddr)
 }
 
 func TestLoad_RequiresDatabaseUser(t *testing.T) {
@@ -118,6 +119,7 @@ func setRequiredEnvironment(t *testing.T) {
 		"DATABASE_HOST",
 		"DATABASE_PORT",
 		"DATABASE_SSL_MODE",
+		"STORAGE_SERVICE_ADDR",
 	} {
 		_ = os.Unsetenv(key)
 	}

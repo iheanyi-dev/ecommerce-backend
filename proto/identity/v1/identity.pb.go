@@ -186,6 +186,86 @@ func (x *User) GetStatus() string {
 	return ""
 }
 
+type PromoteToVendorRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PromoteToVendorRequest) Reset() {
+	*x = PromoteToVendorRequest{}
+	mi := &file_proto_identity_v1_identity_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PromoteToVendorRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PromoteToVendorRequest) ProtoMessage() {}
+
+func (x *PromoteToVendorRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_identity_v1_identity_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PromoteToVendorRequest.ProtoReflect.Descriptor instead.
+func (*PromoteToVendorRequest) Descriptor() ([]byte, []int) {
+	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *PromoteToVendorRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type PromoteToVendorResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PromoteToVendorResponse) Reset() {
+	*x = PromoteToVendorResponse{}
+	mi := &file_proto_identity_v1_identity_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PromoteToVendorResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PromoteToVendorResponse) ProtoMessage() {}
+
+func (x *PromoteToVendorResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_identity_v1_identity_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PromoteToVendorResponse.ProtoReflect.Descriptor instead.
+func (*PromoteToVendorResponse) Descriptor() ([]byte, []int) {
+	return file_proto_identity_v1_identity_proto_rawDescGZIP(), []int{4}
+}
+
 var File_proto_identity_v1_identity_proto protoreflect.FileDescriptor
 
 const file_proto_identity_v1_identity_proto_rawDesc = "" +
@@ -200,9 +280,13 @@ const file_proto_identity_v1_identity_proto_rawDesc = "" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1b\n" +
 	"\tfull_name\x18\x03 \x01(\tR\bfullName\x12\x12\n" +
 	"\x04role\x18\x04 \x01(\tR\x04role\x12\x16\n" +
-	"\x06status\x18\x05 \x01(\tR\x06status2W\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\"1\n" +
+	"\x16PromoteToVendorRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x19\n" +
+	"\x17PromoteToVendorResponse2\xb5\x01\n" +
 	"\x0fIdentityService\x12D\n" +
-	"\aGetUser\x12\x1b.identity.v1.GetUserRequest\x1a\x1c.identity.v1.GetUserResponseBGZEgithub.com/iheanyi-dev/ecommerce-backend/proto/identity/v1;identityv1b\x06proto3"
+	"\aGetUser\x12\x1b.identity.v1.GetUserRequest\x1a\x1c.identity.v1.GetUserResponse\x12\\\n" +
+	"\x0fPromoteToVendor\x12#.identity.v1.PromoteToVendorRequest\x1a$.identity.v1.PromoteToVendorResponseBGZEgithub.com/iheanyi-dev/ecommerce-backend/proto/identity/v1;identityv1b\x06proto3"
 
 var (
 	file_proto_identity_v1_identity_proto_rawDescOnce sync.Once
@@ -216,18 +300,22 @@ func file_proto_identity_v1_identity_proto_rawDescGZIP() []byte {
 	return file_proto_identity_v1_identity_proto_rawDescData
 }
 
-var file_proto_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_proto_identity_v1_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_proto_identity_v1_identity_proto_goTypes = []any{
-	(*GetUserRequest)(nil),  // 0: identity.v1.GetUserRequest
-	(*GetUserResponse)(nil), // 1: identity.v1.GetUserResponse
-	(*User)(nil),            // 2: identity.v1.User
+	(*GetUserRequest)(nil),          // 0: identity.v1.GetUserRequest
+	(*GetUserResponse)(nil),         // 1: identity.v1.GetUserResponse
+	(*User)(nil),                    // 2: identity.v1.User
+	(*PromoteToVendorRequest)(nil),  // 3: identity.v1.PromoteToVendorRequest
+	(*PromoteToVendorResponse)(nil), // 4: identity.v1.PromoteToVendorResponse
 }
 var file_proto_identity_v1_identity_proto_depIdxs = []int32{
 	2, // 0: identity.v1.GetUserResponse.user:type_name -> identity.v1.User
 	0, // 1: identity.v1.IdentityService.GetUser:input_type -> identity.v1.GetUserRequest
-	1, // 2: identity.v1.IdentityService.GetUser:output_type -> identity.v1.GetUserResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
+	3, // 2: identity.v1.IdentityService.PromoteToVendor:input_type -> identity.v1.PromoteToVendorRequest
+	1, // 3: identity.v1.IdentityService.GetUser:output_type -> identity.v1.GetUserResponse
+	4, // 4: identity.v1.IdentityService.PromoteToVendor:output_type -> identity.v1.PromoteToVendorResponse
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -244,7 +332,7 @@ func file_proto_identity_v1_identity_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_identity_v1_identity_proto_rawDesc), len(file_proto_identity_v1_identity_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

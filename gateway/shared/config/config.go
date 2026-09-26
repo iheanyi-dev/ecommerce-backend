@@ -44,6 +44,17 @@ type Config struct {
 	// service authentication.
 	StoreServiceSecret string
 
+	// StorageServiceURL is the base URL used by the Gateway when forwarding
+	// Storage public-object requests.
+	StorageServiceURL string
+
+	// StorageServiceName is the service identity presented to Storage.
+	StorageServiceName string
+
+	// StorageServiceSecret is the shared secret used for Gateway-to-Storage
+	// service authentication.
+	StorageServiceSecret string
+
 	// JWTSecret is the secret used by Identity to sign access tokens.
 	//
 	// The Gateway uses this secret only to validate client access tokens.
@@ -86,6 +97,18 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	storageServiceURL := getEnv(
+		"STORAGE_SERVICE_URL",
+		"http://localhost:8083",
+	)
+
+	if err := validateServiceURL(
+		"STORAGE_SERVICE_URL",
+		storageServiceURL,
+	); err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		AppEnv:  getEnv("APP_ENV", "development"),
 		AppPort: getEnv("APP_PORT", "8081"),
@@ -97,6 +120,10 @@ func Load() (*Config, error) {
 		StoreServiceURL:    storeServiceURL,
 		StoreServiceName:   os.Getenv("STORE_SERVICE_NAME"),
 		StoreServiceSecret: os.Getenv("STORE_SERVICE_SECRET"),
+
+		StorageServiceURL:    storageServiceURL,
+		StorageServiceName:   os.Getenv("STORAGE_SERVICE_NAME"),
+		StorageServiceSecret: os.Getenv("STORAGE_SERVICE_SECRET"),
 
 		JWTSecret: os.Getenv("JWT_SECRET"),
 		JWTIssuer: os.Getenv("JWT_ISSUER"),
@@ -116,6 +143,14 @@ func Load() (*Config, error) {
 
 	if cfg.StoreServiceSecret == "" {
 		return nil, fmt.Errorf("STORE_SERVICE_SECRET is required")
+	}
+
+	if cfg.StorageServiceName == "" {
+		return nil, fmt.Errorf("STORAGE_SERVICE_NAME is required")
+	}
+
+	if cfg.StorageServiceSecret == "" {
+		return nil, fmt.Errorf("STORAGE_SERVICE_SECRET is required")
 	}
 
 	if cfg.JWTSecret == "" {

@@ -24,8 +24,11 @@ type Config struct {
 	DatabaseName     string
 	DatabaseSSLMode  string
 
-	ServiceAuthName   string
-	ServiceAuthSecret string
+	ServiceAuthName     string
+	ServiceAuthSecret   string
+	IdentityServiceAddr string
+	StorageServiceAddr  string
+	KafkaBrokers        string
 }
 
 // Load loads Store configuration from environment variables.
@@ -47,8 +50,11 @@ func Load() (*Config, error) {
 		DatabaseName:     os.Getenv("DATABASE_NAME"),
 		DatabaseSSLMode:  getEnv("DATABASE_SSL_MODE", "disable"),
 
-		ServiceAuthName:   os.Getenv("SERVICE_AUTH_NAME"),
-		ServiceAuthSecret: os.Getenv("SERVICE_AUTH_SECRET"),
+		ServiceAuthName:     os.Getenv("SERVICE_AUTH_NAME"),
+		ServiceAuthSecret:   os.Getenv("SERVICE_AUTH_SECRET"),
+		IdentityServiceAddr: getEnv("IDENTITY_SERVICE_ADDR", "localhost:9090"),
+		StorageServiceAddr:  getEnv("STORAGE_SERVICE_ADDR", "localhost:9082"),
+		KafkaBrokers:        getEnv("KAFKA_BROKERS", "localhost:19092"),
 	}
 
 	if cfg.DatabaseUser == "" {

@@ -90,6 +90,14 @@ func (f *fakeChangePasswordRepository) FindByID(
 	return f.user, nil
 }
 
+// UpdateRole satisfies the UserRepository interface.
+func (f *fakeChangePasswordRepository) UpdateRole(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 func (f *fakeChangePasswordRepository) UpdateFullName(
 	ctx context.Context,
 	existingUser *user.User,

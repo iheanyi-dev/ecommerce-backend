@@ -8,6 +8,7 @@ option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/identity/v1;
 // by the Identity service.
 service IdentityService {
   rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc PromoteToVendor(PromoteToVendorRequest) returns (PromoteToVendorResponse);
 }
 
 // Retrieves a user by their identity-service user ID.
@@ -26,3 +27,10 @@ message User {
   string role = 4;
   string status = 5;
 }
+
+
+message PromoteToVendorRequest {
+  string user_id = 1;
+}
+
+message PromoteToVendorResponse {}

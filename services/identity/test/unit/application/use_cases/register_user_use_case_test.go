@@ -226,6 +226,15 @@ func (f *fakeUserRepository) Create(
 }
 
 // UpdateFullName satisfies the UserRepository interface.
+
+// UpdateRole satisfies the UserRepository interface.
+func (f *fakeUserRepository) UpdateRole(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 func (f *fakeUserRepository) UpdateFullName(
 	ctx context.Context,
 	existingUser *user.User,

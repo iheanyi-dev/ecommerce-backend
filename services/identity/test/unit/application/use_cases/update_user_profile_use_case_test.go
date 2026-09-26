@@ -26,6 +26,14 @@ type fakeUpdateProfileRepository struct {
 	updatedFullName      user.FullName
 }
 
+// UpdateRole satisfies the UserRepository interface.
+func (f *fakeUpdateProfileRepository) UpdateRole(
+	ctx context.Context,
+	existingUser *user.User,
+) error {
+	return nil
+}
+
 func (f *fakeUpdateProfileRepository) UpdateFullName(
 	ctx context.Context,
 	existingUser *user.User,

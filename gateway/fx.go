@@ -31,6 +31,7 @@ var Module = fx.Module(
 
 		newIdentityProxy,
 		newStoreProxy,
+		newStorageProxy,
 
 		gatewayhttp.NewRouter,
 		gatewayhttp.NewServer,
@@ -64,6 +65,19 @@ func newStoreProxy(cfg *config.Config) (*proxy.StoreProxy, error) {
 		cfg.StoreServiceURL,
 		cfg.StoreServiceName,
 		cfg.StoreServiceSecret,
+	)
+}
+
+// newStorageProxy constructs the Gateway → Storage reverse proxy.
+//
+// Only Storage's public-object HTTP endpoint is exposed through the
+// Gateway. PutObject, GetPrivateObject, and DeleteObject remain internal
+// gRPC operations.
+func newStorageProxy(cfg *config.Config) (*proxy.StorageProxy, error) {
+	return proxy.NewStorageProxy(
+		cfg.StorageServiceURL,
+		cfg.StorageServiceName,
+		cfg.StorageServiceSecret,
 	)
 }
 
