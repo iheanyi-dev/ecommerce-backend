@@ -10,7 +10,6 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/storage/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/storage/infrastructure/persistence/filesystem"
 
-	gogrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -25,6 +24,7 @@ type Server struct {
 	putObject        ports.PutObjectService
 	getPrivateObject ports.GetPrivateObjectService
 	deleteObject     ports.DeleteObjectService
+	headObject       ports.HeadObjectService
 }
 
 // NewServer constructs the Storage gRPC server.
@@ -32,11 +32,13 @@ func NewServer(
 	putObject ports.PutObjectService,
 	getPrivateObject ports.GetPrivateObjectService,
 	deleteObject ports.DeleteObjectService,
+	headObject ports.HeadObjectService,
 ) *Server {
 	return &Server{
 		putObject:        putObject,
 		getPrivateObject: getPrivateObject,
 		deleteObject:     deleteObject,
+		headObject:       headObject,
 	}
 }
 
@@ -334,6 +336,44 @@ func (s *Server) DeleteObject(
 	return &storagev1.DeleteObjectResponse{}, nil
 }
 
+// HeadObject checks whether an object exists and returns its metadata.
+//
+// The application boundary performs the metadata-only storage operation;
+// no object body is opened or streamed through this RPC.
+func (s *Server) HeadObject(
+	ctx context.Context,
+	request *storagev1.HeadObjectRequest,
+) (*storagev1.HeadObjectResponse, error) {
+	if request == nil {
+		return nil, status.Error(
+			codes.InvalidArgument,
+			"head object request is required",
+		)
+	}
+
+	reference := request.GetReference()
+	if reference == "" {
+		return nil, status.Error(
+			codes.InvalidArgument,
+			"object reference is required",
+		)
+	}
+
+	output, err := s.headObject.Execute(
+		ctx,
+		dto.HeadObjectInput{
+			Reference: reference,
+		},
+	)
+	if err != nil {
+		return nil, mapGRPCError(err)
+	}
+
+	return &storagev1.HeadObjectResponse{
+		ContentType: output.ContentType,
+	}, nil
+}
+
 // emptyReader represents a valid empty object body.
 type emptyReader struct{}
 
@@ -371,7 +411,3 @@ func mapGRPCError(err error) error {
 		return status.Error(codes.Internal, "internal storage error")
 	}
 }
-
-// Keep the imported gRPC package explicitly tied to the generated server
-// contract and avoid accidentally depending on a different transport.
-var _ gogrpc.ServiceRegistrar = (*gogrpc.Server)(nil)

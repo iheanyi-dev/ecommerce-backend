@@ -111,6 +111,13 @@ func (f *deleteObjectStorage) GetPrivateObject(
 	return nil, "", errors.New("unexpected GetPrivateObject call")
 }
 
+func (f *deleteObjectStorage) HeadObject(
+	_ context.Context,
+	_ string,
+) (string, error) {
+	return "", errors.New("unexpected HeadObject call")
+}
+
 func (f *deleteObjectStorage) DeleteObject(
 	_ context.Context,
 	reference string,

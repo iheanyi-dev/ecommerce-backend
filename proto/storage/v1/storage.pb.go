@@ -378,6 +378,96 @@ func (*DeleteObjectResponse) Descriptor() ([]byte, []int) {
 	return file_proto_storage_v1_storage_proto_rawDescGZIP(), []int{6}
 }
 
+// Checks an object by its complete storage reference.
+type HeadObjectRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reference     string                 `protobuf:"bytes,1,opt,name=reference,proto3" json:"reference,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HeadObjectRequest) Reset() {
+	*x = HeadObjectRequest{}
+	mi := &file_proto_storage_v1_storage_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeadObjectRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeadObjectRequest) ProtoMessage() {}
+
+func (x *HeadObjectRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_storage_v1_storage_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeadObjectRequest.ProtoReflect.Descriptor instead.
+func (*HeadObjectRequest) Descriptor() ([]byte, []int) {
+	return file_proto_storage_v1_storage_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *HeadObjectRequest) GetReference() string {
+	if x != nil {
+		return x.Reference
+	}
+	return ""
+}
+
+// Metadata for an existing object.
+type HeadObjectResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContentType   string                 `protobuf:"bytes,1,opt,name=content_type,json=contentType,proto3" json:"content_type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HeadObjectResponse) Reset() {
+	*x = HeadObjectResponse{}
+	mi := &file_proto_storage_v1_storage_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HeadObjectResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HeadObjectResponse) ProtoMessage() {}
+
+func (x *HeadObjectResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_storage_v1_storage_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HeadObjectResponse.ProtoReflect.Descriptor instead.
+func (*HeadObjectResponse) Descriptor() ([]byte, []int) {
+	return file_proto_storage_v1_storage_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *HeadObjectResponse) GetContentType() string {
+	if x != nil {
+		return x.ContentType
+	}
+	return ""
+}
+
 var File_proto_storage_v1_storage_proto protoreflect.FileDescriptor
 
 const file_proto_storage_v1_storage_proto_rawDesc = "" +
@@ -399,11 +489,17 @@ const file_proto_storage_v1_storage_proto_rawDesc = "" +
 	"\x04data\x18\x02 \x01(\fR\x04data\"3\n" +
 	"\x13DeleteObjectRequest\x12\x1c\n" +
 	"\treference\x18\x01 \x01(\tR\treference\"\x16\n" +
-	"\x14DeleteObjectResponse2\x90\x02\n" +
+	"\x14DeleteObjectResponse\"1\n" +
+	"\x11HeadObjectRequest\x12\x1c\n" +
+	"\treference\x18\x01 \x01(\tR\treference\"7\n" +
+	"\x12HeadObjectResponse\x12!\n" +
+	"\fcontent_type\x18\x01 \x01(\tR\vcontentType2\xdd\x02\n" +
 	"\x0eStorageService\x12J\n" +
 	"\tPutObject\x12\x1c.storage.v1.PutObjectRequest\x1a\x1d.storage.v1.PutObjectResponse(\x01\x12_\n" +
 	"\x10GetPrivateObject\x12#.storage.v1.GetPrivateObjectRequest\x1a$.storage.v1.GetPrivateObjectResponse0\x01\x12Q\n" +
-	"\fDeleteObject\x12\x1f.storage.v1.DeleteObjectRequest\x1a .storage.v1.DeleteObjectResponseBEZCgithub.com/iheanyi-dev/ecommerce-backend/proto/storage/v1;storagev1b\x06proto3"
+	"\fDeleteObject\x12\x1f.storage.v1.DeleteObjectRequest\x1a .storage.v1.DeleteObjectResponse\x12K\n" +
+	"\n" +
+	"HeadObject\x12\x1d.storage.v1.HeadObjectRequest\x1a\x1e.storage.v1.HeadObjectResponseBEZCgithub.com/iheanyi-dev/ecommerce-backend/proto/storage/v1;storagev1b\x06proto3"
 
 var (
 	file_proto_storage_v1_storage_proto_rawDescOnce sync.Once
@@ -417,7 +513,7 @@ func file_proto_storage_v1_storage_proto_rawDescGZIP() []byte {
 	return file_proto_storage_v1_storage_proto_rawDescData
 }
 
-var file_proto_storage_v1_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_proto_storage_v1_storage_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_proto_storage_v1_storage_proto_goTypes = []any{
 	(*PutObjectRequest)(nil),         // 0: storage.v1.PutObjectRequest
 	(*PutObjectMetadata)(nil),        // 1: storage.v1.PutObjectMetadata
@@ -426,17 +522,21 @@ var file_proto_storage_v1_storage_proto_goTypes = []any{
 	(*GetPrivateObjectResponse)(nil), // 4: storage.v1.GetPrivateObjectResponse
 	(*DeleteObjectRequest)(nil),      // 5: storage.v1.DeleteObjectRequest
 	(*DeleteObjectResponse)(nil),     // 6: storage.v1.DeleteObjectResponse
+	(*HeadObjectRequest)(nil),        // 7: storage.v1.HeadObjectRequest
+	(*HeadObjectResponse)(nil),       // 8: storage.v1.HeadObjectResponse
 }
 var file_proto_storage_v1_storage_proto_depIdxs = []int32{
 	1, // 0: storage.v1.PutObjectRequest.metadata:type_name -> storage.v1.PutObjectMetadata
 	0, // 1: storage.v1.StorageService.PutObject:input_type -> storage.v1.PutObjectRequest
 	3, // 2: storage.v1.StorageService.GetPrivateObject:input_type -> storage.v1.GetPrivateObjectRequest
 	5, // 3: storage.v1.StorageService.DeleteObject:input_type -> storage.v1.DeleteObjectRequest
-	2, // 4: storage.v1.StorageService.PutObject:output_type -> storage.v1.PutObjectResponse
-	4, // 5: storage.v1.StorageService.GetPrivateObject:output_type -> storage.v1.GetPrivateObjectResponse
-	6, // 6: storage.v1.StorageService.DeleteObject:output_type -> storage.v1.DeleteObjectResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	7, // 4: storage.v1.StorageService.HeadObject:input_type -> storage.v1.HeadObjectRequest
+	2, // 5: storage.v1.StorageService.PutObject:output_type -> storage.v1.PutObjectResponse
+	4, // 6: storage.v1.StorageService.GetPrivateObject:output_type -> storage.v1.GetPrivateObjectResponse
+	6, // 7: storage.v1.StorageService.DeleteObject:output_type -> storage.v1.DeleteObjectResponse
+	8, // 8: storage.v1.StorageService.HeadObject:output_type -> storage.v1.HeadObjectResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -457,7 +557,7 @@ func file_proto_storage_v1_storage_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_storage_v1_storage_proto_rawDesc), len(file_proto_storage_v1_storage_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

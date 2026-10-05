@@ -22,6 +22,7 @@ const (
 	StorageService_PutObject_FullMethodName        = "/storage.v1.StorageService/PutObject"
 	StorageService_GetPrivateObject_FullMethodName = "/storage.v1.StorageService/GetPrivateObject"
 	StorageService_DeleteObject_FullMethodName     = "/storage.v1.StorageService/DeleteObject"
+	StorageService_HeadObject_FullMethodName       = "/storage.v1.StorageService/HeadObject"
 )
 
 // StorageServiceClient is the client API for StorageService service.
@@ -43,6 +44,9 @@ type StorageServiceClient interface {
 	GetPrivateObject(ctx context.Context, in *GetPrivateObjectRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[GetPrivateObjectResponse], error)
 	// Deletes an object.
 	DeleteObject(ctx context.Context, in *DeleteObjectRequest, opts ...grpc.CallOption) (*DeleteObjectResponse, error)
+	// Checks whether an object exists and returns its metadata without
+	// retrieving the object body.
+	HeadObject(ctx context.Context, in *HeadObjectRequest, opts ...grpc.CallOption) (*HeadObjectResponse, error)
 }
 
 type storageServiceClient struct {
@@ -95,6 +99,16 @@ func (c *storageServiceClient) DeleteObject(ctx context.Context, in *DeleteObjec
 	return out, nil
 }
 
+func (c *storageServiceClient) HeadObject(ctx context.Context, in *HeadObjectRequest, opts ...grpc.CallOption) (*HeadObjectResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HeadObjectResponse)
+	err := c.cc.Invoke(ctx, StorageService_HeadObject_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // StorageServiceServer is the server API for StorageService service.
 // All implementations must embed UnimplementedStorageServiceServer
 // for forward compatibility.
@@ -114,6 +128,9 @@ type StorageServiceServer interface {
 	GetPrivateObject(*GetPrivateObjectRequest, grpc.ServerStreamingServer[GetPrivateObjectResponse]) error
 	// Deletes an object.
 	DeleteObject(context.Context, *DeleteObjectRequest) (*DeleteObjectResponse, error)
+	// Checks whether an object exists and returns its metadata without
+	// retrieving the object body.
+	HeadObject(context.Context, *HeadObjectRequest) (*HeadObjectResponse, error)
 	mustEmbedUnimplementedStorageServiceServer()
 }
 
@@ -132,6 +149,9 @@ func (UnimplementedStorageServiceServer) GetPrivateObject(*GetPrivateObjectReque
 }
 func (UnimplementedStorageServiceServer) DeleteObject(context.Context, *DeleteObjectRequest) (*DeleteObjectResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteObject not implemented")
+}
+func (UnimplementedStorageServiceServer) HeadObject(context.Context, *HeadObjectRequest) (*HeadObjectResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method HeadObject not implemented")
 }
 func (UnimplementedStorageServiceServer) mustEmbedUnimplementedStorageServiceServer() {}
 func (UnimplementedStorageServiceServer) testEmbeddedByValue()                        {}
@@ -190,6 +210,24 @@ func _StorageService_DeleteObject_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StorageService_HeadObject_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HeadObjectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StorageServiceServer).HeadObject(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StorageService_HeadObject_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StorageServiceServer).HeadObject(ctx, req.(*HeadObjectRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // StorageService_ServiceDesc is the grpc.ServiceDesc for StorageService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -200,6 +238,10 @@ var StorageService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteObject",
 			Handler:    _StorageService_DeleteObject_Handler,
+		},
+		{
+			MethodName: "HeadObject",
+			Handler:    _StorageService_HeadObject_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

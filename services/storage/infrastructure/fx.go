@@ -7,6 +7,7 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/storage/infrastructure/observability"
 	"github.com/iheanyi-dev/ecommerce-backend/services/storage/infrastructure/persistence/filesystem"
 	"github.com/iheanyi-dev/ecommerce-backend/services/storage/shared/config"
+	"net/http"
 
 	"go.uber.org/fx"
 )
@@ -19,6 +20,7 @@ var Module = fx.Module(
 	"infrastructure",
 
 	fx.Provide(
+		func() *http.Client { return http.DefaultClient },
 		fx.Annotate(
 			func(cfg *config.Config) (*filesystem.ObjectStorage, error) {
 				return filesystem.NewObjectStorage(cfg.StorageRoot)

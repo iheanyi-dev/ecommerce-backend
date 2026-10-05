@@ -118,6 +118,13 @@ type putObjectStorage struct {
 	err         error
 }
 
+func (f *putObjectStorage) HeadObject(
+	_ context.Context,
+	_ string,
+) (string, error) {
+	return "", errors.New("unexpected HeadObject call")
+}
+
 func (f *putObjectStorage) DeleteObject(
 	_ context.Context,
 	_ string,

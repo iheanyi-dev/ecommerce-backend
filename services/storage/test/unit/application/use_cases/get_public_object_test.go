@@ -117,6 +117,13 @@ func (f *getPublicObjectStorage) PutObject(
 	return errors.New("unexpected PutObject call")
 }
 
+func (f *getPublicObjectStorage) HeadObject(
+	_ context.Context,
+	_ string,
+) (string, error) {
+	return "", errors.New("unexpected HeadObject call")
+}
+
 func (f *getPublicObjectStorage) DeleteObject(
 	_ context.Context,
 	_ string,

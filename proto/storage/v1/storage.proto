@@ -21,6 +21,10 @@ service StorageService {
 
   // Deletes an object.
   rpc DeleteObject(DeleteObjectRequest) returns (DeleteObjectResponse);
+
+  // Checks whether an object exists and returns its metadata without
+  // retrieving the object body.
+  rpc HeadObject(HeadObjectRequest) returns (HeadObjectResponse);
 }
 
 // PutObjectRequest carries either the object metadata or one content chunk.
@@ -62,3 +66,18 @@ message DeleteObjectRequest {
 }
 
 message DeleteObjectResponse {}
+
+// Checks an object by its complete storage reference.
+message HeadObjectRequest {
+  string reference = 1;
+}
+
+// Metadata for an existing object.
+message HeadObjectResponse {
+  string content_type = 1;
+}
+
+
+
+
+

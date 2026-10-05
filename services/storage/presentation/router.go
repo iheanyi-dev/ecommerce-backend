@@ -6,6 +6,7 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/storage/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/storage/presentation/handlers"
 	"github.com/iheanyi-dev/ecommerce-backend/services/storage/presentation/middleware"
+	"github.com/iheanyi-dev/ecommerce-backend/services/storage/shared/config"
 )
 
 type Router struct {
@@ -17,8 +18,7 @@ func NewRouter(
 	logger ports.Logger,
 	metrics ports.Metrics,
 	tracer ports.Tracer,
-	serviceName string,
-	serviceSecret string,
+	cfg *config.Config,
 ) *Router {
 	mux := http.NewServeMux()
 
@@ -49,8 +49,8 @@ func NewRouter(
 	handler = middleware.Observability(logger, metrics)(handler)
 	handler = middleware.Tracing(tracer)(handler)
 	handler = middleware.ServiceAuthentication(
-		serviceName,
-		serviceSecret,
+		cfg.ServiceAuthName,
+		cfg.ServiceAuthSecret,
 	)(handler)
 	handler = middleware.RequestID(handler)
 

@@ -1,3 +1,8 @@
 # .envservices/identity/.env.db
 
 # services/store/.env
+
+# Recommendation Service local environment
+services/recommendation-python/.env
+services/recommendation-python/.cache
+storage-data

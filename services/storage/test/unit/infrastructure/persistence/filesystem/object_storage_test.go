@@ -396,3 +396,86 @@ func (r fileReaderAt) ReadAt(p []byte, offset int64) (int, error) {
 
 	return n, nil
 }
+
+func TestObjectStorage_HeadObject(t *testing.T) {
+	t.Run("returns content type for existing object", func(t *testing.T) {
+		storage, err := filesystem.NewObjectStorage(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ctx := context.Background()
+
+		if err := storage.PutObject(
+			ctx,
+			"models/gte/model.tar",
+			strings.NewReader("model artifact"),
+			"application/x-tar",
+		); err != nil {
+			t.Fatal(err)
+		}
+
+		contentType, err := storage.HeadObject(
+			ctx,
+			"models/gte/model.tar",
+		)
+		if err != nil {
+			t.Fatalf("HeadObject() error = %v", err)
+		}
+
+		if contentType != "application/x-tar" {
+			t.Fatalf("content type = %q, want %q", contentType, "application/x-tar")
+		}
+	})
+
+	t.Run("returns not found for missing object", func(t *testing.T) {
+		storage, err := filesystem.NewObjectStorage(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = storage.HeadObject(
+			context.Background(),
+			"models/gte/missing.tar",
+		)
+
+		if !errors.Is(err, filesystem.ErrObjectNotFound) {
+			t.Fatalf("expected ErrObjectNotFound, got %v", err)
+		}
+	})
+
+	t.Run("rejects invalid reference", func(t *testing.T) {
+		storage, err := filesystem.NewObjectStorage(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = storage.HeadObject(
+			context.Background(),
+			"../outside/model.tar",
+		)
+
+		if !errors.Is(err, filesystem.ErrInvalidReference) {
+			t.Fatalf("expected ErrInvalidReference, got %v", err)
+		}
+	})
+
+	t.Run("respects cancelled context", func(t *testing.T) {
+		storage, err := filesystem.NewObjectStorage(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err = storage.HeadObject(
+			ctx,
+			"models/gte/model.tar",
+		)
+
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context.Canceled, got %v", err)
+		}
+	})
+}

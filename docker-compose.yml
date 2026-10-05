@@ -75,6 +75,31 @@ services:
     networks:
       - ecommerce
 
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    container_name: e-qdrant
+    restart: unless-stopped
+
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+    networks:
+      - ecommerce
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f http://localhost:6333/readyz || exit 1"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redpanda:
     image: redpandadata/redpanda:v25.2.1
     container_name: e-redpanda
@@ -115,3 +140,4 @@ networks:
 volumes:
   postgres_data:
   redpanda_data:
+  qdrant_data:

@@ -41,11 +41,11 @@ func main() {
 func startHTTPServer(
 	lc fx.Lifecycle,
 	cfg *config.Config,
-	router http.Handler,
+	router *presentation.Router,
 ) {
 	server := &http.Server{
 		Addr:    ":" + cfg.AppPort,
-		Handler: router,
+		Handler: router.Handler(),
 	}
 
 	lc.Append(fx.Hook{

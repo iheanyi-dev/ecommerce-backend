@@ -124,6 +124,13 @@ func (f *getPrivateObjectStorage) GetPublicObject(
 	return nil, "", errors.New("unexpected GetPublicObject call")
 }
 
+func (f *getPrivateObjectStorage) HeadObject(
+	_ context.Context,
+	_ string,
+) (string, error) {
+	return "", errors.New("unexpected HeadObject call")
+}
+
 func (f *getPrivateObjectStorage) DeleteObject(
 	_ context.Context,
 	_ string,

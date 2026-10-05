@@ -4,10 +4,19 @@ version = "0.1.0"
 description = "Python implementation of the Recommendation Service."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "grpcio>=1.84.0",
+    "huggingface-hub>=0.36.0",
+    "protobuf>=7.36.2",
+    "python-dotenv>=1.2.4",
+    "qdrant-client>=1.19.1",
+    "torch==2.14.1",
+    "transformers==4.39.1",
+]
 
 [dependency-groups]
 dev = [
+    "grpcio-tools>=1.84.0",
     "pytest>=8.4.0",
 ]
 

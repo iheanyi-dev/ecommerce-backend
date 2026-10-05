@@ -137,6 +137,34 @@ func (s *ObjectStorage) GetPrivateObject(
 	return s.getObject(ctx, reference)
 }
 
+// HeadObject checks whether an object exists and returns its content type.
+//
+// Unlike GetPrivateObject and GetPublicObject, this operation never opens
+// the object body. Only the object metadata is read.
+func (s *ObjectStorage) HeadObject(
+	ctx context.Context,
+	reference string,
+) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	objectPath, err := s.objectPath(reference)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := os.Stat(objectPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("%w: %w", ports.ErrObjectNotFound, ErrObjectNotFound)
+		}
+
+		return "", fmt.Errorf("stat object: %w", err)
+	}
+
+	return s.readContentType(objectPath)
+}
+
 // DeleteObject deletes an object.
 //
 // Deleting an object that does not exist is intentionally idempotent.
@@ -184,7 +212,7 @@ func (s *ObjectStorage) getObject(
 	file, err := os.Open(objectPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, "", ErrObjectNotFound
+			return nil, "", fmt.Errorf("%w: %w", ports.ErrObjectNotFound, ErrObjectNotFound)
 		}
 
 		return nil, "", fmt.Errorf("open object: %w", err)
@@ -244,7 +272,7 @@ func (s *ObjectStorage) readContentType(objectPath string) (string, error) {
 	content, err := os.ReadFile(metadataPath(objectPath))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return "", fmt.Errorf("read object metadata: %w", ErrObjectNotFound)
+			return "", fmt.Errorf("read object metadata: %w: %w", ports.ErrObjectNotFound, ErrObjectNotFound)
 		}
 
 		return "", fmt.Errorf("read object metadata: %w", err)
