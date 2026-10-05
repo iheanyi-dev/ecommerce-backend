@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from uuid import UUID
 
 from ..dto.find_similar_stores import (
     FindSimilarStoresInput,
@@ -11,23 +10,21 @@ from ..dto.find_similar_stores import (
     StoreRecommendation,
 )
 from ..ports.embedding_generator import EmbeddingGenerator
+from ..ports.logger import Logger
+from ..ports.metrics import Metrics
 from ..ports.store_embedding_repository import StoreEmbeddingRepository
-
 
 PAGE_SIZE = 10
 
 
 @dataclass(slots=True)
 class FindSimilarStores:
-    """Find Store recommendations for a text query.
-
-    Pagination is deliberately owned by the application layer. The client
-    supplies only the requested page; the recommendation page size remains
-    an application policy.
-    """
+    """Find Store recommendations for a text query."""
 
     embedding_generator: EmbeddingGenerator
     store_embedding_repository: StoreEmbeddingRepository
+    logger: Logger
+    metrics: Metrics
 
     def execute(
         self,
@@ -44,21 +41,22 @@ class FindSimilarStores:
             )
         )
 
-        candidate_limit = input.page * PAGE_SIZE
-
         candidates = self.store_embedding_repository.find_similar(
             embedding=query_embedding,
-            limit=candidate_limit,
+            limit=input.page * PAGE_SIZE,
         )
 
         offset = (input.page - 1) * PAGE_SIZE
-
         recommendations = tuple(
-            StoreRecommendation(
-                store_id=store_id,
-                score=score,
-            )
+            StoreRecommendation(store_id=store_id, score=score)
             for store_id, score in candidates[offset:]
+        )
+
+        self.metrics.increment("recommendation.store_similarity.queries")
+        self.logger.info(
+            "recommendation.store_similarity.found",
+            page=input.page,
+            result_count=len(recommendations),
         )
 
         return FindSimilarStoresOutput(

@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package recommendation.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/recommendation/v1;recommendationv1";
+
+// RecommendationService provides embedding management for transactional
+// services and recommendation inference for the platform.
+service RecommendationService {
+  // Store/Product services use these RPCs to maintain recommendation
+  // embeddings when their source entities are created, updated, or deleted.
+  rpc UpsertStoreEmbedding(UpsertStoreEmbeddingRequest)
+      returns (UpsertEmbeddingResponse);
+
+  rpc DeleteStoreEmbedding(DeleteEmbeddingRequest)
+      returns (DeleteEmbeddingResponse);
+
+  rpc UpsertProductEmbedding(UpsertProductEmbeddingRequest)
+      returns (UpsertEmbeddingResponse);
+
+  rpc DeleteProductEmbedding(DeleteEmbeddingRequest)
+      returns (DeleteEmbeddingResponse);
+}
+
+message UpsertStoreEmbeddingRequest {
+  string store_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message UpsertProductEmbeddingRequest {
+  string product_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message UpsertEmbeddingResponse {}
+
+message DeleteEmbeddingRequest {
+  string entity_id = 1;
+}
+
+message DeleteEmbeddingResponse {}

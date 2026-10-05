@@ -7,6 +7,7 @@ from domain.value_objects import EntityID
 
 from application.dto import DeleteProductEmbeddingInput
 from application.use_cases import DeleteProductEmbedding
+from test.support.observability import StubLogger, StubMetrics
 
 
 class StubProductEmbeddingRepository:
@@ -27,6 +28,8 @@ def test_delete_product_embedding_converts_input_to_domain_id() -> None:
 
     use_case = DeleteProductEmbedding(
         product_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     use_case.execute(
@@ -48,6 +51,8 @@ def test_delete_product_embedding_deletes_requested_embedding() -> None:
 
     use_case = DeleteProductEmbedding(
         product_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     use_case.execute(DeleteProductEmbeddingInput(product_id=first_product_id))
@@ -64,6 +69,8 @@ def test_delete_product_embedding_rejects_invalid_id() -> None:
 
     use_case = DeleteProductEmbedding(
         product_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     with pytest.raises(InvalidEntityIDError):

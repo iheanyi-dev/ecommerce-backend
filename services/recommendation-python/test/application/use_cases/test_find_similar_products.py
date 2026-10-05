@@ -10,6 +10,7 @@ from application.dto import (
     FindSimilarProductsInput,
 )
 from application.use_cases import FindSimilarProducts
+from test.support.observability import StubLogger, StubMetrics
 from domain.value_objects import Embedding
 
 
@@ -72,6 +73,8 @@ def test_generates_product_query_embedding() -> None:
     use_case = FindSimilarProducts(
         embedding_generator=embedding_generator,
         product_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     use_case.execute(
@@ -96,6 +99,8 @@ def test_page_two_requests_twenty_candidates_and_returns_second_page() -> None:
     use_case = FindSimilarProducts(
         embedding_generator=embedding_generator,
         product_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -128,6 +133,8 @@ def test_last_page_returns_remaining_candidates() -> None:
     use_case = FindSimilarProducts(
         embedding_generator=embedding_generator,
         product_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -155,6 +162,8 @@ def test_page_zero_is_rejected() -> None:
     use_case = FindSimilarProducts(
         embedding_generator=embedding_generator,
         product_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     with pytest.raises(
@@ -179,6 +188,8 @@ def test_page_one_returns_no_more_than_page_size() -> None:
     use_case = FindSimilarProducts(
         embedding_generator=embedding_generator,
         product_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(

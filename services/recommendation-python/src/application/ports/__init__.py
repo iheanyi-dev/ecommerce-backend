@@ -13,7 +13,6 @@ from .store_embedding_repository import StoreEmbeddingRepository
 
 __all__ = [
     "EmbeddingGenerator",
-    "ModelArtifact",
     "ProductBehavioralAssociationModel",
     "ProductEmbeddingRepository",
     "Reranker",

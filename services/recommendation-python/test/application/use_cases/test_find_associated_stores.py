@@ -8,6 +8,7 @@ import pytest
 
 from application.dto import FindAssociatedStoresInput
 from application.use_cases import FindAssociatedStores
+from test.support.observability import StubLogger, StubMetrics
 
 
 class StubStoreBehavioralAssociationModel:
@@ -51,6 +52,8 @@ def test_requests_associations_for_source_store() -> None:
 
     use_case = FindAssociatedStores(
         store_behavioral_association_model=model,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     use_case.execute(
@@ -74,6 +77,8 @@ def test_page_two_requests_twenty_candidates_and_returns_second_page() -> None:
 
     use_case = FindAssociatedStores(
         store_behavioral_association_model=model,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -107,6 +112,8 @@ def test_last_page_returns_remaining_candidates() -> None:
 
     use_case = FindAssociatedStores(
         store_behavioral_association_model=model,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -132,6 +139,8 @@ def test_page_zero_is_rejected() -> None:
 
     use_case = FindAssociatedStores(
         store_behavioral_association_model=model,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     with pytest.raises(
@@ -157,6 +166,8 @@ def test_page_one_returns_no_more_than_page_size() -> None:
 
     use_case = FindAssociatedStores(
         store_behavioral_association_model=model,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(

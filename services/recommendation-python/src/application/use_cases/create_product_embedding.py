@@ -4,31 +4,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from domain.value_objects import (
-    EntityDescription,
-    EntityID,
-    EntityName,
-)
+from domain.value_objects import EntityDescription, EntityID, EntityName
 
 from ..dto.create_product_embedding import (
     CreateProductEmbeddingInput,
     CreateProductEmbeddingOutput,
 )
 from ..ports.embedding_generator import EmbeddingGenerator
+from ..ports.logger import Logger
+from ..ports.metrics import Metrics
 from ..ports.product_embedding_repository import ProductEmbeddingRepository
 
 
 @dataclass(slots=True)
 class CreateProductEmbedding:
-    """Generate and persist a Product embedding.
-
-    External input remains primitive at the application boundary.
-    The use case converts that input into validated domain values
-    before invoking its application ports.
-    """
+    """Generate and persist a Product embedding."""
 
     embedding_generator: EmbeddingGenerator
     product_embedding_repository: ProductEmbeddingRepository
+    logger: Logger
+    metrics: Metrics
 
     def execute(
         self,
@@ -39,6 +34,11 @@ class CreateProductEmbedding:
         product_id = EntityID(input.product_id, "product")
         name = EntityName(input.name, "product")
         description = EntityDescription(input.description, "product")
+
+        self.logger.info(
+            "recommendation.product_embedding.create_started",
+            product_id=str(product_id),
+        )
 
         embedding, model_version = (
             self.embedding_generator.generate_product_embedding(
@@ -53,6 +53,13 @@ class CreateProductEmbedding:
             description=description,
             embedding=embedding,
             embedding_model_version=model_version,
+        )
+
+        self.metrics.increment("recommendation.product_embeddings.created")
+        self.logger.info(
+            "recommendation.product_embedding.created",
+            product_id=str(product_id),
+            model_version=str(model_version),
         )
 
         return CreateProductEmbeddingOutput(

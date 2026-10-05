@@ -10,6 +10,8 @@ from ..dto.recommend_products import (
     RecommendProductsInput,
     RecommendProductsOutput,
 )
+from ..ports.logger import Logger
+from ..ports.metrics import Metrics
 from ..ports.reranker import Reranker
 from .find_associated_products import FindAssociatedProducts
 from .find_similar_products import FindSimilarProducts
@@ -17,20 +19,13 @@ from .find_similar_products import FindSimilarProducts
 
 @dataclass(slots=True)
 class RecommendProducts:
-    """Orchestrate Product recommendation candidate generation and reranking.
-
-    This is the external Product recommendation application use case.
-
-    Candidate generation remains delegated to the dedicated internal
-    use cases. The reranker owns combining the different candidate
-    collections and determining their final order.
-
-    No pagination or ranking strategy belongs here.
-    """
+    """Orchestrate Product candidate generation and reranking."""
 
     find_similar_products: FindSimilarProducts
     find_associated_products: FindAssociatedProducts
     reranker: Reranker
+    logger: Logger
+    metrics: Metrics
 
     def execute(
         self,
@@ -42,10 +37,7 @@ class RecommendProducts:
 
         if input.query is not None:
             result = self.find_similar_products.execute(
-                FindSimilarProductsInput(
-                    query=input.query,
-                    page=1,
-                )
+                FindSimilarProductsInput(query=input.query, page=1)
             )
             similar_products = list(result.recommendations)
 
@@ -63,6 +55,14 @@ class RecommendProducts:
         recommendations = self.reranker.rerank_products(
             similar_products=similar_products,
             associated_products=associated_products,
+        )
+
+        self.metrics.increment("recommendation.product.queries")
+        self.logger.info(
+            "recommendation.products.completed",
+            query_provided=input.query is not None,
+            product_id_provided=input.product_id is not None,
+            result_count=len(recommendations),
         )
 
         return RecommendProductsOutput(

@@ -8,6 +8,7 @@ from uuid import uuid4
 from application.dto.find_similar_stores import StoreRecommendation
 from application.dto.recommend_stores import RecommendStoresInput
 from application.use_cases.recommend_stores import RecommendStores
+from test.support.observability import StubLogger, StubMetrics
 
 
 @dataclass
@@ -102,6 +103,8 @@ def test_query_calls_only_similarity_candidate_use_case():
         find_similar_stores=find_similar,
         find_associated_stores=find_associated,
         reranker=reranker,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -142,6 +145,8 @@ def test_store_id_calls_only_behavioral_candidate_use_case():
         find_similar_stores=find_similar,
         find_associated_stores=find_associated,
         reranker=reranker,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -190,6 +195,8 @@ def test_query_and_store_id_call_both_candidate_use_cases():
         find_similar_stores=find_similar,
         find_associated_stores=find_associated,
         reranker=reranker,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -221,6 +228,8 @@ def test_missing_query_returns_empty_similarity_candidates():
         find_similar_stores=find_similar,
         find_associated_stores=find_associated,
         reranker=reranker,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     use_case.execute(
@@ -247,6 +256,8 @@ def test_missing_store_id_returns_empty_behavioral_candidates():
         find_similar_stores=find_similar,
         find_associated_stores=find_associated,
         reranker=reranker,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     use_case.execute(
@@ -273,6 +284,8 @@ def test_no_inputs_returns_empty_candidates_to_reranker():
         find_similar_stores=find_similar,
         find_associated_stores=find_associated,
         reranker=reranker,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(

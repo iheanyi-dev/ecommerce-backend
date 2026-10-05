@@ -1,3 +1,4 @@
+from test.support.observability import StubLogger, StubMetrics
 from uuid import uuid4
 
 from application.dto.find_associated_products import FindAssociatedProductsInput
@@ -9,7 +10,9 @@ from infrastructure.behavioral_models.empty_product_behavioral_model import (
 
 def test_returns_empty_recommendations() -> None:
     use_case = FindAssociatedProducts(
-        product_behavioral_association_model=EmptyProductBehavioralAssociationModel()
+        product_behavioral_association_model=EmptyProductBehavioralAssociationModel(),
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     result = use_case.execute(

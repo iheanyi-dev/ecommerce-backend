@@ -9,6 +9,7 @@ from application.dto import (
     StoreRecommendation,
 )
 from application.use_cases import FindSimilarStores
+from test.support.observability import StubLogger, StubMetrics
 from domain.value_objects import Embedding
 
 
@@ -59,6 +60,8 @@ def test_find_similar_stores_generates_query_embedding() -> None:
     use_case = FindSimilarStores(
         embedding_generator=generator,
         store_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     use_case.execute(
@@ -101,6 +104,8 @@ def test_find_similar_stores_uses_page_as_result_window() -> None:
     use_case = FindSimilarStores(
         embedding_generator=generator,
         store_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -140,6 +145,8 @@ def test_find_similar_stores_returns_remaining_results_on_last_page() -> None:
     use_case = FindSimilarStores(
         embedding_generator=generator,
         store_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -159,6 +166,8 @@ def test_find_similar_stores_rejects_invalid_page() -> None:
     use_case = FindSimilarStores(
         embedding_generator=StubEmbeddingGenerator(),
         store_embedding_repository=StubStoreEmbeddingRepository([]),
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     with pytest.raises(ValueError):
@@ -182,6 +191,8 @@ def test_find_similar_stores_does_not_return_more_than_page_size() -> None:
     use_case = FindSimilarStores(
         embedding_generator=generator,
         store_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(

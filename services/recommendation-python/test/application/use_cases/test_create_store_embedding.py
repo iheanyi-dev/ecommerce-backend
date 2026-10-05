@@ -12,6 +12,8 @@ from domain.value_objects import (
 
 from application.dto import CreateStoreEmbeddingInput
 from application.use_cases import CreateStoreEmbedding
+from test.support.observability import StubLogger, StubMetrics
+from test.support.observability import StubLogger, StubMetrics
 
 
 class StubEmbeddingGenerator:
@@ -66,6 +68,8 @@ def test_create_store_embedding_converts_input_to_domain_values() -> None:
     use_case = CreateStoreEmbedding(
         embedding_generator=generator,
         store_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     output = use_case.execute(
@@ -105,6 +109,8 @@ def test_create_store_embedding_upserts_on_reprocessing() -> None:
     use_case = CreateStoreEmbedding(
         embedding_generator=generator,
         store_embedding_repository=repository,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     input_data = CreateStoreEmbeddingInput(
@@ -124,6 +130,8 @@ def test_create_store_embedding_rejects_empty_name_through_domain() -> None:
     use_case = CreateStoreEmbedding(
         embedding_generator=StubEmbeddingGenerator(),
         store_embedding_repository=StubStoreEmbeddingRepository(),
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     from domain.errors import EmptyEntityNameError
@@ -143,6 +151,8 @@ def test_create_store_embedding_rejects_empty_description_through_domain() -> No
     use_case = CreateStoreEmbedding(
         embedding_generator=StubEmbeddingGenerator(),
         store_embedding_repository=StubStoreEmbeddingRepository(),
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
     from domain.errors import EmptyEntityDescriptionError

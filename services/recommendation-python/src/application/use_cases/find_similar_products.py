@@ -10,23 +10,21 @@ from ..dto.find_similar_products import (
     ProductRecommendation,
 )
 from ..ports.embedding_generator import EmbeddingGenerator
+from ..ports.logger import Logger
+from ..ports.metrics import Metrics
 from ..ports.product_embedding_repository import ProductEmbeddingRepository
-
 
 PAGE_SIZE = 10
 
 
 @dataclass(slots=True)
 class FindSimilarProducts:
-    """Find Product recommendations for a text query.
-
-    Pagination is deliberately owned by the application layer. The client
-    supplies only the requested page; the recommendation page size remains
-    an application policy.
-    """
+    """Find Product recommendations for a text query."""
 
     embedding_generator: EmbeddingGenerator
     product_embedding_repository: ProductEmbeddingRepository
+    logger: Logger
+    metrics: Metrics
 
     def execute(
         self,
@@ -43,21 +41,22 @@ class FindSimilarProducts:
             )
         )
 
-        candidate_limit = input.page * PAGE_SIZE
-
         candidates = self.product_embedding_repository.find_similar(
             embedding=query_embedding,
-            limit=candidate_limit,
+            limit=input.page * PAGE_SIZE,
         )
 
         offset = (input.page - 1) * PAGE_SIZE
-
         recommendations = tuple(
-            ProductRecommendation(
-                product_id=product_id,
-                score=score,
-            )
+            ProductRecommendation(product_id=product_id, score=score)
             for product_id, score in candidates[offset:]
+        )
+
+        self.metrics.increment("recommendation.product_similarity.queries")
+        self.logger.info(
+            "recommendation.product_similarity.found",
+            page=input.page,
+            result_count=len(recommendations),
         )
 
         return FindSimilarProductsOutput(
