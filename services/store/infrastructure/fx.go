@@ -49,6 +49,13 @@ var Module = fx.Module(
 			fx.As(new(ports.ImageStorage)),
 		),
 
+		// Recommendation embedding work is asynchronous. Store publishes
+		// embedding events to Kafka; Recommendation consumes them.
+		fx.Annotate(
+			kafkainfra.NewEmbeddingDispatcher,
+			fx.As(new(ports.EmbeddingDispatcher)),
+		),
+
 		// Kafka producer used by Store asynchronous image workflows.
 		fx.Annotate(
 			kafkainfra.NewClient,

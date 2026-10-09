@@ -5,7 +5,8 @@ description = "Python implementation of the Recommendation Service."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "grpcio>=1.84.0",
+    "aiokafka>=0.14.0",
+    "fastapi>=0.117.0",
     "huggingface-hub>=0.36.0",
     "opentelemetry-api>=1.39.0",
     "protobuf>=7.36.2",
@@ -13,13 +14,14 @@ dependencies = [
     "qdrant-client>=1.19.1",
     "torch==2.14.1",
     "transformers==4.39.1",
+    "uvicorn[standard]>=0.36.0",
 ]
 
 [dependency-groups]
 dev = [
-    "grpcio-tools>=1.84.0",
     "opentelemetry-sdk>=1.39.0",
     "pytest>=8.4.0",
+    "pytest-asyncio>=1.4.0",
 ]
 
 [build-system]

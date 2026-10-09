@@ -536,6 +536,13 @@ func (f *fakeEmbeddingDispatcher) DispatchStoreEmbedding(
 	return f.DispatchError
 }
 
+func (f *fakeEmbeddingDispatcher) DispatchStoreEmbeddingDeletion(
+	_ context.Context,
+	_ uuid.UUID,
+) error {
+	return f.DispatchError
+}
+
 type fakeLogger struct {
 	SuccessCalled                  bool
 	ImageDispatchFailureCalled     bool

@@ -24,11 +24,14 @@ type Config struct {
 	DatabaseName     string
 	DatabaseSSLMode  string
 
-	ServiceAuthName     string
-	ServiceAuthSecret   string
-	IdentityServiceAddr string
-	StorageServiceAddr  string
-	KafkaBrokers        string
+	ServiceAuthName             string
+	ServiceAuthSecret           string
+	IdentityServiceAddr         string
+	StorageServiceAddr          string
+	RecommendationServiceAddr   string
+	RecommendationServiceName   string
+	RecommendationServiceSecret string
+	KafkaBrokers                string
 }
 
 // Load loads Store configuration from environment variables.
@@ -50,11 +53,14 @@ func Load() (*Config, error) {
 		DatabaseName:     os.Getenv("DATABASE_NAME"),
 		DatabaseSSLMode:  getEnv("DATABASE_SSL_MODE", "disable"),
 
-		ServiceAuthName:     os.Getenv("SERVICE_AUTH_NAME"),
-		ServiceAuthSecret:   os.Getenv("SERVICE_AUTH_SECRET"),
-		IdentityServiceAddr: getEnv("IDENTITY_SERVICE_ADDR", "localhost:9090"),
-		StorageServiceAddr:  getEnv("STORAGE_SERVICE_ADDR", "localhost:9082"),
-		KafkaBrokers:        getEnv("KAFKA_BROKERS", "localhost:19092"),
+		ServiceAuthName:             os.Getenv("SERVICE_AUTH_NAME"),
+		ServiceAuthSecret:           os.Getenv("SERVICE_AUTH_SECRET"),
+		IdentityServiceAddr:         getEnv("IDENTITY_SERVICE_ADDR", "localhost:9090"),
+		StorageServiceAddr:          getEnv("STORAGE_SERVICE_ADDR", "localhost:9082"),
+		RecommendationServiceAddr:   getEnv("RECOMMENDATION_SERVICE_ADDR", "localhost:8090"),
+		RecommendationServiceName:   getEnv("RECOMMENDATION_SERVICE_NAME", "recommendation"),
+		RecommendationServiceSecret: os.Getenv("RECOMMENDATION_SERVICE_SECRET"),
+		KafkaBrokers:                getEnv("KAFKA_BROKERS", "localhost:19092"),
 	}
 
 	if cfg.DatabaseUser == "" {
@@ -75,6 +81,10 @@ func Load() (*Config, error) {
 
 	if cfg.ServiceAuthSecret == "" {
 		return nil, fmt.Errorf("SERVICE_AUTH_SECRET is required")
+	}
+
+	if cfg.RecommendationServiceSecret == "" {
+		return nil, fmt.Errorf("RECOMMENDATION_SERVICE_SECRET is required")
 	}
 
 	return cfg, nil

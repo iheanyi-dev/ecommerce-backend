@@ -1,0 +1,40 @@
+[project]
+
+name = "chat"
+
+version = "0.1.0"
+
+description = "Chat service for store customer conversations."
+
+requires-python = ">=3.13"
+
+dependencies = [
+    "google-genai>=2.29.0,<3.0.0",
+    "jsonschema>=4.26.0",
+]
+
+[dependency-groups]
+
+dev = [
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.2.0",
+]
+
+[build-system]
+
+requires = ["uv_build>=0.12.1,<0.13.0"]
+
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+
+module-name = [
+    "application",
+    "domain",
+]
+
+[tool.pytest.ini_options]
+
+pythonpath = ["src"]
+
+testpaths = ["test"]

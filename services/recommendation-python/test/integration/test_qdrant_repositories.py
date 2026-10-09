@@ -24,6 +24,7 @@ from infrastructure.persistence.qdrant import (
     ensure_collection,
 )
 from infrastructure.persistence.qdrant.client import create_qdrant_client
+from infrastructure.embeddings.model_manifest import GTE_MULTILINGUAL_BASE
 
 
 QDRANT_URL = os.getenv(
@@ -31,7 +32,7 @@ QDRANT_URL = os.getenv(
     "http://localhost:6333",
 )
 
-VECTOR_DIMENSION = 3
+VECTOR_DIMENSION = GTE_MULTILINGUAL_BASE.embedding_dimension
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,6 +139,16 @@ def _version() -> EmbeddingModelVersion:
     )
 
 
+def _test_embedding(*values: float) -> Embedding:
+    """Create a deterministic embedding with the production dimension."""
+    if len(values) > VECTOR_DIMENSION:
+        raise ValueError("Test embedding exceeds the configured dimension.")
+
+    return Embedding.from_values(
+        [*values, *([0.0] * (VECTOR_DIMENSION - len(values)))]
+    )
+
+
 def _upsert(
     context: RepositoryContext,
     entity_id: EntityID,
@@ -170,7 +181,7 @@ def test_repository_upsert_and_similarity_search(
             entity_id=closest_id,
             name=_name(context.entity_name, "Closest"),
             description=_description(context.entity_name),
-            embedding=Embedding.from_values([1.0, 0.0, 0.0]),
+            embedding=_test_embedding(1.0, 0.0, 0.0),
         )
 
         _upsert(
@@ -178,11 +189,11 @@ def test_repository_upsert_and_similarity_search(
             entity_id=second_id,
             name=_name(context.entity_name, "Second"),
             description=_description(context.entity_name),
-            embedding=Embedding.from_values([0.8, 0.2, 0.0]),
+            embedding=_test_embedding(0.8, 0.2, 0.0),
         )
 
         results = context.repository.find_similar(
-            embedding=Embedding.from_values([1.0, 0.0, 0.0]),
+            embedding=_test_embedding(1.0, 0.0, 0.0),
             limit=2,
         )
 
@@ -208,7 +219,7 @@ def test_repository_delete_removes_embedding(
         entity_id=entity_id,
         name=_name(context.entity_name),
         description=_description(context.entity_name),
-        embedding=Embedding.from_values([1.0, 0.0, 0.0]),
+        embedding=_test_embedding(1.0, 0.0, 0.0),
     )
 
     context.repository.delete(entity_id)

@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/entities"
+
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/dto"
 	applicationerrors "github.com/iheanyi-dev/ecommerce-backend/services/store/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/ports"
@@ -23,21 +25,24 @@ import (
 // Ownership, status, plan, image reference, and owner identity are not
 // directly changed by this workflow.
 type UpdateStoreUseCase struct {
-	storeRepository ports.StoreRepository
-	logger          ports.Logger
-	metrics         ports.Metrics
+	storeRepository     ports.StoreRepository
+	embeddingDispatcher ports.EmbeddingDispatcher
+	logger              ports.Logger
+	metrics             ports.Metrics
 }
 
 // NewUpdateStoreUseCase constructs the Update Store use case.
 func NewUpdateStoreUseCase(
 	storeRepository ports.StoreRepository,
+	embeddingDispatcher ports.EmbeddingDispatcher,
 	logger ports.Logger,
 	metrics ports.Metrics,
 ) *UpdateStoreUseCase {
 	return &UpdateStoreUseCase{
-		storeRepository: storeRepository,
-		logger:          logger,
-		metrics:         metrics,
+		storeRepository:     storeRepository,
+		embeddingDispatcher: embeddingDispatcher,
+		logger:              logger,
+		metrics:             metrics,
 	}
 }
 
@@ -157,6 +162,10 @@ func (uc *UpdateStoreUseCase) Execute(
 		)
 	}
 
+	// Recommendation embedding work is asynchronous. A successful Store
+	// update remains successful even when event publication fails.
+	uc.dispatchEmbedding(ctx, store)
+
 	output := toStoreOutput(store)
 
 	uc.log(ctx, ports.LogEvent{
@@ -177,6 +186,37 @@ func (uc *UpdateStoreUseCase) Execute(
 	})
 
 	return output, nil
+}
+
+func (uc *UpdateStoreUseCase) dispatchEmbedding(
+	ctx context.Context,
+	store *entities.Store,
+) {
+	err := uc.embeddingDispatcher.DispatchStoreEmbedding(
+		ctx,
+		ports.StoreEmbedding{
+			StoreID:     store.ID().Value(),
+			Name:        store.Name().Value(),
+			Description: store.Description().Value(),
+		},
+	)
+	if err == nil {
+		return
+	}
+
+	uc.log(ctx, ports.LogEvent{
+		Event:           "store.update.embedding_dispatch_failed",
+		Operation:       "update_store",
+		FailureCategory: "embedding_dispatch",
+	})
+
+	uc.increment(ctx, ports.Metric{
+		Name:  "store_update_async_dispatch_failure_total",
+		Value: 1,
+		Labels: map[string]string{
+			"dispatch": "embedding",
+		},
+	})
 }
 
 func (uc *UpdateStoreUseCase) fail(

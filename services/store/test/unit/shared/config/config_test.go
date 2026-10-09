@@ -21,6 +21,7 @@ func TestLoad(t *testing.T) {
 
 	t.Setenv("SERVICE_AUTH_NAME", "gateway")
 	t.Setenv("SERVICE_AUTH_SECRET", "store-secret")
+	t.Setenv("RECOMMENDATION_SERVICE_SECRET", "recommendation-secret")
 
 	cfg, err := config.Load()
 
@@ -36,6 +37,9 @@ func TestLoad(t *testing.T) {
 	require.Equal(t, "gateway", cfg.ServiceAuthName)
 	require.Equal(t, "store-secret", cfg.ServiceAuthSecret)
 	require.Equal(t, "localhost:9082", cfg.StorageServiceAddr)
+	require.Equal(t, "localhost:8090", cfg.RecommendationServiceAddr)
+	require.Equal(t, "recommendation", cfg.RecommendationServiceName)
+	require.Equal(t, "recommendation-secret", cfg.RecommendationServiceSecret)
 }
 
 func TestLoad_RequiresDatabaseUser(t *testing.T) {
@@ -92,7 +96,7 @@ func TestDatabaseURL(t *testing.T) {
 	t.Setenv("DATABASE_SSL_MODE", "disable")
 	t.Setenv("SERVICE_AUTH_NAME", "gateway")
 	t.Setenv("SERVICE_AUTH_SECRET", "secret")
-
+	t.Setenv("RECOMMENDATION_SERVICE_SECRET", "secret")
 	cfg, err := config.Load()
 
 	require.NoError(t, err)
@@ -111,7 +115,7 @@ func setRequiredEnvironment(t *testing.T) {
 	t.Setenv("DATABASE_NAME", "store")
 	t.Setenv("SERVICE_AUTH_NAME", "gateway")
 	t.Setenv("SERVICE_AUTH_SECRET", "secret")
-
+	t.Setenv("RECOMMENDATION_SERVICE_SECRET", "secret")
 	// Prevent a developer's local .env from influencing the test.
 	for _, key := range []string{
 		"APP_ENV",
@@ -120,6 +124,9 @@ func setRequiredEnvironment(t *testing.T) {
 		"DATABASE_PORT",
 		"DATABASE_SSL_MODE",
 		"STORAGE_SERVICE_ADDR",
+		"RECOMMENDATION_SERVICE_ADDR",
+		"RECOMMENDATION_SERVICE_NAME",
+		"RECOMMENDATION_SERVICE_SECRET",
 	} {
 		_ = os.Unsetenv(key)
 	}

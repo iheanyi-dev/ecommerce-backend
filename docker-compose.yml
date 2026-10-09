@@ -54,13 +54,13 @@ services:
   gateway:
     build:
       context: .
-      dockerfile: gateway/Dockerfile
+      dockerfile: services/gateway/Dockerfile
 
     container_name: e-gateway
     restart: unless-stopped
 
     env_file:
-      - ./gateway/.env
+      - ./services/gateway/.env
 
     environment:
       IDENTITY_SERVICE_URL: http://identity:8080
@@ -94,7 +94,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "curl -f http://localhost:6333/readyz || exit 1"
+          "bash -c \"</dev/tcp/localhost/6333\" || exit 1"
         ]
       interval: 5s
       timeout: 5s

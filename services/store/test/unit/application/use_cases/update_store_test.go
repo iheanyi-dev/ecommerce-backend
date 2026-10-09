@@ -16,6 +16,28 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/valueobjects"
 )
 
+type fakeUpdateStoreEmbeddingDispatcher struct {
+	Called        bool
+	Embedding     ports.StoreEmbedding
+	DispatchError error
+}
+
+func (f *fakeUpdateStoreEmbeddingDispatcher) DispatchStoreEmbedding(
+	_ context.Context,
+	embedding ports.StoreEmbedding,
+) error {
+	f.Called = true
+	f.Embedding = embedding
+	return f.DispatchError
+}
+
+func (f *fakeUpdateStoreEmbeddingDispatcher) DispatchStoreEmbeddingDeletion(
+	_ context.Context,
+	_ uuid.UUID,
+) error {
+	return f.DispatchError
+}
+
 type fakeUpdateStoreRepository struct {
 	store *entities.Store
 
@@ -157,6 +179,7 @@ func TestUpdateStoreUseCaseExecute_UpdatesOwnedStore(t *testing.T) {
 
 	useCase := use_cases.NewUpdateStoreUseCase(
 		repository,
+		&fakeUpdateStoreEmbeddingDispatcher{},
 		&fakeUpdateStoreLogger{},
 		&fakeUpdateStoreMetrics{},
 	)
@@ -195,6 +218,7 @@ func TestUpdateStoreUseCaseExecute_RequiresAuthentication(t *testing.T) {
 
 	useCase := use_cases.NewUpdateStoreUseCase(
 		repository,
+		&fakeUpdateStoreEmbeddingDispatcher{},
 		&fakeUpdateStoreLogger{},
 		&fakeUpdateStoreMetrics{},
 	)
@@ -227,6 +251,7 @@ func TestUpdateStoreUseCaseExecute_RejectsNonOwner(t *testing.T) {
 
 	useCase := use_cases.NewUpdateStoreUseCase(
 		repository,
+		&fakeUpdateStoreEmbeddingDispatcher{},
 		&fakeUpdateStoreLogger{},
 		&fakeUpdateStoreMetrics{},
 	)
@@ -257,6 +282,7 @@ func TestUpdateStoreUseCaseExecute_ReturnsNotFoundWhenStoreDoesNotExist(t *testi
 
 	useCase := use_cases.NewUpdateStoreUseCase(
 		repository,
+		&fakeUpdateStoreEmbeddingDispatcher{},
 		&fakeUpdateStoreLogger{},
 		&fakeUpdateStoreMetrics{},
 	)
@@ -285,6 +311,7 @@ func TestUpdateStoreUseCaseExecute_PropagatesFindByIDError(t *testing.T) {
 
 	useCase := use_cases.NewUpdateStoreUseCase(
 		repository,
+		&fakeUpdateStoreEmbeddingDispatcher{},
 		&fakeUpdateStoreLogger{},
 		&fakeUpdateStoreMetrics{},
 	)
@@ -315,6 +342,7 @@ func TestUpdateStoreUseCaseExecute_DoesNotCheckSlugWhenUnchanged(t *testing.T) {
 
 	useCase := use_cases.NewUpdateStoreUseCase(
 		repository,
+		&fakeUpdateStoreEmbeddingDispatcher{},
 		&fakeUpdateStoreLogger{},
 		&fakeUpdateStoreMetrics{},
 	)
@@ -346,6 +374,7 @@ func TestUpdateStoreUseCaseExecute_RejectsExistingSlug(t *testing.T) {
 
 	useCase := use_cases.NewUpdateStoreUseCase(
 		repository,
+		&fakeUpdateStoreEmbeddingDispatcher{},
 		&fakeUpdateStoreLogger{},
 		&fakeUpdateStoreMetrics{},
 	)
@@ -380,6 +409,7 @@ func TestUpdateStoreUseCaseExecute_PropagatesSlugLookupError(t *testing.T) {
 
 	useCase := use_cases.NewUpdateStoreUseCase(
 		repository,
+		&fakeUpdateStoreEmbeddingDispatcher{},
 		&fakeUpdateStoreLogger{},
 		&fakeUpdateStoreMetrics{},
 	)
@@ -412,6 +442,7 @@ func TestUpdateStoreUseCaseExecute_PropagatesUpdateError(t *testing.T) {
 
 	useCase := use_cases.NewUpdateStoreUseCase(
 		repository,
+		&fakeUpdateStoreEmbeddingDispatcher{},
 		&fakeUpdateStoreLogger{},
 		&fakeUpdateStoreMetrics{},
 	)
