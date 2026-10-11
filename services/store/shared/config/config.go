@@ -31,6 +31,12 @@ type Config struct {
 	RecommendationServiceAddr   string
 	RecommendationServiceName   string
 	RecommendationServiceSecret string
+	ChatServiceAddr             string
+	ChatServiceName             string
+	ChatServiceSecret           string
+	ProductServiceAddr          string
+	ProductServiceName          string
+	ProductServiceSecret        string
 	KafkaBrokers                string
 }
 
@@ -60,6 +66,12 @@ func Load() (*Config, error) {
 		RecommendationServiceAddr:   getEnv("RECOMMENDATION_SERVICE_ADDR", "localhost:8090"),
 		RecommendationServiceName:   getEnv("RECOMMENDATION_SERVICE_NAME", "recommendation"),
 		RecommendationServiceSecret: os.Getenv("RECOMMENDATION_SERVICE_SECRET"),
+		ChatServiceAddr:             getEnv("CHAT_SERVICE_ADDR", "localhost:9092"),
+		ChatServiceName:             getEnv("CHAT_SERVICE_NAME", "chat"),
+		ChatServiceSecret:           os.Getenv("CHAT_SERVICE_SECRET"),
+		ProductServiceAddr:          getEnv("PRODUCT_SERVICE_ADDR", "localhost:9091"),
+		ProductServiceName:          getEnv("PRODUCT_SERVICE_NAME", "product"),
+		ProductServiceSecret:        os.Getenv("PRODUCT_SERVICE_SECRET"),
 		KafkaBrokers:                getEnv("KAFKA_BROKERS", "localhost:19092"),
 	}
 

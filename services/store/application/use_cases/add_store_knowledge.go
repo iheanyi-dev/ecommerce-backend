@@ -10,139 +10,101 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/dto"
 	applicationerrors "github.com/iheanyi-dev/ecommerce-backend/services/store/application/errors"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/ports"
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/entities"
 )
 
-// AddStoreKnowledgeUseCase coordinates the submission of a Store knowledge
-// file to the AI service.
-//
-// Store owns the authorization boundary and determines whether the Store's
-// current plan allows AI features. The AI service owns knowledge processing,
-// extraction, embeddings, and persistence of the resulting knowledge.
-//
-// The application layer therefore forwards the Store ID and file payload but
-// does not know how the AI service stores or processes that knowledge.
+// AddStoreKnowledgeUseCase stores a Knowledge file and its metadata before
+// publishing a best-effort ingestion request for the Embedding service.
 type AddStoreKnowledgeUseCase struct {
 	storeRepository     ports.StoreRepository
-	knowledgeDispatcher ports.KnowledgeDispatcher
+	knowledgeRepository ports.KnowledgeRepository
+	knowledgeStorage    ports.KnowledgeStorage
+	ingestionDispatcher ports.KnowledgeIngestionDispatcher
 	logger              ports.Logger
 	metrics             ports.Metrics
 }
 
-// NewAddStoreKnowledgeUseCase constructs the Add Store Knowledge use case.
 func NewAddStoreKnowledgeUseCase(
 	storeRepository ports.StoreRepository,
-	knowledgeDispatcher ports.KnowledgeDispatcher,
+	knowledgeRepository ports.KnowledgeRepository,
+	knowledgeStorage ports.KnowledgeStorage,
+	ingestionDispatcher ports.KnowledgeIngestionDispatcher,
 	logger ports.Logger,
 	metrics ports.Metrics,
 ) *AddStoreKnowledgeUseCase {
 	return &AddStoreKnowledgeUseCase{
 		storeRepository:     storeRepository,
-		knowledgeDispatcher: knowledgeDispatcher,
+		knowledgeRepository: knowledgeRepository,
+		knowledgeStorage:    knowledgeStorage,
+		ingestionDispatcher: ingestionDispatcher,
 		logger:              logger,
 		metrics:             metrics,
 	}
 }
 
-// Execute submits a Store knowledge file to the AI service.
-//
-// The authenticated identity is used only to authorize the Store owner. The
-// user ID is deliberately not forwarded as part of Store knowledge because
-// the knowledge belongs to the Store rather than to an individual user.
 func (uc *AddStoreKnowledgeUseCase) Execute(
 	ctx context.Context,
 	input dto.AddStoreKnowledgeInput,
 ) (dto.AddStoreKnowledgeOutput, error) {
 	startedAt := time.Now()
-
 	uc.increment(ctx, ports.Metric{
-		Name:  "store_add_knowledge_total",
-		Value: 1,
-		Labels: map[string]string{
-			"operation": "add_store_knowledge",
-		},
+		Name: "store_add_knowledge_total", Value: 1,
+		Labels: map[string]string{"operation": "add_store_knowledge"},
 	})
 
-	identity, ok := ports.AuthenticatedIdentityFromContext(ctx)
-	if !ok || identity.UserID == uuid.Nil {
-		return uc.fail(
-			ctx,
-			startedAt,
-			identity,
-			"unauthenticated",
-			applicationerrors.ErrUnauthenticated,
-		)
+	identity, authenticated := ports.AuthenticatedIdentityFromContext(ctx)
+	if !authenticated || identity.UserID == uuid.Nil {
+		return uc.fail(ctx, startedAt, identity, "unauthenticated", applicationerrors.ErrUnauthenticated)
 	}
 
 	store, err := uc.storeRepository.FindByID(ctx, input.StoreID)
 	if err != nil {
-		return uc.fail(
-			ctx,
-			startedAt,
-			identity,
-			"store_lookup",
-			fmt.Errorf("find store: %w", err),
-		)
+		return uc.fail(ctx, startedAt, identity, "store_lookup", fmt.Errorf("find store: %w", err))
 	}
-
-	if store == nil {
-		return uc.fail(
-			ctx,
-			startedAt,
-			identity,
-			"store_not_found",
-			applicationerrors.ErrStoreNotFound,
-		)
+	if store == nil || !store.IsOwnedBy(identity.UserID) {
+		return uc.fail(ctx, startedAt, identity, "store_not_found", applicationerrors.ErrStoreNotFound)
 	}
-
-	// Knowledge management is authorized by Store ownership. As with the
-	// other Store owner operations, a non-owner receives the same not-found
-	// error so that Store existence is not unnecessarily disclosed.
-	if !store.IsOwnedBy(identity.UserID) {
-		return uc.fail(
-			ctx,
-			startedAt,
-			identity,
-			"store_not_found",
-			applicationerrors.ErrStoreNotFound,
-		)
-	}
-
-	// AI capability is determined by the Store's current plan. The Store
-	// application layer does not need to know how the AI feature is
-	// implemented; it only enforces the plan capability exposed by the
-	// domain.
 	if !store.Plan().AIFeaturesAllowed() {
-		return uc.fail(
-			ctx,
-			startedAt,
-			identity,
-			"ai_not_allowed",
-			fmt.Errorf("store plan does not allow AI features"),
-		)
+		return uc.fail(ctx, startedAt, identity, "ai_not_allowed", fmt.Errorf("store plan does not allow AI features"))
 	}
 
-	// Forward the file exactly as supplied. The AI service owns all knowledge
-	// processing and persistence concerns.
-	if err := uc.knowledgeDispatcher.DispatchStoreKnowledge(
-		ctx,
-		ports.StoreKnowledge{
-			StoreID:     store.ID().Value(),
-			Content:     input.File.Content,
-			Filename:    input.File.Filename,
-			ContentType: input.File.ContentType,
-		},
-	); err != nil {
-		return uc.fail(
-			ctx,
-			startedAt,
-			identity,
-			"knowledge_dispatch",
-			fmt.Errorf("dispatch store knowledge: %w", err),
-		)
+	knowledge, err := entities.NewKnowledge(
+		store.ID().Value(),
+		input.File.Filename,
+		input.File.ContentType,
+	)
+	if err != nil {
+		return uc.fail(ctx, startedAt, identity, "invalid_knowledge", fmt.Errorf("create knowledge metadata: %w", err))
 	}
 
-	output := dto.AddStoreKnowledgeOutput{
-		StoreID: store.ID().Value(),
+	// Storage is synchronous: metadata must not be saved if the upload fails.
+	if err := uc.knowledgeStorage.PutKnowledgeFile(ctx, ports.KnowledgeFile{
+		Reference:   knowledge.StorageReference(),
+		Content:     input.File.Content,
+		ContentType: input.File.ContentType,
+	}); err != nil {
+		return uc.fail(ctx, startedAt, identity, "storage_upload", fmt.Errorf("upload knowledge file: %w", err))
+	}
+
+	// Persist the metadata before notifying the asynchronous ingestion worker.
+	if err := uc.knowledgeRepository.Save(ctx, knowledge); err != nil {
+		return uc.fail(ctx, startedAt, identity, "knowledge_persistence", fmt.Errorf("save knowledge metadata: %w", err))
+	}
+
+	// Publishing is best-effort by design. A broker outage must not report
+	// failure after Storage and the metadata repository have accepted the file.
+	if err := uc.ingestionDispatcher.DispatchKnowledgeIngestion(ctx, ports.KnowledgeIngestionRequested{
+		KnowledgeID:      knowledge.ID(),
+		StoreID:          knowledge.StoreID(),
+		StorageReference: knowledge.StorageReference(),
+	}); err != nil {
+		uc.log(ctx, ports.LogEvent{
+			Event:           "store.add_knowledge.ingestion_dispatch_failed",
+			Operation:       "add_store_knowledge",
+			UserID:          identity.UserID.String(),
+			Role:            identity.Role,
+			FailureCategory: "knowledge_dispatch",
+		})
 	}
 
 	uc.log(ctx, ports.LogEvent{
@@ -151,100 +113,66 @@ func (uc *AddStoreKnowledgeUseCase) Execute(
 		UserID:    identity.UserID.String(),
 		Role:      identity.Role,
 	})
-
 	uc.increment(ctx, ports.Metric{
-		Name:  "store_add_knowledge_success_total",
-		Value: 1,
-		Labels: map[string]string{
-			"operation": "add_store_knowledge",
-		},
+		Name: "store_add_knowledge_success_total", Value: 1,
+		Labels: map[string]string{"operation": "add_store_knowledge"},
 	})
-
 	uc.observe(ctx, ports.Metric{
-		Name:  "store_add_knowledge_duration_seconds",
-		Value: time.Since(startedAt).Seconds(),
-		Labels: map[string]string{
-			"operation": "add_store_knowledge",
-			"result":    "success",
-		},
+		Name:   "store_add_knowledge_duration_seconds",
+		Value:  time.Since(startedAt).Seconds(),
+		Labels: map[string]string{"operation": "add_store_knowledge", "result": "success"},
 	})
 
-	return output, nil
+	return dto.AddStoreKnowledgeOutput{StoreID: store.ID().Value()}, nil
 }
 
-// fail records failure observability while preserving the application error
-// returned to the caller.
 func (uc *AddStoreKnowledgeUseCase) fail(
 	ctx context.Context,
 	startedAt time.Time,
 	identity ports.AuthenticatedIdentity,
-	failureCategory string,
+	category string,
 	err error,
 ) (dto.AddStoreKnowledgeOutput, error) {
+	userID := ""
+	role := ""
+	if identity.UserID != uuid.Nil {
+		userID = identity.UserID.String()
+		role = identity.Role
+	}
+
 	uc.log(ctx, ports.LogEvent{
 		Event:           "store.add_knowledge.failed",
 		Operation:       "add_store_knowledge",
-		UserID:          identity.UserID.String(),
-		Role:            identity.Role,
-		FailureCategory: failureCategory,
+		UserID:          userID,
+		Role:            role,
+		FailureCategory: category,
 	})
-
 	uc.increment(ctx, ports.Metric{
-		Name:  "store_add_knowledge_failure_total",
-		Value: 1,
-		Labels: map[string]string{
-			"operation":        "add_store_knowledge",
-			"failure_category": failureCategory,
-		},
+		Name: "store_add_knowledge_failure_total", Value: 1,
+		Labels: map[string]string{"operation": "add_store_knowledge", "failure_category": category},
 	})
-
 	uc.observe(ctx, ports.Metric{
-		Name:  "store_add_knowledge_duration_seconds",
-		Value: time.Since(startedAt).Seconds(),
-		Labels: map[string]string{
-			"operation": "add_store_knowledge",
-			"result":    "failure",
-		},
+		Name:   "store_add_knowledge_duration_seconds",
+		Value:  time.Since(startedAt).Seconds(),
+		Labels: map[string]string{"operation": "add_store_knowledge", "result": "failure"},
 	})
-
 	return dto.AddStoreKnowledgeOutput{}, err
 }
 
-// log keeps logger failures from changing the outcome of the application
-// operation.
-func (uc *AddStoreKnowledgeUseCase) log(
-	ctx context.Context,
-	event ports.LogEvent,
-) {
-	if uc.logger == nil {
-		return
+func (uc *AddStoreKnowledgeUseCase) log(ctx context.Context, event ports.LogEvent) {
+	if uc.logger != nil {
+		_ = uc.logger.Log(ctx, event)
 	}
-
-	_ = uc.logger.Log(ctx, event)
 }
 
-// increment keeps metrics failures from changing the outcome of the
-// application operation.
-func (uc *AddStoreKnowledgeUseCase) increment(
-	ctx context.Context,
-	metric ports.Metric,
-) {
-	if uc.metrics == nil {
-		return
+func (uc *AddStoreKnowledgeUseCase) increment(ctx context.Context, metric ports.Metric) {
+	if uc.metrics != nil {
+		_ = uc.metrics.Increment(ctx, metric)
 	}
-
-	_ = uc.metrics.Increment(ctx, metric)
 }
 
-// observe keeps metrics failures from changing the outcome of the application
-// operation.
-func (uc *AddStoreKnowledgeUseCase) observe(
-	ctx context.Context,
-	metric ports.Metric,
-) {
-	if uc.metrics == nil {
-		return
+func (uc *AddStoreKnowledgeUseCase) observe(ctx context.Context, metric ports.Metric) {
+	if uc.metrics != nil {
+		_ = uc.metrics.Observe(ctx, metric)
 	}
-
-	_ = uc.metrics.Observe(ctx, metric)
 }

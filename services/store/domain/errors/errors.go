@@ -12,4 +12,9 @@ var (
 	ErrInvalidStoreDescription = errors.New("invalid store description")
 	ErrInvalidStoreSlug        = errors.New("invalid store slug")
 	ErrInvalidStoreTimestamps  = errors.New("invalid store timestamps")
+
+	ErrInvalidKnowledgeID          = errors.New("invalid knowledge ID")
+	ErrInvalidKnowledgeStoreID     = errors.New("invalid knowledge store ID")
+	ErrInvalidKnowledgeFilename    = errors.New("invalid knowledge filename")
+	ErrInvalidKnowledgeContentType = errors.New("invalid knowledge content type")
 )

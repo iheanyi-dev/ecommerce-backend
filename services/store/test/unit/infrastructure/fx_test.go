@@ -1,19 +1,22 @@
 package infrastructure_test
 
 import (
+	"net/http"
 	"testing"
 
-	"go.uber.org/fx"
-
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/application"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure"
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/presentation"
+	"go.uber.org/fx"
 )
 
-func TestModule_ProvidesInfrastructureDependencies(t *testing.T) {
-	err := fx.ValidateApp(
+func TestModule_ProvidesCompleteStoreDependencyGraph(t *testing.T) {
+	if err := fx.ValidateApp(
 		infrastructure.Module,
-	)
-
-	if err != nil {
-		t.Fatalf("expected infrastructure module to validate, got: %v", err)
+		application.Module,
+		presentation.Module,
+		fx.Invoke(func(http.Handler) {}),
+	); err != nil {
+		t.Fatalf("Store dependency graph is incomplete: %v", err)
 	}
 }

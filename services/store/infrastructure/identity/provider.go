@@ -12,6 +12,7 @@ import (
 
 	identityv1 "github.com/iheanyi-dev/ecommerce-backend/proto/identity/v1"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/ports"
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/shared/config"
 )
 
 const (
@@ -38,6 +39,19 @@ func NewProvider(
 		serviceName:   serviceName,
 		serviceSecret: serviceSecret,
 	}
+}
+
+// NewConfiguredProvider builds the Identity provider using Store's existing
+// trusted service-auth credentials.
+func NewConfiguredProvider(
+	client identityv1.IdentityServiceClient,
+	cfg *config.Config,
+) *Provider {
+	return NewProvider(
+		client,
+		cfg.ServiceAuthName,
+		cfg.ServiceAuthSecret,
+	)
 }
 
 // IsVendor determines whether the supplied user currently has vendor status.

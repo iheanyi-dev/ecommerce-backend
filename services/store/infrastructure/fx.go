@@ -4,12 +4,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/ports"
+	chatinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/chat"
 	identityinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/identity"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/image"
 	kafkainfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/messaging/kafka"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/migrations"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/observability"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/persistence/postgres"
+	productinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/product"
 	storageinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/storage"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/shared/config"
 )
@@ -22,7 +24,12 @@ import (
 var Module = fx.Module(
 	"infrastructure",
 
+	fx.Provide(fx.Annotate(productinfra.NewClient, fx.As(new(ports.ProductCountProvider)))),
 	fx.Provide(
+		fx.Annotate(
+			chatinfra.NewClient,
+			fx.As(new(ports.ChatDispatcher)),
+		),
 		config.Load,
 
 		postgres.NewPool,
@@ -38,7 +45,7 @@ var Module = fx.Module(
 		),
 
 		fx.Annotate(
-			identityinfra.NewProvider,
+			identityinfra.NewConfiguredProvider,
 			fx.As(new(ports.IdentityProvider)),
 		),
 
@@ -47,6 +54,8 @@ var Module = fx.Module(
 		fx.Annotate(
 			storageinfra.NewClient,
 			fx.As(new(ports.ImageStorage)),
+			fx.As(new(ports.KnowledgeStorage)),
+			fx.As(new(ports.KnowledgeFileDeleter)),
 		),
 
 		// Recommendation embedding work is asynchronous. Store publishes
@@ -54,6 +63,15 @@ var Module = fx.Module(
 		fx.Annotate(
 			kafkainfra.NewEmbeddingDispatcher,
 			fx.As(new(ports.EmbeddingDispatcher)),
+		),
+
+		fx.Annotate(
+			kafkainfra.NewKnowledgeDispatcher,
+			fx.As(new(ports.KnowledgeIngestionDispatcher)),
+		),
+		fx.Annotate(
+			kafkainfra.NewKnowledgeDeletionDispatcher,
+			fx.As(new(ports.KnowledgeDeletionDispatcher)),
 		),
 
 		// Kafka producer used by Store asynchronous image workflows.
@@ -74,6 +92,12 @@ var Module = fx.Module(
 
 		fx.Annotate(
 			postgres.NewStoreRepository,
+			fx.As(new(ports.StoreRepository)),
+		),
+
+		fx.Annotate(
+			postgres.NewKnowledgeRepository,
+			fx.As(new(ports.KnowledgeRepository)),
 		),
 
 		migrations.NewMigrationRunner,

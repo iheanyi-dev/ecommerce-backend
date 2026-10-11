@@ -41,11 +41,17 @@ func (h *RemoveStaleKnowledgeHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	knowledgeID, err := uuid.Parse(request.KnowledgeID)
+	if err != nil {
+		presentation_errors.WriteError(w, presentation_errors.ErrInvalidRequestBody)
+		return
+	}
+
 	result, err := h.service.Execute(
 		r.Context(),
 		dto.RemoveStaleKnowledgeInput{
-			StoreID:  storeID,
-			Filename: request.Filename,
+			StoreID:     storeID,
+			KnowledgeID: knowledgeID,
 		},
 	)
 	if err != nil {
@@ -54,7 +60,7 @@ func (h *RemoveStaleKnowledgeHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 	}
 
 	writeJSON(w, http.StatusOK, schemas.RemoveStaleKnowledgeResponse{
-		StoreID: result.StoreID.String(),
-		Filename: result.Filename,
+		StoreID:     result.StoreID.String(),
+		KnowledgeID: result.KnowledgeID.String(),
 	})
 }

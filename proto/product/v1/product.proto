@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package product.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/product/v1;productv1";
+
+service ProductService {
+  rpc SearchProducts(SearchProductsRequest) returns (SearchProductsResponse);
+  rpc CountProductsByStore(CountProductsByStoreRequest) returns (CountProductsByStoreResponse);
+}
+
+message SearchProductsRequest {
+  string store_id = 1;
+  string query = 2;
+  ProductFilters filters = 3;
+}
+
+message ProductFilters {
+  // Decimal strings avoid floating-point monetary precision errors.
+  optional string min_price = 1;
+  optional string max_price = 2;
+  string currency = 3;
+
+  // These control whether a boundary itself is included.
+  optional bool min_price_inclusive = 4;
+  optional bool max_price_inclusive = 5;
+
+  // Unset means the customer did not specify an availability preference.
+  optional bool available_only = 6;
+}
+
+message SearchProductsResponse {
+  repeated Product products = 1;
+}
+
+message Product {
+  string product_id = 1;
+  string name = 2;
+  string description = 3;
+  string price = 4;
+  string currency = 5;
+  string product_url = 6;
+  bool available = 7;
+}
+
+message CountProductsByStoreRequest {
+  string store_id = 1;
+}
+
+message CountProductsByStoreResponse {
+  int64 count = 1;
+}

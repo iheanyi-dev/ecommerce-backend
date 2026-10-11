@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package embedding.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/embedding/v1;embeddingv1";
+
+service EmbeddingService {
+  rpc RetrieveChunks(RetrieveChunksRequest) returns (RetrieveChunksResponse);
+}
+
+message RetrieveChunksRequest {
+  string store_id = 1;
+  string query = 2;
+}
+
+message RetrieveChunksResponse {
+  repeated KnowledgeChunk chunks = 1;
+}
+
+message KnowledgeChunk {
+  string content = 1;
+  string source_filename = 2;
+  float score = 3;
+}

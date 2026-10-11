@@ -16,362 +16,269 @@ import (
 )
 
 func TestAddStoreKnowledgeUseCase_RequiresAuthentication(t *testing.T) {
-	repository := &addKnowledgeStoreRepository{}
+	storeRepo := &addKnowledgeStoreRepository{}
+	knowledgeRepo := &addKnowledgeRepository{}
+	storage := &addKnowledgeStorage{}
 	dispatcher := &addKnowledgeDispatcher{}
-	logger := &addKnowledgeLogger{}
-	metrics := &addKnowledgeMetrics{}
+	uc := newAddKnowledgeUseCase(storeRepo, knowledgeRepo, storage, dispatcher, &addKnowledgeLogger{}, &addKnowledgeMetrics{})
 
-	uc := usecases.NewAddStoreKnowledgeUseCase(
-		repository,
-		dispatcher,
-		logger,
-		metrics,
-	)
-
-	_, err := uc.Execute(
-		context.Background(),
-		dto.AddStoreKnowledgeInput{
-			StoreID: uuid.New(),
-			File: dto.StoreKnowledgeFileInput{
-				Content:     []byte("knowledge"),
-				Filename:    "knowledge.pdf",
-				ContentType: "application/pdf",
-			},
-		},
-	)
-
+	_, err := uc.Execute(context.Background(), addKnowledgeInput(uuid.New()))
 	if !errors.Is(err, applicationerrors.ErrUnauthenticated) {
 		t.Fatalf("expected ErrUnauthenticated, got %v", err)
 	}
-
-	if repository.findByIDCalled {
-		t.Fatal("expected repository not to be called")
-	}
-
-	if dispatcher.called {
-		t.Fatal("expected knowledge dispatcher not to be called")
+	if storeRepo.findByIDCalled || storage.called || knowledgeRepo.saveCalled || dispatcher.called {
+		t.Fatal("dependencies should not be called for unauthenticated requests")
 	}
 }
 
 func TestAddStoreKnowledgeUseCase_StoreNotFound(t *testing.T) {
-	repository := &addKnowledgeStoreRepository{}
+	storeRepo := &addKnowledgeStoreRepository{}
+	storage := &addKnowledgeStorage{}
 	dispatcher := &addKnowledgeDispatcher{}
+	uc := newAddKnowledgeUseCase(storeRepo, &addKnowledgeRepository{}, storage, dispatcher, &addKnowledgeLogger{}, &addKnowledgeMetrics{})
 
-	uc := usecases.NewAddStoreKnowledgeUseCase(
-		repository,
-		dispatcher,
-		&addKnowledgeLogger{},
-		&addKnowledgeMetrics{},
-	)
-
-	storeID := uuid.New()
-	ownerID := uuid.New()
-
-	ctx := addKnowledgeAuthenticatedContext(context.Background(), ownerID)
-
-	_, err := uc.Execute(
-		ctx,
-		dto.AddStoreKnowledgeInput{
-			StoreID: storeID,
-			File: dto.StoreKnowledgeFileInput{
-				Content:     []byte("knowledge"),
-				Filename:    "knowledge.pdf",
-				ContentType: "application/pdf",
-			},
-		},
-	)
-
+	_, err := uc.Execute(addKnowledgeAuthenticatedContext(context.Background(), uuid.New()), addKnowledgeInput(uuid.New()))
 	if !errors.Is(err, applicationerrors.ErrStoreNotFound) {
 		t.Fatalf("expected ErrStoreNotFound, got %v", err)
 	}
-
-	if repository.findByIDID != storeID {
-		t.Fatalf("expected repository lookup for %s, got %s", storeID, repository.findByIDID)
-	}
-
-	if dispatcher.called {
-		t.Fatal("expected knowledge dispatcher not to be called")
+	if storage.called || dispatcher.called {
+		t.Fatal("storage and dispatcher must not be called when store is missing")
 	}
 }
 
-func TestAddStoreKnowledgeUseCase_RepositoryLookupFailure(t *testing.T) {
-	expectedErr := errors.New("database unavailable")
-	repository := &addKnowledgeStoreRepository{
-		findByIDError: expectedErr,
-	}
-	dispatcher := &addKnowledgeDispatcher{}
-
-	uc := usecases.NewAddStoreKnowledgeUseCase(
-		repository,
-		dispatcher,
-		&addKnowledgeLogger{},
-		&addKnowledgeMetrics{},
-	)
-
+func TestAddStoreKnowledgeUseCase_NonOwnerCannotAddKnowledge(t *testing.T) {
 	ownerID := uuid.New()
-	ctx := addKnowledgeAuthenticatedContext(context.Background(), ownerID)
-
-	_, err := uc.Execute(
-		ctx,
-		dto.AddStoreKnowledgeInput{
-			StoreID: uuid.New(),
-			File: dto.StoreKnowledgeFileInput{
-				Content:     []byte("knowledge"),
-				Filename:    "knowledge.pdf",
-				ContentType: "application/pdf",
-			},
-		},
-	)
-
-	if !errors.Is(err, expectedErr) {
-		t.Fatalf("expected repository error to be wrapped, got %v", err)
-	}
-
-	if dispatcher.called {
-		t.Fatal("expected knowledge dispatcher not to be called")
-	}
-}
-
-func TestAddStoreKnowledgeUseCase_NonOwnerReceivesStoreNotFound(t *testing.T) {
-	ownerID := uuid.New()
-	otherUserID := uuid.New()
 	store := newAddKnowledgeStore(t, ownerID, valueobjects.PlanTypePremium)
-
-	repository := &addKnowledgeStoreRepository{
-		store: store,
-	}
+	storage := &addKnowledgeStorage{}
 	dispatcher := &addKnowledgeDispatcher{}
-
-	uc := usecases.NewAddStoreKnowledgeUseCase(
-		repository,
+	uc := newAddKnowledgeUseCase(
+		&addKnowledgeStoreRepository{store: store},
+		&addKnowledgeRepository{},
+		storage,
 		dispatcher,
 		&addKnowledgeLogger{},
 		&addKnowledgeMetrics{},
 	)
 
-	ctx := addKnowledgeAuthenticatedContext(context.Background(), otherUserID)
-
 	_, err := uc.Execute(
-		ctx,
-		dto.AddStoreKnowledgeInput{
-			StoreID: store.ID().Value(),
-			File: dto.StoreKnowledgeFileInput{
-				Content:     []byte("knowledge"),
-				Filename:    "knowledge.pdf",
-				ContentType: "application/pdf",
-			},
-		},
+		addKnowledgeAuthenticatedContext(context.Background(), uuid.New()),
+		addKnowledgeInput(store.ID().Value()),
 	)
-
 	if !errors.Is(err, applicationerrors.ErrStoreNotFound) {
 		t.Fatalf("expected ErrStoreNotFound, got %v", err)
 	}
-
-	if dispatcher.called {
-		t.Fatal("expected knowledge dispatcher not to be called")
+	if storage.called || dispatcher.called {
+		t.Fatal("storage and dispatcher must not be called for a non-owner")
 	}
 }
 
-func TestAddStoreKnowledgeUseCase_RejectsStoreWithoutAIFeatures(t *testing.T) {
+func TestAddStoreKnowledgeUseCase_RejectsBasicPlan(t *testing.T) {
 	ownerID := uuid.New()
 	store := newAddKnowledgeStore(t, ownerID, valueobjects.PlanTypeBasic)
-
-	repository := &addKnowledgeStoreRepository{
-		store: store,
-	}
+	storage := &addKnowledgeStorage{}
 	dispatcher := &addKnowledgeDispatcher{}
-
-	uc := usecases.NewAddStoreKnowledgeUseCase(
-		repository,
+	uc := newAddKnowledgeUseCase(
+		&addKnowledgeStoreRepository{store: store},
+		&addKnowledgeRepository{},
+		storage,
 		dispatcher,
 		&addKnowledgeLogger{},
 		&addKnowledgeMetrics{},
 	)
 
-	ctx := addKnowledgeAuthenticatedContext(context.Background(), ownerID)
-
 	_, err := uc.Execute(
-		ctx,
-		dto.AddStoreKnowledgeInput{
-			StoreID: store.ID().Value(),
-			File: dto.StoreKnowledgeFileInput{
-				Content:     []byte("knowledge"),
-				Filename:    "knowledge.pdf",
-				ContentType: "application/pdf",
-			},
-		},
+		addKnowledgeAuthenticatedContext(context.Background(), ownerID),
+		addKnowledgeInput(store.ID().Value()),
 	)
-
 	if err == nil {
 		t.Fatal("expected AI capability error")
 	}
-
-	if dispatcher.called {
-		t.Fatal("expected knowledge dispatcher not to be called")
+	if storage.called || dispatcher.called {
+		t.Fatal("storage and dispatcher must not be called for a plan without AI")
 	}
 }
 
-func TestAddStoreKnowledgeUseCase_DispatchesStoreIDAndFile(t *testing.T) {
+func TestAddStoreKnowledgeUseCase_StorageFailureDoesNotSaveMetadata(t *testing.T) {
+	expectedErr := errors.New("storage unavailable")
 	ownerID := uuid.New()
 	store := newAddKnowledgeStore(t, ownerID, valueobjects.PlanTypePremium)
-
-	repository := &addKnowledgeStoreRepository{
-		store: store,
-	}
+	knowledgeRepo := &addKnowledgeRepository{}
+	storage := &addKnowledgeStorage{err: expectedErr}
 	dispatcher := &addKnowledgeDispatcher{}
-
-	uc := usecases.NewAddStoreKnowledgeUseCase(
-		repository,
+	uc := newAddKnowledgeUseCase(
+		&addKnowledgeStoreRepository{store: store},
+		knowledgeRepo,
+		storage,
 		dispatcher,
 		&addKnowledgeLogger{},
 		&addKnowledgeMetrics{},
 	)
-
-	content := []byte("enterprise product documentation")
-
-	ctx := addKnowledgeAuthenticatedContext(context.Background(), ownerID)
-
-	input := dto.AddStoreKnowledgeInput{
-		StoreID: store.ID().Value(),
-		File: dto.StoreKnowledgeFileInput{
-			Content:     content,
-			Filename:    "products.pdf",
-			ContentType: "application/pdf",
-		},
-	}
-
-	output, err := uc.Execute(ctx, input)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-
-	if output.StoreID != store.ID().Value() {
-		t.Fatalf(
-			"expected output StoreID %s, got %s",
-			store.ID().Value(),
-			output.StoreID,
-		)
-	}
-
-	if !dispatcher.called {
-		t.Fatal("expected knowledge dispatcher to be called")
-	}
-
-	if dispatcher.knowledge.StoreID != store.ID().Value() {
-		t.Fatalf(
-			"expected dispatched StoreID %s, got %s",
-			store.ID().Value(),
-			dispatcher.knowledge.StoreID,
-		)
-	}
-
-	if string(dispatcher.knowledge.Content) != string(content) {
-		t.Fatalf("expected dispatched content %q, got %q", content, dispatcher.knowledge.Content)
-	}
-
-	if dispatcher.knowledge.Filename != "products.pdf" {
-		t.Fatalf(
-			"expected filename %q, got %q",
-			"products.pdf",
-			dispatcher.knowledge.Filename,
-		)
-	}
-
-	if dispatcher.knowledge.ContentType != "application/pdf" {
-		t.Fatalf(
-			"expected content type %q, got %q",
-			"application/pdf",
-			dispatcher.knowledge.ContentType,
-		)
-	}
-}
-
-func TestAddStoreKnowledgeUseCase_DispatchFailureIsReturned(t *testing.T) {
-	expectedErr := errors.New("AI service unavailable")
-
-	ownerID := uuid.New()
-	store := newAddKnowledgeStore(t, ownerID, valueobjects.PlanTypePremium)
-
-	repository := &addKnowledgeStoreRepository{
-		store: store,
-	}
-	dispatcher := &addKnowledgeDispatcher{
-		dispatchError: expectedErr,
-	}
-
-	uc := usecases.NewAddStoreKnowledgeUseCase(
-		repository,
-		dispatcher,
-		&addKnowledgeLogger{},
-		&addKnowledgeMetrics{},
-	)
-
-	ctx := addKnowledgeAuthenticatedContext(context.Background(), ownerID)
 
 	_, err := uc.Execute(
-		ctx,
-		dto.AddStoreKnowledgeInput{
-			StoreID: store.ID().Value(),
-			File: dto.StoreKnowledgeFileInput{
-				Content:     []byte("knowledge"),
-				Filename:    "knowledge.pdf",
-				ContentType: "application/pdf",
-			},
-		},
+		addKnowledgeAuthenticatedContext(context.Background(), ownerID),
+		addKnowledgeInput(store.ID().Value()),
 	)
-
 	if !errors.Is(err, expectedErr) {
-		t.Fatalf("expected dispatcher error to be returned, got %v", err)
+		t.Fatalf("expected storage error, got %v", err)
+	}
+	if knowledgeRepo.saveCalled || dispatcher.called {
+		t.Fatal("metadata persistence and ingestion must not happen after storage failure")
 	}
 }
 
-func TestAddStoreKnowledgeUseCase_ObservesSuccessfulOperation(t *testing.T) {
+func TestAddStoreKnowledgeUseCase_MetadataFailureDoesNotDispatch(t *testing.T) {
+	expectedErr := errors.New("database unavailable")
 	ownerID := uuid.New()
 	store := newAddKnowledgeStore(t, ownerID, valueobjects.PlanTypePremium)
+	storage := &addKnowledgeStorage{}
+	knowledgeRepo := &addKnowledgeRepository{saveErr: expectedErr}
+	dispatcher := &addKnowledgeDispatcher{}
+	uc := newAddKnowledgeUseCase(
+		&addKnowledgeStoreRepository{store: store},
+		knowledgeRepo,
+		storage,
+		dispatcher,
+		&addKnowledgeLogger{},
+		&addKnowledgeMetrics{},
+	)
 
-	repository := &addKnowledgeStoreRepository{
-		store: store,
+	_, err := uc.Execute(
+		addKnowledgeAuthenticatedContext(context.Background(), ownerID),
+		addKnowledgeInput(store.ID().Value()),
+	)
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected metadata persistence error, got %v", err)
 	}
+	if !storage.called {
+		t.Fatal("expected file to be uploaded before metadata persistence")
+	}
+	if dispatcher.called {
+		t.Fatal("ingestion must not be dispatched when metadata persistence fails")
+	}
+}
+
+func TestAddStoreKnowledgeUseCase_PersistsAndDispatchesKnowledgeID(t *testing.T) {
+	ownerID := uuid.New()
+	store := newAddKnowledgeStore(t, ownerID, valueobjects.PlanTypePremium)
+	knowledgeRepo := &addKnowledgeRepository{}
+	storage := &addKnowledgeStorage{}
 	dispatcher := &addKnowledgeDispatcher{}
 	logger := &addKnowledgeLogger{}
 	metrics := &addKnowledgeMetrics{}
-
-	uc := usecases.NewAddStoreKnowledgeUseCase(
-		repository,
+	uc := newAddKnowledgeUseCase(
+		&addKnowledgeStoreRepository{store: store},
+		knowledgeRepo,
+		storage,
 		dispatcher,
 		logger,
 		metrics,
 	)
 
-	ctx := addKnowledgeAuthenticatedContext(context.Background(), ownerID)
-
-	_, err := uc.Execute(
-		ctx,
-		dto.AddStoreKnowledgeInput{
-			StoreID: store.ID().Value(),
-			File: dto.StoreKnowledgeFileInput{
-				Content:     []byte("knowledge"),
-				Filename:    "knowledge.pdf",
-				ContentType: "application/pdf",
-			},
+	content := []byte("enterprise product documentation")
+	input := dto.AddStoreKnowledgeInput{
+		StoreID: store.ID().Value(),
+		File: dto.StoreKnowledgeFileInput{
+			Content: content, Filename: "products.pdf", ContentType: "application/pdf",
 		},
-	)
-
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
 	}
-
+	output, err := uc.Execute(
+		addKnowledgeAuthenticatedContext(context.Background(), ownerID),
+		input,
+	)
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if output.StoreID != store.ID().Value() {
+		t.Fatalf("expected StoreID %s, got %s", store.ID().Value(), output.StoreID)
+	}
+	if !storage.called {
+		t.Fatal("expected file upload")
+	}
+	if storage.file.Reference != "knowledge/"+store.ID().Value().String()+"/products.pdf" {
+		t.Fatalf("unexpected storage reference: %q", storage.file.Reference)
+	}
+	if string(storage.file.Content) != string(content) {
+		t.Fatal("uploaded content does not match input")
+	}
+	if storage.file.ContentType != "application/pdf" {
+		t.Fatalf("unexpected content type: %q", storage.file.ContentType)
+	}
+	if !knowledgeRepo.saveCalled || knowledgeRepo.saved == nil {
+		t.Fatal("expected knowledge metadata to be persisted")
+	}
+	if knowledgeRepo.saved.StoreID() != store.ID().Value() ||
+		knowledgeRepo.saved.Filename() != "products.pdf" ||
+		knowledgeRepo.saved.ContentType() != "application/pdf" ||
+		knowledgeRepo.saved.StorageReference() != storage.file.Reference {
+		t.Fatal("persisted knowledge metadata does not match uploaded file")
+	}
+	if !dispatcher.called {
+		t.Fatal("expected ingestion dispatch")
+	}
+	if dispatcher.request.KnowledgeID != knowledgeRepo.saved.ID() {
+		t.Fatalf("expected dispatched knowledge ID %s, got %s", knowledgeRepo.saved.ID(), dispatcher.request.KnowledgeID)
+	}
+	if dispatcher.request.StoreID != store.ID().Value() {
+		t.Fatalf("unexpected dispatched store ID: %s", dispatcher.request.StoreID)
+	}
+	if dispatcher.request.StorageReference != storage.file.Reference {
+		t.Fatalf("unexpected dispatched storage reference: %q", dispatcher.request.StorageReference)
+	}
 	if !logger.successCalled {
 		t.Fatal("expected success log")
 	}
-
-	if metrics.incrementCalls == 0 {
-		t.Fatal("expected metrics increment")
+	if metrics.incrementCalls == 0 || metrics.observeCalls == 0 {
+		t.Fatal("expected success metrics")
 	}
+}
 
-	if metrics.observeCalls == 0 {
-		t.Fatal("expected metrics observation")
+func TestAddStoreKnowledgeUseCase_KafkaFailureIsNonFatal(t *testing.T) {
+	ownerID := uuid.New()
+	store := newAddKnowledgeStore(t, ownerID, valueobjects.PlanTypePremium)
+	knowledgeRepo := &addKnowledgeRepository{}
+	dispatcher := &addKnowledgeDispatcher{err: errors.New("kafka unavailable")}
+	uc := newAddKnowledgeUseCase(
+		&addKnowledgeStoreRepository{store: store},
+		knowledgeRepo,
+		&addKnowledgeStorage{},
+		dispatcher,
+		&addKnowledgeLogger{},
+		&addKnowledgeMetrics{},
+	)
+
+	_, err := uc.Execute(
+		addKnowledgeAuthenticatedContext(context.Background(), ownerID),
+		addKnowledgeInput(store.ID().Value()),
+	)
+	if err != nil {
+		t.Fatalf("expected successful upload despite Kafka failure, got %v", err)
 	}
+	if !knowledgeRepo.saveCalled {
+		t.Fatal("expected metadata to remain persisted")
+	}
+	if !dispatcher.called {
+		t.Fatal("expected ingestion dispatch attempt")
+	}
+}
+
+func addKnowledgeInput(storeID uuid.UUID) dto.AddStoreKnowledgeInput {
+	return dto.AddStoreKnowledgeInput{
+		StoreID: storeID,
+		File: dto.StoreKnowledgeFileInput{
+			Content: []byte("knowledge"), Filename: "knowledge.pdf", ContentType: "application/pdf",
+		},
+	}
+}
+
+func newAddKnowledgeUseCase(
+	storeRepo ports.StoreRepository,
+	knowledgeRepo ports.KnowledgeRepository,
+	storage ports.KnowledgeStorage,
+	dispatcher ports.KnowledgeIngestionDispatcher,
+	logger ports.Logger,
+	metrics ports.Metrics,
+) *usecases.AddStoreKnowledgeUseCase {
+	return usecases.NewAddStoreKnowledgeUseCase(storeRepo, knowledgeRepo, storage, dispatcher, logger, metrics)
 }
 
 type addKnowledgeStoreRepository struct {
@@ -381,128 +288,90 @@ type addKnowledgeStoreRepository struct {
 	findByIDID     uuid.UUID
 }
 
-func (f *addKnowledgeStoreRepository) Create(context.Context, *entities.Store) error {
-	return nil
-}
-
-func (f *addKnowledgeStoreRepository) Delete(context.Context, uuid.UUID) error {
-	return nil
-}
-
-func (f *addKnowledgeStoreRepository) FindByID(
-	_ context.Context,
-	storeID uuid.UUID,
-) (*entities.Store, error) {
-	f.findByIDCalled = true
-	f.findByIDID = storeID
-
+func (f *addKnowledgeStoreRepository) Create(context.Context, *entities.Store) error { return nil }
+func (f *addKnowledgeStoreRepository) Delete(context.Context, uuid.UUID) error       { return nil }
+func (f *addKnowledgeStoreRepository) FindByID(_ context.Context, id uuid.UUID) (*entities.Store, error) {
+	f.findByIDCalled, f.findByIDID = true, id
 	if f.findByIDError != nil {
 		return nil, f.findByIDError
 	}
-
 	return f.store, nil
 }
-
-func (f *addKnowledgeStoreRepository) FindByOwnerID(
-	context.Context,
-	uuid.UUID,
-) (*entities.Store, error) {
+func (f *addKnowledgeStoreRepository) FindByOwnerID(context.Context, uuid.UUID) (*entities.Store, error) {
 	return nil, nil
 }
-
-func (f *addKnowledgeStoreRepository) FindBySlug(
-	context.Context,
-	string,
-) (*entities.Store, error) {
+func (f *addKnowledgeStoreRepository) FindBySlug(context.Context, string) (*entities.Store, error) {
 	return nil, nil
 }
-
-func (f *addKnowledgeStoreRepository) ExistsBySlug(
-	context.Context,
-	string,
-) (bool, error) {
+func (f *addKnowledgeStoreRepository) ExistsBySlug(context.Context, string) (bool, error) {
 	return false, nil
 }
-
-func (f *addKnowledgeStoreRepository) ListActive(
-	context.Context,
-	string,
-	int,
-	int,
-) ([]*entities.Store, int, error) {
+func (f *addKnowledgeStoreRepository) ListActive(context.Context, string, int, int) ([]*entities.Store, int, error) {
 	return nil, 0, nil
 }
-
-func (f *addKnowledgeStoreRepository) Update(
-	context.Context,
-	*entities.Store,
-) error {
+func (f *addKnowledgeStoreRepository) Update(context.Context, *entities.Store) error     { return nil }
+func (f *addKnowledgeStoreRepository) ChangePlan(context.Context, *entities.Store) error { return nil }
+func (f *addKnowledgeStoreRepository) ChangeStatus(context.Context, uuid.UUID, string) error {
 	return nil
 }
 
-func (f *addKnowledgeStoreRepository) ChangePlan(
-	context.Context,
-	*entities.Store,
-) error {
-	return nil
+type addKnowledgeRepository struct {
+	saved      *entities.Knowledge
+	saveCalled bool
+	saveErr    error
 }
 
-func (f *addKnowledgeStoreRepository) ChangeStatus(
-	context.Context,
-	uuid.UUID,
-	string,
-) error {
+func (f *addKnowledgeRepository) GetByStoreID(context.Context, uuid.UUID) ([]*entities.Knowledge, error) {
+	return nil, nil
+}
+func (f *addKnowledgeRepository) Save(_ context.Context, knowledge *entities.Knowledge) error {
+	f.saveCalled = true
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.saved = knowledge
 	return nil
+}
+func (f *addKnowledgeRepository) DeleteByID(context.Context, uuid.UUID) error { return nil }
+
+type addKnowledgeStorage struct {
+	called bool
+	file   ports.KnowledgeFile
+	err    error
+}
+
+func (f *addKnowledgeStorage) PutKnowledgeFile(_ context.Context, file ports.KnowledgeFile) error {
+	f.called, f.file = true, file
+	return f.err
 }
 
 type addKnowledgeDispatcher struct {
-	called        bool
-	knowledge     ports.StoreKnowledge
-	dispatchError error
+	called  bool
+	request ports.KnowledgeIngestionRequested
+	err     error
 }
 
-func (f *addKnowledgeDispatcher) DispatchStoreKnowledge(
-	_ context.Context,
-	knowledge ports.StoreKnowledge,
-) error {
-	f.called = true
-	f.knowledge = knowledge
-
-	return f.dispatchError
+func (f *addKnowledgeDispatcher) DispatchKnowledgeIngestion(_ context.Context, request ports.KnowledgeIngestionRequested) error {
+	f.called, f.request = true, request
+	return f.err
 }
 
-type addKnowledgeLogger struct {
-	successCalled bool
-}
+type addKnowledgeLogger struct{ successCalled bool }
 
-func (f *addKnowledgeLogger) Log(
-	_ context.Context,
-	event ports.LogEvent,
-) error {
+func (f *addKnowledgeLogger) Log(_ context.Context, event ports.LogEvent) error {
 	if event.Event == "store.add_knowledge.succeeded" {
 		f.successCalled = true
 	}
-
 	return nil
 }
 
-type addKnowledgeMetrics struct {
-	incrementCalls int
-	observeCalls   int
-}
+type addKnowledgeMetrics struct{ incrementCalls, observeCalls int }
 
-func (f *addKnowledgeMetrics) Increment(
-	_ context.Context,
-	_ ports.Metric,
-) error {
+func (f *addKnowledgeMetrics) Increment(context.Context, ports.Metric) error {
 	f.incrementCalls++
 	return nil
 }
-
-func (f *addKnowledgeMetrics) Observe(
-	_ context.Context,
-	_ ports.Metric,
-) error {
+func (f *addKnowledgeMetrics) Observe(context.Context, ports.Metric) error {
 	f.observeCalls++
 	return nil
 }

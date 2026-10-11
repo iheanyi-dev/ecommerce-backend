@@ -2,11 +2,11 @@ package schemas
 
 // RemoveStaleKnowledgeRequest identifies the knowledge file to remove.
 type RemoveStaleKnowledgeRequest struct {
-	Filename string `json:"filename"`
+	KnowledgeID string `json:"knowledge_id"`
 }
 
 // RemoveStaleKnowledgeResponse confirms the removal request.
 type RemoveStaleKnowledgeResponse struct {
-	StoreID  string `json:"store_id"`
-	Filename string `json:"filename"`
+	StoreID     string `json:"store_id"`
+	KnowledgeID string `json:"knowledge_id"`
 }

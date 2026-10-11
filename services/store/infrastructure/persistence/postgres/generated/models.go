@@ -8,6 +8,14 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Knowledge struct {
+	ID               pgtype.UUID `json:"id"`
+	StoreID          pgtype.UUID `json:"store_id"`
+	Filename         string      `json:"filename"`
+	ContentType      string      `json:"content_type"`
+	StorageReference string      `json:"storage_reference"`
+}
+
 type Store struct {
 	ID             pgtype.UUID        `json:"id"`
 	OwnerID        pgtype.UUID        `json:"owner_id"`

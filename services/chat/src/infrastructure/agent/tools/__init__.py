@@ -1,1 +1,1 @@
-"""Agent tool implementations and registration."""
+"""Tools available to the Agent."""

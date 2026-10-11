@@ -7,6 +7,9 @@ from uuid import UUID, uuid4
 import pytest
 from jsonschema.exceptions import SchemaError
 
+from domain.entities.message import Message
+from domain.value_objects.message_content import MessageContent
+from domain.value_objects.message_role import MessageRole
 from infrastructure.agent.agent import Agent, AgentExecutionLimitError
 from infrastructure.agent.models import (
     ModelMessage,
@@ -15,6 +18,7 @@ from infrastructure.agent.models import (
     ToolContext,
     ToolDefinition,
 )
+from infrastructure.agent.ports.conversation_history import ConversationHistory
 from infrastructure.agent.ports.llm_provider import LLMProvider
 from infrastructure.agent.ports.tool import Tool
 
@@ -42,6 +46,28 @@ class StubMetrics:
 
     def observe(self, name: str, value: float) -> None:
         pass
+
+
+class StubConversationHistory:
+    def __init__(self, messages: list[Message] | None = None) -> None:
+        self.messages = messages or []
+        self.calls: list[dict[str, Any]] = []
+
+    async def get_history(
+        self,
+        *,
+        store_id: UUID,
+        conversation_id: UUID,
+        exclude_message_id: UUID,
+        limit: int,
+    ) -> list[Message]:
+        self.calls.append({
+            "store_id": store_id,
+            "conversation_id": conversation_id,
+            "exclude_message_id": exclude_message_id,
+            "limit": limit,
+        })
+        return self.messages
 
 
 class StubProvider:
@@ -100,6 +126,7 @@ def build_agent(
     tools: list[Tool] | None = None,
     *,
     max_tool_rounds: int = 8,
+    history: ConversationHistory | None = None,
 ) -> tuple[Agent, StubProvider, StubLogger, StubMetrics]:
     provider = StubProvider(responses)
     logger = StubLogger()
@@ -109,6 +136,7 @@ def build_agent(
         tools=tools or [],
         logger=logger,
         metrics=metrics,
+        conversation_history=history or StubConversationHistory(),
         max_tool_rounds=max_tool_rounds,
     )
     return agent, provider, logger, metrics
@@ -216,6 +244,56 @@ async def test_does_not_load_history_without_a_model_tool_call() -> None:
         "system",
         "user",
     ]
+
+
+@pytest.mark.asyncio
+async def test_includes_prior_conversation_history_before_current_message() -> None:
+    store_id = uuid4()
+    conversation_id = uuid4()
+    current_message_id = uuid4()
+    prior = Message(
+        id=uuid4(),
+        conversation_id=conversation_id,
+        store_id=store_id,
+        user_id=uuid4(),
+        role=MessageRole.USER,
+        content=MessageContent("I am looking for running shoes."),
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ),
+        updated_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ),
+    )
+    history = StubConversationHistory([prior])
+    agent, provider, _, _ = build_agent(
+        [ModelResponse(content="Let me find some options.")],
+        history=history,
+    )
+
+    chunks = await collect(
+        agent.run(
+            store_id=store_id,
+            conversation_id=conversation_id,
+            current_message_id=current_message_id,
+            message="Show me waterproof ones.",
+            system_prompt="Help customers shop.",
+        )
+    )
+
+    assert chunks == ["Let me find some options."]
+    messages = provider.requests[0][0]
+    assert [(item.role, item.content) for item in messages] == [
+        ("system", "Help customers shop."),
+        ("user", "I am looking for running shoes."),
+        ("user", "Show me waterproof ones."),
+    ]
+    assert history.calls == [{
+        "store_id": store_id,
+        "conversation_id": conversation_id,
+        "exclude_message_id": current_message_id,
+        "limit": 20,
+    }]
 
 
 @pytest.mark.asyncio

@@ -82,7 +82,53 @@ func (c *Client) PutStoreImage(
 	if image.Reference == "" {
 		return errors.New("storage: image reference is required")
 	}
+	return c.putObject(ctx, image.Reference, image.ContentType, image.Content)
+}
 
+// DeleteKnowledgeFile requests deletion of a Knowledge file from Storage.
+func (c *Client) DeleteKnowledgeFile(ctx context.Context, reference string) error {
+	if reference == "" {
+		return errors.New("storage: knowledge reference is required")
+	}
+
+	ctx, span := c.tracer.Start(ctx, "storage.DeleteObject")
+	defer span.End()
+
+	ctx = metadata.AppendToOutgoingContext(
+		ctx,
+		"x-service-name", c.serviceName,
+		"x-service-secret", c.serviceSecret,
+	)
+	md, ok := metadata.FromOutgoingContext(ctx)
+	if !ok {
+		md = metadata.MD{}
+	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(md))
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
+	_, err := c.client.DeleteObject(ctx, &storagev1.DeleteObjectRequest{
+		Reference: reference,
+	})
+	return err
+}
+
+// PutKnowledgeFile synchronously uploads a Knowledge file to Storage.
+func (c *Client) PutKnowledgeFile(
+	ctx context.Context,
+	file ports.KnowledgeFile,
+) error {
+	if file.Reference == "" {
+		return errors.New("storage: knowledge reference is required")
+	}
+	return c.putObject(ctx, file.Reference, file.ContentType, file.Content)
+}
+
+func (c *Client) putObject(
+	ctx context.Context,
+	reference string,
+	contentType string,
+	content []byte,
+) error {
 	ctx, span := c.tracer.Start(ctx, "storage.PutObject")
 	defer span.End()
 
@@ -113,15 +159,15 @@ func (c *Client) PutStoreImage(
 	if err := stream.Send(&storagev1.PutObjectRequest{
 		Payload: &storagev1.PutObjectRequest_Metadata{
 			Metadata: &storagev1.PutObjectMetadata{
-				Reference:   image.Reference,
-				ContentType: image.ContentType,
+				Reference:   reference,
+				ContentType: contentType,
 			},
 		},
 	}); err != nil {
 		return err
 	}
 
-	reader := bytes.NewReader(image.Content)
+	reader := bytes.NewReader(content)
 	buffer := make([]byte, uploadChunkSize)
 
 	for {

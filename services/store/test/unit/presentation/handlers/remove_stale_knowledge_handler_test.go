@@ -18,21 +18,25 @@ type mockRemoveStaleKnowledgeService struct {
 	executeFunc func(context.Context, dto.RemoveStaleKnowledgeInput) (dto.RemoveStaleKnowledgeOutput, error)
 }
 
-func (m *mockRemoveStaleKnowledgeService) Execute(ctx context.Context, input dto.RemoveStaleKnowledgeInput) (dto.RemoveStaleKnowledgeOutput, error) {
+func (m *mockRemoveStaleKnowledgeService) Execute(
+	ctx context.Context,
+	input dto.RemoveStaleKnowledgeInput,
+) (dto.RemoveStaleKnowledgeOutput, error) {
 	return m.executeFunc(ctx, input)
 }
 
 func TestRemoveStaleKnowledgeHandler_Success(t *testing.T) {
 	storeID := uuid.New()
+	knowledgeID := uuid.New()
 
 	handler := handlers.NewRemoveStaleKnowledgeHandler(&mockRemoveStaleKnowledgeService{
-		executeFunc: func(ctx context.Context, input dto.RemoveStaleKnowledgeInput) (dto.RemoveStaleKnowledgeOutput, error) {
-			if input.StoreID != storeID || input.Filename != "old.pdf" {
+		executeFunc: func(_ context.Context, input dto.RemoveStaleKnowledgeInput) (dto.RemoveStaleKnowledgeOutput, error) {
+			if input.StoreID != storeID || input.KnowledgeID != knowledgeID {
 				t.Fatalf("unexpected input: %+v", input)
 			}
 			return dto.RemoveStaleKnowledgeOutput{
-				StoreID:  storeID,
-				Filename: input.Filename,
+				StoreID:     storeID,
+				KnowledgeID: knowledgeID,
 			}, nil
 		},
 	})
@@ -40,15 +44,16 @@ func TestRemoveStaleKnowledgeHandler_Success(t *testing.T) {
 	req := httptest.NewRequest(
 		http.MethodDelete,
 		"/api/v1/stores/"+storeID.String()+"/knowledge",
-		strings.NewReader(`{"filename":"old.pdf"}`),
+		strings.NewReader(`{"knowledge_id":"`+knowledgeID.String()+`"}`),
 	)
+	req.Header.Set("Content-Type", "application/json")
 	req.SetPathValue("id", storeID.String())
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected %d, got %d", http.StatusOK, rec.Code)
+		t.Fatalf("expected %d, got %d; body: %s", http.StatusOK, rec.Code, rec.Body.String())
 	}
 }
 
@@ -66,6 +71,29 @@ func TestRemoveStaleKnowledgeHandler_InvalidJSON(t *testing.T) {
 		"/api/v1/stores/"+storeID.String()+"/knowledge",
 		strings.NewReader(`{`),
 	)
+	req.SetPathValue("id", storeID.String())
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	assertBadRequest(t, rec)
+}
+
+func TestRemoveStaleKnowledgeHandler_InvalidKnowledgeID(t *testing.T) {
+	handler := handlers.NewRemoveStaleKnowledgeHandler(&mockRemoveStaleKnowledgeService{
+		executeFunc: func(context.Context, dto.RemoveStaleKnowledgeInput) (dto.RemoveStaleKnowledgeOutput, error) {
+			t.Fatal("service must not be called for an invalid knowledge ID")
+			return dto.RemoveStaleKnowledgeOutput{}, nil
+		},
+	})
+
+	storeID := uuid.New()
+	req := httptest.NewRequest(
+		http.MethodDelete,
+		"/api/v1/stores/"+storeID.String()+"/knowledge",
+		strings.NewReader(`{"knowledge_id":"not-a-uuid"}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
 	req.SetPathValue("id", storeID.String())
 
 	rec := httptest.NewRecorder()

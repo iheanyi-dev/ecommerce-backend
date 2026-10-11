@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"testing"
 	"time"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/shared/config"
 )
@@ -58,6 +61,31 @@ func NewTestDatabase(t *testing.T) *TestDatabase {
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
 		t.Fatalf("ping store test database: %v", err)
+	}
+
+	// Apply all Store migrations so integration tests always use the current
+	// schema, including newly added tables and constraints.
+	migrationDB, err := sql.Open("pgx", cfg.DatabaseURL())
+	if err != nil {
+		pool.Close()
+		t.Fatalf("open store migration database: %v", err)
+	}
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		_ = migrationDB.Close()
+		pool.Close()
+		t.Fatalf("configure store migration dialect: %v", err)
+	}
+
+	if err := goose.UpContext(ctx, migrationDB, "../../../../../migrations"); err != nil {
+		_ = migrationDB.Close()
+		pool.Close()
+		t.Fatalf("apply store migrations: %v", err)
+	}
+
+	if err := migrationDB.Close(); err != nil {
+		pool.Close()
+		t.Fatalf("close store migration database: %v", err)
 	}
 
 	t.Cleanup(func() {

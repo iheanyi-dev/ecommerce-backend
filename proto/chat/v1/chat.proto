@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package chat.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/chat/v1;chatv1";
+
+// Internal Store-to-Chat contract. Chat owns prompting, inference,
+// conversation history, and persistence.
+service ChatService {
+  rpc StreamMessage(StreamMessageRequest)
+      returns (stream StreamMessageResponse);
+}
+
+message StreamMessageRequest {
+  string store_id = 1;
+  string user_id = 2;
+  string conversation_id = 3;
+  string message = 4;
+}
+
+message StreamMessageResponse {
+  string type = 1;
+  string content = 2;
+  string conversation_id = 3;
+}

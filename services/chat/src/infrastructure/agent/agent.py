@@ -18,6 +18,7 @@ from infrastructure.agent.models import (
     ToolContext,
     ToolDefinition,
 )
+from infrastructure.agent.ports.conversation_history import ConversationHistory
 from infrastructure.agent.ports.llm_provider import LLMProvider
 from infrastructure.agent.ports.tool import Tool
 
@@ -36,15 +37,21 @@ class Agent(AgentPort):
         tools: Iterable[Tool],
         logger: Logger,
         metrics: Metrics,
+        conversation_history: ConversationHistory,
+        history_limit: int = 20,
         max_tool_rounds: int = 8,
     ) -> None:
         if max_tool_rounds < 1:
             raise ValueError("max_tool_rounds must be at least 1")
+        if history_limit < 1:
+            raise ValueError("history_limit must be at least 1")
 
         self._provider = provider
         self._logger = logger
         self._metrics = metrics
         self._max_tool_rounds = max_tool_rounds
+        self._conversation_history = conversation_history
+        self._history_limit = history_limit
 
         tool_map: dict[str, Tool] = {}
         validators: dict[str, Draft202012Validator] = {}
@@ -69,10 +76,21 @@ class Agent(AgentPort):
     ) -> AsyncIterator[str]:
         """Run the model/tool loop and yield only the final response text."""
         started_at = perf_counter()
-        messages = [
-            ModelMessage(role="system", content=system_prompt),
-            ModelMessage(role="user", content=message),
-        ]
+        history = await self._conversation_history.get_history(
+            store_id=store_id,
+            conversation_id=conversation_id,
+            exclude_message_id=current_message_id,
+            limit=self._history_limit,
+        )
+        messages = [ModelMessage(role="system", content=system_prompt)]
+        messages.extend(
+            ModelMessage(
+                role=entry.role.value,
+                content=entry.content.value,
+            )
+            for entry in history
+        )
+        messages.append(ModelMessage(role="user", content=message))
         context = ToolContext(
             store_id=store_id,
             conversation_id=conversation_id,
