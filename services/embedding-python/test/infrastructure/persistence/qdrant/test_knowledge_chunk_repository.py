@@ -177,6 +177,7 @@ def test_search_applies_store_filter_and_reconstructs_chunk():
                     ),
                 },
                 vector=list(chunk.embedding.vector),
+                    score=0.875,
             )
         ]
     )
@@ -199,7 +200,8 @@ def test_search_applies_store_filter_and_reconstructs_chunk():
     assert store_condition.match.value == str(chunk.store_id)
 
     assert len(results) == 1
-    restored = results[0]
+    restored = results[0].chunk
+    assert results[0].score == 0.875
     assert restored.id == chunk.id
     assert restored.knowledge_id == chunk.knowledge_id
     assert restored.store_id == chunk.store_id

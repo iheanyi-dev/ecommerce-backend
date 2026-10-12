@@ -5,7 +5,7 @@ import logging
 from application.use_cases.stream_message import StreamMessage
 from infrastructure.agent.agent import Agent
 from infrastructure.agent.conversation_history import (
-    SQLAlchemyConversationHistory,
+    RepositoryConversationHistory,
 )
 from infrastructure.agent.providers.gemini import GeminiLLMProvider
 from infrastructure.agent.tools.knowledge import SearchStoreKnowledgeTool
@@ -89,7 +89,7 @@ class ChatDependencies:
             ],
             logger=self._logger,
             metrics=self._metrics,
-            conversation_history=SQLAlchemyConversationHistory(session_factory),
+            conversation_history=RepositoryConversationHistory(session_factory),
             history_limit=settings.CHAT_CONVERSATION_HISTORY_LIMIT,
             max_tool_rounds=settings.CHAT_AGENT_MAX_TOOL_ROUNDS,
         )

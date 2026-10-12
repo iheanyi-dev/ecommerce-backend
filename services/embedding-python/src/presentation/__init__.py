@@ -1,0 +1,1 @@
+"""Embedding service presentation adapters."""

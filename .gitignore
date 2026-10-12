@@ -4,5 +4,5 @@
 
 # Recommendation Service local environment
 services/recommendation-python/.env
-services/recommendation-python/.cache
+services/embedding-python/.cache
 storage-data

@@ -7,6 +7,7 @@ from uuid import UUID
 
 from qdrant_client import QdrantClient, models
 
+from application.dto.scored_knowledge_chunk import ScoredKnowledgeChunk
 from application.ports.knowledge_chunk_repository import (
     KnowledgeChunkRepository,
 )
@@ -152,7 +153,7 @@ class QdrantKnowledgeChunkRepository(KnowledgeChunkRepository):
             with_vectors=True,
         )
 
-        results: list[KnowledgeChunk] = []
+        results: list[ScoredKnowledgeChunk] = []
         for point in response.points:
             payload = point.payload
             vector = point.vector
@@ -162,18 +163,22 @@ class QdrantKnowledgeChunkRepository(KnowledgeChunkRepository):
                     f"Qdrant point {point.id} is missing payload or vector data"
                 )
 
+            chunk = KnowledgeChunk(
+                id=UUID(str(point.id)),
+                knowledge_id=UUID(str(payload["knowledge_id"])),
+                store_id=UUID(str(payload["store_id"])),
+                storage_reference=str(payload["storage_reference"]),
+                content=str(payload["content"]),
+                chunk_index=int(payload["chunk_index"]),
+                embedding=Embedding.from_values(vector),
+                embedding_model_version=EmbeddingModelVersion(
+                    str(payload["embedding_model_version"])
+                ),
+            )
             results.append(
-                KnowledgeChunk(
-                    id=UUID(str(point.id)),
-                    knowledge_id=UUID(str(payload["knowledge_id"])),
-                    store_id=UUID(str(payload["store_id"])),
-                    storage_reference=str(payload["storage_reference"]),
-                    content=str(payload["content"]),
-                    chunk_index=int(payload["chunk_index"]),
-                    embedding=Embedding.from_values(vector),
-                    embedding_model_version=EmbeddingModelVersion(
-                        str(payload["embedding_model_version"])
-                    ),
+                ScoredKnowledgeChunk(
+                    chunk=chunk,
+                    score=float(point.score),
                 )
             )
 

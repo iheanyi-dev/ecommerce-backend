@@ -2,6 +2,7 @@
 
 from typing import Protocol, Sequence
 
+from application.dto.scored_knowledge_chunk import ScoredKnowledgeChunk
 from domain.entities.knowledge_chunk import KnowledgeChunk
 from domain.value_objects.embedding import Embedding
 from domain.value_objects.entity_id import EntityID
@@ -28,6 +29,6 @@ class KnowledgeChunkRepository(Protocol):
         top_k: int,
         offset: int,
         store_id: EntityID,
-    ) -> Sequence[KnowledgeChunk]:
-        """Return ranked chunks restricted to the requested store."""
+    ) -> Sequence[ScoredKnowledgeChunk]:
+        """Return ranked chunks and similarity scores for the requested store."""
         ...

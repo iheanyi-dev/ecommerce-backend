@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from threading import Lock
 from typing import Any
 
@@ -31,8 +32,13 @@ class GTEEmbeddingModel(EmbeddingModel):
     def __init__(
         self,
         manifest: EmbeddingModelManifest = GTE_MULTILINGUAL_BASE,
+        *,
+        cache_dir: Path | None = None,
+        local_files_only: bool = True,
     ) -> None:
         self._manifest = manifest
+        self._cache_dir = cache_dir
+        self._local_files_only = local_files_only
         self._model_version = EmbeddingModelVersion(
             f"{manifest.model_id}@{manifest.revision}"
         )
@@ -40,6 +46,10 @@ class GTEEmbeddingModel(EmbeddingModel):
         # Do not download model artifacts during service startup.
         self._loaded: tuple[Any, Any, torch.device] | None = None
         self._load_lock = Lock()
+
+    def load(self) -> None:
+        """Load and initialize the model before message consumption begins."""
+        self._get_loaded_model()
 
     def generate(
         self,
@@ -85,12 +95,11 @@ class GTEEmbeddingModel(EmbeddingModel):
         return embedding, self._model_version
 
     def _get_loaded_model(self) -> tuple[Any, Any, torch.device]:
-        """Return the cached model, loading it exactly once when necessary."""
+        """Load the pinned model from cache first, downloading only on a cache miss."""
         if self._loaded is not None:
             return self._loaded
 
         with self._load_lock:
-            # Another request may have finished loading while we waited.
             if self._loaded is not None:
                 return self._loaded
 
@@ -98,20 +107,32 @@ class GTEEmbeddingModel(EmbeddingModel):
                 "cuda" if torch.cuda.is_available() else "cpu"
             )
 
-            # Pin both artifacts to the same immutable model revision.
+            model_source = self._manifest.model_id
+            load_options: dict[str, Any] = {
+                "revision": self._manifest.revision,
+                "trust_remote_code": True,
+            }
+
+            if self._cache_dir is not None:
+                load_options["cache_dir"] = str(self._cache_dir)
+
+            # Follow Recommendation's proven loading strategy: let
+            # Transformers resolve the pinned model and its custom code
+            # from the configured Hugging Face cache.
+            if self._local_files_only:
+                load_options["local_files_only"] = True
+
             tokenizer = AutoTokenizer.from_pretrained(
-                self._manifest.model_id,
-                revision=self._manifest.revision,
-                trust_remote_code=True,
+                model_source,
+                **load_options,
             )
             model = AutoModel.from_pretrained(
-                self._manifest.model_id,
-                revision=self._manifest.revision,
-                trust_remote_code=True,
+                model_source,
+                **load_options,
             )
             model.to(device)
             model.eval()
 
-            # Cache only after both artifacts load successfully.
+            # Publish the loaded pair only after both artifacts succeed.
             self._loaded = (tokenizer, model, device)
             return self._loaded

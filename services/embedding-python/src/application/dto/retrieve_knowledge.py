@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from domain.entities.knowledge_chunk import KnowledgeChunk
+from application.dto.scored_knowledge_chunk import ScoredKnowledgeChunk
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,4 +25,4 @@ class RetrieveKnowledgeOutput:
     """Return the matching chunks without exposing repository internals."""
 
     store_id: UUID
-    chunks: tuple[KnowledgeChunk, ...]
+    chunks: tuple[ScoredKnowledgeChunk, ...]
