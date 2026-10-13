@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from . import embedding_pb2 as embedding_dot_v1_dot_embedding__pb2
+from embedding.v1 import embedding_pb2 as embedding_dot_v1_dot_embedding__pb2
 
 GRPC_GENERATED_VERSION = '1.84.0'
 GRPC_VERSION = grpc.__version__
@@ -39,12 +39,34 @@ class EmbeddingServiceStub:
                 request_serializer=embedding_dot_v1_dot_embedding__pb2.RetrieveChunksRequest.SerializeToString,
                 response_deserializer=embedding_dot_v1_dot_embedding__pb2.RetrieveChunksResponse.FromString,
                 _registered_method=True)
+        self.RetrieveSimilarProducts = channel.unary_unary(
+                '/embedding.v1.EmbeddingService/RetrieveSimilarProducts',
+                request_serializer=embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarProductsRequest.SerializeToString,
+                response_deserializer=embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarProductsResponse.FromString,
+                _registered_method=True)
+        self.RetrieveSimilarStores = channel.unary_unary(
+                '/embedding.v1.EmbeddingService/RetrieveSimilarStores',
+                request_serializer=embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarStoresRequest.SerializeToString,
+                response_deserializer=embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarStoresResponse.FromString,
+                _registered_method=True)
 
 
 class EmbeddingServiceServicer:
     """Missing associated documentation comment in .proto file."""
 
     def RetrieveChunks(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RetrieveSimilarProducts(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RetrieveSimilarStores(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -57,6 +79,16 @@ def add_EmbeddingServiceServicer_to_server(servicer, server):
                     servicer.RetrieveChunks,
                     request_deserializer=embedding_dot_v1_dot_embedding__pb2.RetrieveChunksRequest.FromString,
                     response_serializer=embedding_dot_v1_dot_embedding__pb2.RetrieveChunksResponse.SerializeToString,
+            ),
+            'RetrieveSimilarProducts': grpc.unary_unary_rpc_method_handler(
+                    servicer.RetrieveSimilarProducts,
+                    request_deserializer=embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarProductsRequest.FromString,
+                    response_serializer=embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarProductsResponse.SerializeToString,
+            ),
+            'RetrieveSimilarStores': grpc.unary_unary_rpc_method_handler(
+                    servicer.RetrieveSimilarStores,
+                    request_deserializer=embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarStoresRequest.FromString,
+                    response_serializer=embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarStoresResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +118,60 @@ class EmbeddingService:
             '/embedding.v1.EmbeddingService/RetrieveChunks',
             embedding_dot_v1_dot_embedding__pb2.RetrieveChunksRequest.SerializeToString,
             embedding_dot_v1_dot_embedding__pb2.RetrieveChunksResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RetrieveSimilarProducts(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/embedding.v1.EmbeddingService/RetrieveSimilarProducts',
+            embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarProductsRequest.SerializeToString,
+            embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarProductsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RetrieveSimilarStores(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/embedding.v1.EmbeddingService/RetrieveSimilarStores',
+            embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarStoresRequest.SerializeToString,
+            embedding_dot_v1_dot_embedding__pb2.RetrieveSimilarStoresResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -1,6 +1,7 @@
+from __future__ import annotations
+from application.dto.scored_product_embedding import ScoredProductEmbedding
 """Qdrant persistence for Product embeddings."""
 
-from __future__ import annotations
 
 from uuid import UUID
 
@@ -90,7 +91,7 @@ class QdrantProductEmbeddingRepository(ProductEmbeddingRepository):
         top_k: int,
         offset: int,
         store_id: EntityID | None = None,
-    ) -> list[ProductEmbedding]:
+    ) -> list[ScoredProductEmbedding]:
         """Search Products by similarity, optionally filtering by Store."""
         _validate_pagination(top_k, offset)
 
@@ -117,7 +118,7 @@ class QdrantProductEmbeddingRepository(ProductEmbeddingRepository):
             with_vectors=True,
         )
 
-        results: list[ProductEmbedding] = []
+        results: list[ScoredProductEmbedding] = []
 
         for point in response.points:
             payload = point.payload
@@ -129,7 +130,8 @@ class QdrantProductEmbeddingRepository(ProductEmbeddingRepository):
                 )
 
             results.append(
-                ProductEmbedding(
+                ScoredProductEmbedding(
+                    embedding=ProductEmbedding(
                     id=UUID(str(point.id)),
                     store_id=UUID(str(payload["store_id"])),
                     name=str(payload["name"]),
@@ -138,6 +140,8 @@ class QdrantProductEmbeddingRepository(ProductEmbeddingRepository):
                     embedding_model_version=EmbeddingModelVersion(
                         str(payload["embedding_model_version"])
                     ),
+                    ),
+                    score=float(point.score),
                 )
             )
 

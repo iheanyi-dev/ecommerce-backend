@@ -21,6 +21,8 @@ from application.use_cases.delete_knowledge import DeleteKnowledge
 from application.use_cases.delete_store_embedding import DeleteStoreEmbedding
 from application.use_cases.ingest_knowledge import IngestKnowledge
 from application.use_cases.retrieve_knowledge import RetrieveKnowledge
+from application.use_cases.retrieve_product_embeddings import RetrieveProductEmbeddings
+from application.use_cases.retrieve_store_embeddings import RetrieveStoreEmbeddings
 from infrastructure.config.settings import Settings, load_settings
 from infrastructure.embeddings.gte_embedding_model import GTEEmbeddingModel
 from infrastructure.messaging.event_handlers import (
@@ -59,6 +61,8 @@ class Runtime:
 
     settings: Settings
     retrieve_knowledge: RetrieveKnowledge
+    retrieve_product_embeddings: RetrieveProductEmbeddings
+    retrieve_store_embeddings: RetrieveStoreEmbeddings
     embedding_model: GTEEmbeddingModel
     consumer: KafkaEventConsumer
     storage_reader: StorageDocumentContentReader
@@ -165,6 +169,18 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
             logger=app_logger,
             metrics=metrics,
         )
+        retrieve_product_embeddings = RetrieveProductEmbeddings(
+            embedding_model=embedding_model,
+            product_embedding_repository=product_repository,
+            logger=app_logger,
+            metrics=metrics,
+        )
+        retrieve_store_embeddings = RetrieveStoreEmbeddings(
+            embedding_model=embedding_model,
+            store_embedding_repository=store_repository,
+            logger=app_logger,
+            metrics=metrics,
+        )
 
         handlers = EmbeddingEventHandlers(
             create_store_embedding=create_store,
@@ -184,6 +200,8 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
             settings=settings,
             embedding_model=embedding_model,
             retrieve_knowledge=retrieve_knowledge,
+            retrieve_product_embeddings=retrieve_product_embeddings,
+            retrieve_store_embeddings=retrieve_store_embeddings,
             consumer=consumer,
             storage_reader=storage_reader,
             qdrant=qdrant,
@@ -207,6 +225,8 @@ async def run_runtime(runtime: Runtime) -> None:
         asyncio.create_task(
             serve(
                 retrieve_knowledge=runtime.retrieve_knowledge,
+                retrieve_product_embeddings=runtime.retrieve_product_embeddings,
+                retrieve_store_embeddings=runtime.retrieve_store_embeddings,
                 settings=runtime.settings,
             ),
             name="embedding-grpc",

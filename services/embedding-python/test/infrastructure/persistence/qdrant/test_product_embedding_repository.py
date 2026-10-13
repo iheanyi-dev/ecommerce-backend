@@ -53,7 +53,9 @@ def test_upsert_and_search_round_trip(repository):
         Embedding.from_values((1.0, 0.0, 0.0)), top_k=5, offset=0
     )
 
-    assert results == [product]
+    assert len(results) == 1
+    assert results[0].embedding == product
+    assert results[0].score == 1.0
 
 
 def test_search_can_be_scoped_to_store(repository):
@@ -73,7 +75,9 @@ def test_search_can_be_scoped_to_store(repository):
         store_id=EntityID(store_a, "store"),
     )
 
-    assert results == [product_a]
+    assert len(results) == 1
+    assert results[0].embedding == product_a
+    assert results[0].score == 1.0
 
 
 def test_delete_by_store_id_only_deletes_that_stores_products(repository):
@@ -92,7 +96,9 @@ def test_delete_by_store_id_only_deletes_that_stores_products(repository):
         Embedding.from_values((1.0, 0.0, 0.0)), top_k=5, offset=0
     )
 
-    assert results == [product_b]
+    assert len(results) == 1
+    assert results[0].embedding == product_b
+    assert results[0].score == 0.0
 
 
 def test_delete_is_idempotent(repository):

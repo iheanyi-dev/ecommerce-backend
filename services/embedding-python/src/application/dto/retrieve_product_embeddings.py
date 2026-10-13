@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from domain.entities import ProductEmbedding
+from application.dto.scored_product_embedding import ScoredProductEmbedding
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,4 +16,4 @@ class RetrieveProductEmbeddingsInput:
 
 @dataclass(frozen=True, slots=True)
 class RetrieveProductEmbeddingsOutput:
-    results: tuple[ProductEmbedding, ...]
+    results: tuple[ScoredProductEmbedding, ...]

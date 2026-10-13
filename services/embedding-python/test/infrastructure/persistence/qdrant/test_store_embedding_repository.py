@@ -48,7 +48,8 @@ def test_upsert_and_search_round_trip(repository):
     )
 
     assert len(results) == 1
-    assert results[0] == store
+    assert results[0].embedding == store
+    assert results[0].score == 1.0
 
 
 def test_upsert_replaces_existing_store(repository):
@@ -68,7 +69,9 @@ def test_upsert_replaces_existing_store(repository):
         Embedding.from_values((0.0, 1.0, 0.0)), top_k=5, offset=0
     )
 
-    assert results == [updated]
+    assert len(results) == 1
+    assert results[0].embedding == updated
+    assert results[0].score == 1.0
 
 
 def test_delete_is_idempotent(repository):

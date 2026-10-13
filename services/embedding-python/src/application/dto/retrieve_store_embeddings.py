@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from domain.entities import StoreEmbedding
+from application.dto.scored_store_embedding import ScoredStoreEmbedding
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,4 +14,4 @@ class RetrieveStoreEmbeddingsInput:
 
 @dataclass(frozen=True, slots=True)
 class RetrieveStoreEmbeddingsOutput:
-    results: tuple[StoreEmbedding, ...]
+    results: tuple[ScoredStoreEmbedding, ...]

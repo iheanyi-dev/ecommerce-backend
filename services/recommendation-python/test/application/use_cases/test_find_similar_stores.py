@@ -1,205 +1,68 @@
 """Tests for the FindSimilarStores use case."""
 
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
-from application.dto import (
-    FindSimilarStoresInput,
-    StoreRecommendation,
-)
+from application.dto import FindSimilarStoresInput, StoreRecommendation
 from application.use_cases import FindSimilarStores
 from test.support.observability import StubLogger, StubMetrics
-from domain.value_objects import Embedding
 
 
-class StubEmbeddingGenerator:
-    """Test double for the embedding generator."""
+class StubSimilarityRetriever:
+    """Fake Embedding retrieval port."""
 
-    def __init__(self) -> None:
-        self.queries: list[str] = []
+    def __init__(self, stores=None):
+        self.stores = stores or []
+        self.store_calls = []
 
-    def generate_store_query_embedding(
-        self,
-        query: str,
-    ) -> Embedding:
-        self.queries.append(query)
+    def find_similar_products(self, query, top_k, offset):
+        return []
 
-        return Embedding.from_values((0.1, 0.2, 0.3))
-
-
-class StubStoreEmbeddingRepository:
-    """Test double for Store similarity search."""
-
-    def __init__(
-        self,
-        recommendations: list[tuple[UUID, float]],
-    ) -> None:
-        self.recommendations = recommendations
-        self.calls: list[dict[str, object]] = []
-
-    def find_similar(
-        self,
-        embedding: Embedding,
-        limit: int,
-    ) -> list[tuple[UUID, float]]:
-        self.calls.append(
-            {
-                "embedding": embedding,
-                "limit": limit,
-            }
-        )
-
-        return self.recommendations[:limit]
+    def find_similar_stores(self, query, top_k, offset):
+        self.store_calls.append((query, top_k, offset))
+        return self.stores[offset:offset + top_k]
 
 
-def test_find_similar_stores_generates_query_embedding() -> None:
-    generator = StubEmbeddingGenerator()
-    repository = StubStoreEmbeddingRepository([])
-
+def test_delegates_query_and_page_window_to_embedding():
+    candidates = [(uuid4(), 0.95), (uuid4(), 0.85)]
+    retriever = StubSimilarityRetriever(candidates)
     use_case = FindSimilarStores(
-        embedding_generator=generator,
-        store_embedding_repository=repository,
-        logger=StubLogger(),
-        metrics=StubMetrics(),
-    )
-
-    use_case.execute(
-        FindSimilarStoresInput(
-            query="fashion stores",
-            page=1,
-        )
-    )
-
-    assert generator.queries == ["fashion stores"]
-
-
-def test_find_similar_stores_uses_page_as_result_window() -> None:
-    recommendations = [
-        (uuid4(), 0.99),
-        (uuid4(), 0.95),
-        (uuid4(), 0.91),
-        (uuid4(), 0.87),
-        (uuid4(), 0.83),
-        (uuid4(), 0.79),
-        (uuid4(), 0.75),
-        (uuid4(), 0.71),
-        (uuid4(), 0.67),
-        (uuid4(), 0.63),
-        (uuid4(), 0.59),
-        (uuid4(), 0.55),
-        (uuid4(), 0.51),
-        (uuid4(), 0.47),
-        (uuid4(), 0.43),
-        (uuid4(), 0.39),
-        (uuid4(), 0.35),
-        (uuid4(), 0.31),
-        (uuid4(), 0.27),
-        (uuid4(), 0.23),
-    ]
-
-    generator = StubEmbeddingGenerator()
-    repository = StubStoreEmbeddingRepository(recommendations)
-
-    use_case = FindSimilarStores(
-        embedding_generator=generator,
-        store_embedding_repository=repository,
+        similarity_retriever=retriever,
         logger=StubLogger(),
         metrics=StubMetrics(),
     )
 
     output = use_case.execute(
-        FindSimilarStoresInput(
-            query="fashion stores",
-            page=2,
-        )
+        FindSimilarStoresInput(query="fashion stores", page=1)
     )
 
-    assert repository.calls[0]["limit"] == 20
-
+    assert retriever.store_calls == [("fashion stores", 10, 0)]
     assert output.recommendations == tuple(
         StoreRecommendation(store_id=store_id, score=score)
-        for store_id, score in recommendations[10:20]
+        for store_id, score in candidates
     )
 
 
-def test_find_similar_stores_returns_remaining_results_on_last_page() -> None:
-    recommendations = [
-        (uuid4(), 0.99),
-        (uuid4(), 0.95),
-        (uuid4(), 0.91),
-        (uuid4(), 0.87),
-        (uuid4(), 0.83),
-        (uuid4(), 0.79),
-        (uuid4(), 0.75),
-        (uuid4(), 0.71),
-        (uuid4(), 0.67),
-        (uuid4(), 0.63),
-        (uuid4(), 0.59),
-        (uuid4(), 0.55),
-    ]
-
-    generator = StubEmbeddingGenerator()
-    repository = StubStoreEmbeddingRepository(recommendations)
-
+def test_page_two_uses_remote_offset_and_page_size():
+    retriever = StubSimilarityRetriever()
     use_case = FindSimilarStores(
-        embedding_generator=generator,
-        store_embedding_repository=repository,
+        similarity_retriever=retriever,
         logger=StubLogger(),
         metrics=StubMetrics(),
     )
 
-    output = use_case.execute(
-        FindSimilarStoresInput(
-            query="fashion stores",
-            page=2,
-        )
-    )
+    use_case.execute(FindSimilarStoresInput(query="fashion", page=2))
 
-    assert output.recommendations == tuple(
-        StoreRecommendation(store_id=store_id, score=score)
-        for store_id, score in recommendations[10:]
-    )
+    assert retriever.store_calls == [("fashion", 10, 10)]
 
 
-def test_find_similar_stores_rejects_invalid_page() -> None:
+def test_rejects_invalid_page():
     use_case = FindSimilarStores(
-        embedding_generator=StubEmbeddingGenerator(),
-        store_embedding_repository=StubStoreEmbeddingRepository([]),
+        similarity_retriever=StubSimilarityRetriever(),
         logger=StubLogger(),
         metrics=StubMetrics(),
     )
 
     with pytest.raises(ValueError):
-        use_case.execute(
-            FindSimilarStoresInput(
-                query="fashion stores",
-                page=0,
-            )
-        )
-
-
-def test_find_similar_stores_does_not_return_more_than_page_size() -> None:
-    recommendations = [
-        (uuid4(), 1.0 - (index * 0.01))
-        for index in range(15)
-    ]
-
-    generator = StubEmbeddingGenerator()
-    repository = StubStoreEmbeddingRepository(recommendations)
-
-    use_case = FindSimilarStores(
-        embedding_generator=generator,
-        store_embedding_repository=repository,
-        logger=StubLogger(),
-        metrics=StubMetrics(),
-    )
-
-    output = use_case.execute(
-        FindSimilarStoresInput(
-            query="fashion stores",
-            page=1,
-        )
-    )
-
-    assert len(output.recommendations) == 10
+        use_case.execute(FindSimilarStoresInput(query="fashion", page=0))

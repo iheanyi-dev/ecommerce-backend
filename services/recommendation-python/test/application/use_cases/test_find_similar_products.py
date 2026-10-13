@@ -1,167 +1,72 @@
 """Tests for the FindSimilarProducts use case."""
 
-from __future__ import annotations
-
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 
-from application.dto import (
-    FindSimilarProductsInput,
-)
+from application.dto import FindSimilarProductsInput, ProductRecommendation
 from application.use_cases import FindSimilarProducts
 from test.support.observability import StubLogger, StubMetrics
-from domain.value_objects import Embedding
 
 
-class StubEmbeddingGenerator:
-    """Fake embedding generator for application-level tests."""
+class StubSimilarityRetriever:
+    """Fake Embedding retrieval port."""
 
-    def __init__(self) -> None:
-        self.queries: list[str] = []
+    def __init__(self, products=None):
+        self.products = products or []
+        self.product_calls = []
+        self.store_calls = []
 
-    def generate_product_query_embedding(
-        self,
-        query: str,
-    ) -> Embedding:
-        self.queries.append(query)
+    def find_similar_products(self, query, top_k, offset):
+        self.product_calls.append((query, top_k, offset))
+        return self.products[offset:offset + top_k]
 
-        return Embedding.from_values(
-            (0.1, 0.2, 0.3),
-        )
-
-
-class StubProductEmbeddingRepository:
-    """Fake Product embedding repository for application-level tests."""
-
-    def __init__(
-        self,
-        recommendations: list[tuple[UUID, float]],
-    ) -> None:
-        self.recommendations = recommendations
-        self.calls: list[tuple[Embedding, int]] = []
-
-    def find_similar(
-        self,
-        embedding: Embedding,
-        limit: int,
-    ) -> list[tuple[UUID, float]]:
-        self.calls.append((embedding, limit))
-
-        return self.recommendations[:limit]
+    def find_similar_stores(self, query, top_k, offset):
+        self.store_calls.append((query, top_k, offset))
+        return []
 
 
-def make_recommendations(
-    count: int,
-) -> list[tuple[UUID, float]]:
-    """Create deterministic recommendation candidates for tests."""
-
-    return [
-        (uuid4(), 1.0 - (index * 0.01))
-        for index in range(count)
-    ]
-
-
-def test_generates_product_query_embedding() -> None:
-    """The use case generates an embedding from the supplied query."""
-
-    embedding_generator = StubEmbeddingGenerator()
-    repository = StubProductEmbeddingRepository(
-        make_recommendations(10),
+def test_delegates_query_and_page_window_to_embedding():
+    candidates = [(uuid4(), 0.9), (uuid4(), 0.8)]
+    retriever = StubSimilarityRetriever(candidates)
+    use_case = FindSimilarProducts(
+        similarity_retriever=retriever,
+        logger=StubLogger(),
+        metrics=StubMetrics(),
     )
 
+    output = use_case.execute(
+        FindSimilarProductsInput(query="wireless headphones", page=1)
+    )
+
+    assert retriever.product_calls == [
+        ("wireless headphones", 10, 0)
+    ]
+    assert output.recommendations == tuple(
+        ProductRecommendation(product_id=product_id, score=score)
+        for product_id, score in candidates
+    )
+
+
+def test_page_two_uses_remote_offset_and_page_size():
+    candidates = [(uuid4(), 0.7), (uuid4(), 0.6)]
+    retriever = StubSimilarityRetriever(candidates)
     use_case = FindSimilarProducts(
-        embedding_generator=embedding_generator,
-        product_embedding_repository=repository,
+        similarity_retriever=retriever,
         logger=StubLogger(),
         metrics=StubMetrics(),
     )
 
     use_case.execute(
-        FindSimilarProductsInput(
-            query="wireless headphones",
-            page=1,
-        )
+        FindSimilarProductsInput(query="headphones", page=2)
     )
 
-    assert embedding_generator.queries == [
-        "wireless headphones",
-    ]
+    assert retriever.product_calls == [("headphones", 10, 10)]
 
 
-def test_page_two_requests_twenty_candidates_and_returns_second_page() -> None:
-    """Page two retrieves twenty candidates and returns candidates 10-19."""
-
-    embedding_generator = StubEmbeddingGenerator()
-    recommendations = make_recommendations(20)
-    repository = StubProductEmbeddingRepository(recommendations)
-
+def test_rejects_invalid_page():
     use_case = FindSimilarProducts(
-        embedding_generator=embedding_generator,
-        product_embedding_repository=repository,
-        logger=StubLogger(),
-        metrics=StubMetrics(),
-    )
-
-    output = use_case.execute(
-        FindSimilarProductsInput(
-            query="wireless headphones",
-            page=2,
-        )
-    )
-
-    assert repository.calls[0][1] == 20
-
-    assert len(output.recommendations) == 10
-
-    assert [
-        recommendation.product_id
-        for recommendation in output.recommendations
-    ] == [
-        product_id
-        for product_id, _ in recommendations[10:20]
-    ]
-
-
-def test_last_page_returns_remaining_candidates() -> None:
-    """A final partial page returns all candidates remaining after its offset."""
-
-    embedding_generator = StubEmbeddingGenerator()
-    recommendations = make_recommendations(13)
-    repository = StubProductEmbeddingRepository(recommendations)
-
-    use_case = FindSimilarProducts(
-        embedding_generator=embedding_generator,
-        product_embedding_repository=repository,
-        logger=StubLogger(),
-        metrics=StubMetrics(),
-    )
-
-    output = use_case.execute(
-        FindSimilarProductsInput(
-            query="wireless headphones",
-            page=2,
-        )
-    )
-
-    assert [
-        recommendation.product_id
-        for recommendation in output.recommendations
-    ] == [
-        product_id
-        for product_id, _ in recommendations[10:]
-    ]
-
-
-def test_page_zero_is_rejected() -> None:
-    """Recommendation pages are one-based."""
-
-    embedding_generator = StubEmbeddingGenerator()
-    repository = StubProductEmbeddingRepository([])
-
-    use_case = FindSimilarProducts(
-        embedding_generator=embedding_generator,
-        product_embedding_repository=repository,
+        similarity_retriever=StubSimilarityRetriever(),
         logger=StubLogger(),
         metrics=StubMetrics(),
     )
@@ -170,34 +75,4 @@ def test_page_zero_is_rejected() -> None:
         ValueError,
         match="page must be greater than or equal to 1",
     ):
-        use_case.execute(
-            FindSimilarProductsInput(
-                query="wireless headphones",
-                page=0,
-            )
-        )
-
-
-def test_page_one_returns_no_more_than_page_size() -> None:
-    """The first recommendation page contains at most ten results."""
-
-    embedding_generator = StubEmbeddingGenerator()
-    recommendations = make_recommendations(20)
-    repository = StubProductEmbeddingRepository(recommendations)
-
-    use_case = FindSimilarProducts(
-        embedding_generator=embedding_generator,
-        product_embedding_repository=repository,
-        logger=StubLogger(),
-        metrics=StubMetrics(),
-    )
-
-    output = use_case.execute(
-        FindSimilarProductsInput(
-            query="wireless headphones",
-            page=1,
-        )
-    )
-
-    assert len(output.recommendations) == 10
-    assert repository.calls[0][1] == 10
+        use_case.execute(FindSimilarProductsInput(query="headphones", page=0))

@@ -6,6 +6,8 @@ option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/embedding/v1
 
 service EmbeddingService {
   rpc RetrieveChunks(RetrieveChunksRequest) returns (RetrieveChunksResponse);
+  rpc RetrieveSimilarProducts(RetrieveSimilarProductsRequest) returns (RetrieveSimilarProductsResponse);
+  rpc RetrieveSimilarStores(RetrieveSimilarStoresRequest) returns (RetrieveSimilarStoresResponse);
 }
 
 message RetrieveChunksRequest {
@@ -21,4 +23,35 @@ message KnowledgeChunk {
   string content = 1;
   string source_filename = 2;
   float score = 3;
+}
+
+message RetrieveSimilarProductsRequest {
+  string query = 1;
+  int32 top_k = 2;
+  int32 offset = 3;
+  optional string store_id = 4;
+}
+
+message RetrieveSimilarProductsResponse {
+  repeated SimilarProduct products = 1;
+}
+
+message SimilarProduct {
+  string product_id = 1;
+  float score = 2;
+}
+
+message RetrieveSimilarStoresRequest {
+  string query = 1;
+  int32 top_k = 2;
+  int32 offset = 3;
+}
+
+message RetrieveSimilarStoresResponse {
+  repeated SimilarStore stores = 1;
+}
+
+message SimilarStore {
+  string store_id = 1;
+  float score = 2;
 }

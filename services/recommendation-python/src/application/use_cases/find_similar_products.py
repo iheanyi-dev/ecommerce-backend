@@ -1,4 +1,4 @@
-"""Use case for finding Products similar to a query."""
+"""Use case for finding products similar to a query."""
 
 from __future__ import annotations
 
@@ -9,20 +9,18 @@ from ..dto.find_similar_products import (
     FindSimilarProductsOutput,
     ProductRecommendation,
 )
-from ..ports.embedding_generator import EmbeddingGenerator
 from ..ports.logger import Logger
 from ..ports.metrics import Metrics
-from ..ports.product_embedding_repository import ProductEmbeddingRepository
+from ..ports.similarity_retriever import SimilarityRetriever
 
 PAGE_SIZE = 10
 
 
 @dataclass(slots=True)
 class FindSimilarProducts:
-    """Find Product recommendations for a text query."""
+    """Find semantic product candidates through Embedding."""
 
-    embedding_generator: EmbeddingGenerator
-    product_embedding_repository: ProductEmbeddingRepository
+    similarity_retriever: SimilarityRetriever
     logger: Logger
     metrics: Metrics
 
@@ -30,35 +28,26 @@ class FindSimilarProducts:
         self,
         input: FindSimilarProductsInput,
     ) -> FindSimilarProductsOutput:
-        """Generate the query embedding and return the requested page."""
-
+        """Retrieve the requested page of similar products."""
         if input.page < 1:
             raise ValueError("page must be greater than or equal to 1")
 
-        query_embedding = (
-            self.embedding_generator.generate_product_query_embedding(
-                input.query,
+        recommendations = self.similarity_retriever.find_similar_products(
+            query=input.query,
+            top_k=PAGE_SIZE,
+            offset=(input.page - 1) * PAGE_SIZE,
+        )
+        output = FindSimilarProductsOutput(
+            recommendations=tuple(
+                ProductRecommendation(product_id=product_id, score=score)
+                for product_id, score in recommendations
             )
-        )
-
-        candidates = self.product_embedding_repository.find_similar(
-            embedding=query_embedding,
-            limit=input.page * PAGE_SIZE,
-        )
-
-        offset = (input.page - 1) * PAGE_SIZE
-        recommendations = tuple(
-            ProductRecommendation(product_id=product_id, score=score)
-            for product_id, score in candidates[offset:]
         )
 
         self.metrics.increment("recommendation.product_similarity.queries")
         self.logger.info(
             "recommendation.product_similarity.found",
             page=input.page,
-            result_count=len(recommendations),
+            result_count=len(output.recommendations),
         )
-
-        return FindSimilarProductsOutput(
-            recommendations=recommendations,
-        )
+        return output
