@@ -21,6 +21,8 @@ from application.use_cases.delete_knowledge import DeleteKnowledge
 from application.use_cases.delete_store_embedding import DeleteStoreEmbedding
 from application.use_cases.ingest_knowledge import IngestKnowledge
 from application.use_cases.retrieve_knowledge import RetrieveKnowledge
+from application.use_cases.create_product_embedding import CreateProductEmbedding
+from application.use_cases.delete_product_embedding import DeleteProductEmbedding
 from application.use_cases.retrieve_product_embeddings import RetrieveProductEmbeddings
 from application.use_cases.retrieve_store_embeddings import RetrieveStoreEmbeddings
 from infrastructure.config.settings import Settings, load_settings
@@ -169,6 +171,18 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
             logger=app_logger,
             metrics=metrics,
         )
+        create_product = CreateProductEmbedding(
+            embedding_model=embedding_model,
+            product_embedding_repository=product_repository,
+            logger=app_logger,
+            metrics=metrics,
+        )
+        delete_product = DeleteProductEmbedding(
+            product_embedding_repository=product_repository,
+            logger=app_logger,
+            metrics=metrics,
+        )
+
         retrieve_product_embeddings = RetrieveProductEmbeddings(
             embedding_model=embedding_model,
             product_embedding_repository=product_repository,
@@ -187,6 +201,8 @@ def build_runtime(settings: Settings | None = None) -> Runtime:
             delete_store_embedding=delete_store,
             ingest_knowledge=ingest_knowledge,
             delete_knowledge=delete_knowledge,
+            create_product_embedding=create_product,
+            delete_product_embedding=delete_product,
         )
         consumer = KafkaEventConsumer(
             brokers=settings.kafka.bootstrap_servers,

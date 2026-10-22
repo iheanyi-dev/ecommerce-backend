@@ -48,16 +48,11 @@ func TestChangeStorePlanUseCase_ChangesPlanToPremiumAndDeactivatesStore(t *testi
 		store: store,
 	}
 
-	productCountProvider := &fakeChangeStorePlanProductCountProvider{
-		count: 1,
-	}
-
 	logger := &fakeChangeStorePlanLogger{}
 	metrics := &fakeChangeStorePlanMetrics{}
 
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		productCountProvider,
 		logger,
 		metrics,
 	)
@@ -87,8 +82,6 @@ func TestChangeStorePlanUseCase_ChangesPlanToPremiumAndDeactivatesStore(t *testi
 	assert.True(t, repository.changePlanCalled)
 	assert.Equal(t, store.ID().Value(), repository.changePlanStoreID)
 
-	assert.True(t, productCountProvider.called)
-	assert.Equal(t, store.ID().Value(), productCountProvider.storeID)
 }
 
 // TestChangeStorePlanUseCase_ChangesPlanToBasicWithoutDeactivating verifies
@@ -109,13 +102,8 @@ func TestChangeStorePlanUseCase_ChangesPlanToBasicWithoutDeactivating(t *testing
 		store: store,
 	}
 
-	productCountProvider := &fakeChangeStorePlanProductCountProvider{
-		count: 2,
-	}
-
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		productCountProvider,
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -146,11 +134,9 @@ func TestChangeStorePlanUseCase_RequiresAuthentication(t *testing.T) {
 	t.Parallel()
 
 	repository := &fakeChangeStorePlanRepository{}
-	productCountProvider := &fakeChangeStorePlanProductCountProvider{}
 
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		productCountProvider,
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -168,7 +154,6 @@ func TestChangeStorePlanUseCase_RequiresAuthentication(t *testing.T) {
 
 	assert.False(t, repository.findByIDCalled)
 	assert.False(t, repository.changePlanCalled)
-	assert.False(t, productCountProvider.called)
 }
 
 // TestChangeStorePlanUseCase_HidesNonOwnedStore verifies the owner privacy
@@ -190,11 +175,8 @@ func TestChangeStorePlanUseCase_HidesNonOwnedStore(t *testing.T) {
 		store: store,
 	}
 
-	productCountProvider := &fakeChangeStorePlanProductCountProvider{}
-
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		productCountProvider,
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -211,7 +193,6 @@ func TestChangeStorePlanUseCase_HidesNonOwnedStore(t *testing.T) {
 	assert.ErrorIs(t, err, applicationerrors.ErrStoreNotFound)
 
 	assert.True(t, repository.findByIDCalled)
-	assert.False(t, productCountProvider.called)
 	assert.False(t, repository.changePlanCalled)
 }
 
@@ -229,7 +210,6 @@ func TestChangeStorePlanUseCase_ReturnsNotFoundWhenRepositoryReturnsNil(t *testi
 
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		&fakeChangeStorePlanProductCountProvider{},
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -263,7 +243,6 @@ func TestChangeStorePlanUseCase_PropagatesStoreLookupError(t *testing.T) {
 
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		&fakeChangeStorePlanProductCountProvider{},
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -299,13 +278,8 @@ func TestChangeStorePlanUseCase_RejectsInvalidTargetPlan(t *testing.T) {
 		store: store,
 	}
 
-	productCountProvider := &fakeChangeStorePlanProductCountProvider{
-		count: 1,
-	}
-
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		productCountProvider,
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -321,13 +295,12 @@ func TestChangeStorePlanUseCase_RejectsInvalidTargetPlan(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domainerrors.ErrInvalidPlanType)
 
-	assert.False(t, productCountProvider.called)
 	assert.False(t, repository.changePlanCalled)
 }
 
 // TestChangeStorePlanUseCase_RejectsPlanWhenProductCountExceedsTargetLimit
-// verifies that product-capacity validation occurs before mutating the Store
-// aggregate.
+// verifies that the repository's guarded update rejects a plan that cannot
+// accommodate the current product count.
 func TestChangeStorePlanUseCase_RejectsPlanWhenProductCountExceedsTargetLimit(t *testing.T) {
 	t.Parallel()
 
@@ -338,19 +311,16 @@ func TestChangeStorePlanUseCase_RejectsPlanWhenProductCountExceedsTargetLimit(t 
 		ownerID,
 		valueobjects.PlanTypePremium,
 		valueobjects.StatusActive,
+		3, // Basic permits only 2 products.
 	)
 
 	repository := &fakeChangeStorePlanRepository{
-		store: store,
-	}
-
-	productCountProvider := &fakeChangeStorePlanProductCountProvider{
-		count: 3, // Basic permits only 2 products.
+		store:         store,
+		changePlanErr: applicationerrors.ErrStorePlanProductLimitExceeded,
 	}
 
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		productCountProvider,
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -363,63 +333,12 @@ func TestChangeStorePlanUseCase_RejectsPlanWhenProductCountExceedsTargetLimit(t 
 		},
 	)
 
-	require.Error(t, err)
-
-	// The exact capacity error will be established by the production
-	// application contract rather than introducing a duplicate domain rule.
-	assert.Equal(t, valueobjects.PlanTypePremium, store.Plan().Type())
-	assert.Equal(t, valueobjects.StatusActive, store.Status())
-
-	assert.True(t, productCountProvider.called)
-	assert.False(t, repository.changePlanCalled)
+	require.ErrorIs(t, err, applicationerrors.ErrStorePlanProductLimitExceeded)
+	assert.True(t, repository.changePlanCalled)
 }
 
 // TestChangeStorePlanUseCase_PropagatesProductCountError verifies that an
 // inability to determine the current product count prevents plan mutation.
-func TestChangeStorePlanUseCase_PropagatesProductCountError(t *testing.T) {
-	t.Parallel()
-
-	ownerID := uuid.New()
-	countErr := errors.New("product service unavailable")
-
-	store := newTestStore(
-		t,
-		ownerID,
-		valueobjects.PlanTypeBasic,
-		valueobjects.StatusActive,
-	)
-
-	repository := &fakeChangeStorePlanRepository{
-		store: store,
-	}
-
-	productCountProvider := &fakeChangeStorePlanProductCountProvider{
-		countErr: countErr,
-	}
-
-	uc := use_cases.NewChangeStorePlanUseCase(
-		repository,
-		productCountProvider,
-		&fakeChangeStorePlanLogger{},
-		&fakeChangeStorePlanMetrics{},
-	)
-
-	_, err := uc.Execute(
-		authenticatedChangeStorePlanContext(ownerID),
-		dto.ChangeStorePlanInput{
-			StoreID:  store.ID().Value(),
-			PlanType: string(valueobjects.PlanTypePremium),
-		},
-	)
-
-	require.Error(t, err)
-	assert.ErrorIs(t, err, countErr)
-
-	assert.Equal(t, valueobjects.PlanTypeBasic, store.Plan().Type())
-	assert.Equal(t, valueobjects.StatusActive, store.Status())
-	assert.False(t, repository.changePlanCalled)
-}
-
 // TestChangeStorePlanUseCase_PropagatesPersistenceError verifies that the
 // repository error remains visible when persistence fails.
 func TestChangeStorePlanUseCase_PropagatesPersistenceError(t *testing.T) {
@@ -442,7 +361,6 @@ func TestChangeStorePlanUseCase_PropagatesPersistenceError(t *testing.T) {
 
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		&fakeChangeStorePlanProductCountProvider{count: 1},
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -490,7 +408,6 @@ func TestChangeStorePlanUseCase_SamePlanIsIdempotent(t *testing.T) {
 
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		&fakeChangeStorePlanProductCountProvider{count: 1},
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -532,7 +449,6 @@ func TestChangeStorePlanUseCase_UsesAuthenticatedOwnerNotInputOwner(t *testing.T
 
 	uc := use_cases.NewChangeStorePlanUseCase(
 		repository,
-		&fakeChangeStorePlanProductCountProvider{count: 1},
 		&fakeChangeStorePlanLogger{},
 		&fakeChangeStorePlanMetrics{},
 	)
@@ -556,6 +472,7 @@ func newTestStore(
 	ownerID uuid.UUID,
 	planType valueobjects.PlanType,
 	status valueobjects.Status,
+	productCounts ...int,
 ) *entities.Store {
 	t.Helper()
 
@@ -574,6 +491,23 @@ func newTestStore(
 
 	require.NoError(t, err)
 	require.NotNil(t, store)
+
+	if len(productCounts) > 0 {
+		store, err = entities.ReconstituteStoreWithProductCount(
+			store.ID().Value(),
+			ownerID,
+			"Test Store",
+			"test-store",
+			"Test store description",
+			nil,
+			string(planType),
+			string(valueobjects.StatusActive),
+			productCounts[0],
+			store.CreatedAt(),
+			store.UpdatedAt(),
+		)
+		require.NoError(t, err)
+	}
 
 	switch status {
 	case valueobjects.StatusActive:

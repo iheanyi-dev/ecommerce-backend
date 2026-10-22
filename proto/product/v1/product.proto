@@ -7,6 +7,10 @@ option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/product/v1;p
 service ProductService {
   rpc SearchProducts(SearchProductsRequest) returns (SearchProductsResponse);
   rpc CountProductsByStore(CountProductsByStoreRequest) returns (CountProductsByStoreResponse);
+
+  // Returns authoritative snapshots for the requested product IDs.
+  // Missing products are omitted; service failures are returned as RPC errors.
+  rpc GetProductsByIDs(GetProductsByIDsRequest) returns (GetProductsByIDsResponse);
 }
 
 message SearchProductsRequest {
@@ -49,4 +53,26 @@ message CountProductsByStoreRequest {
 
 message CountProductsByStoreResponse {
   int64 count = 1;
+}
+
+message GetProductsByIDsRequest {
+  repeated string product_ids = 1;
+}
+
+message GetProductsByIDsResponse {
+  repeated ProductSnapshot products = 1;
+}
+
+message ProductSnapshot {
+  string product_id = 1;
+  string store_id = 2;
+  string name = 3;
+  string description = 4;
+
+  // Integer minor units, matching the Product domain's Money representation.
+  int64 price_minor = 5;
+  string currency = 6;
+
+  // Current stock quantity, not the customer's requested cart quantity.
+  int64 quantity = 7;
 }

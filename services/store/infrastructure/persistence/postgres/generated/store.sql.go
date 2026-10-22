@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const changeStorePlan = `-- name: ChangeStorePlan :exec
+const changeStorePlan = `-- name: ChangeStorePlan :execrows
 UPDATE stores
 SET
     name = $2,
@@ -22,6 +22,11 @@ SET
     plan = $7,
     updated_at = $8
 WHERE id = $1
+  AND product_count <= CASE $7
+      WHEN 'basic' THEN 2
+      WHEN 'premium' THEN 5
+      ELSE 0
+  END
 `
 
 type ChangeStorePlanParams struct {
@@ -35,8 +40,8 @@ type ChangeStorePlanParams struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
-func (q *Queries) ChangeStorePlan(ctx context.Context, arg ChangeStorePlanParams) error {
-	_, err := q.db.Exec(ctx, changeStorePlan,
+func (q *Queries) ChangeStorePlan(ctx context.Context, arg ChangeStorePlanParams) (int64, error) {
+	result, err := q.db.Exec(ctx, changeStorePlan,
 		arg.ID,
 		arg.Name,
 		arg.Slug,
@@ -46,7 +51,10 @@ func (q *Queries) ChangeStorePlan(ctx context.Context, arg ChangeStorePlanParams
 		arg.Plan,
 		arg.UpdatedAt,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const changeStoreStatus = `-- name: ChangeStoreStatus :exec
@@ -141,6 +149,24 @@ func (q *Queries) CreateStore(ctx context.Context, arg CreateStoreParams) error 
 	return err
 }
 
+const decrementStoreProductCount = `-- name: DecrementStoreProductCount :one
+UPDATE stores
+SET
+    product_count = product_count - 1,
+    updated_at = NOW()
+WHERE id = $1
+  AND product_count > 0
+RETURNING product_count
+`
+
+// Compensate for a failed product creation without allowing a negative count.
+func (q *Queries) DecrementStoreProductCount(ctx context.Context, id pgtype.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, decrementStoreProductCount, id)
+	var product_count int32
+	err := row.Scan(&product_count)
+	return product_count, err
+}
+
 const deleteStore = `-- name: DeleteStore :exec
 DELETE FROM stores
 WHERE id = $1
@@ -149,6 +175,34 @@ WHERE id = $1
 func (q *Queries) DeleteStore(ctx context.Context, id pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteStore, id)
 	return err
+}
+
+const filterActiveStoreIDs = `-- name: FilterActiveStoreIDs :many
+SELECT id
+FROM stores
+WHERE status = 'active'
+  AND id = ANY($1::uuid[])
+`
+
+// Return only active Store IDs from the supplied candidate IDs.
+func (q *Queries) FilterActiveStoreIDs(ctx context.Context, dollar_1 []pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, filterActiveStoreIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getStoreByID = `-- name: GetStoreByID :one
@@ -161,15 +215,30 @@ SELECT
     image_reference,
     status,
     plan,
+    product_count,
     created_at,
     updated_at
 FROM stores
 WHERE id = $1
 `
 
-func (q *Queries) GetStoreByID(ctx context.Context, id pgtype.UUID) (Store, error) {
+type GetStoreByIDRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	OwnerID        pgtype.UUID        `json:"owner_id"`
+	Name           string             `json:"name"`
+	Slug           string             `json:"slug"`
+	Description    string             `json:"description"`
+	ImageReference pgtype.Text        `json:"image_reference"`
+	Status         string             `json:"status"`
+	Plan           string             `json:"plan"`
+	ProductCount   int32              `json:"product_count"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetStoreByID(ctx context.Context, id pgtype.UUID) (GetStoreByIDRow, error) {
 	row := q.db.QueryRow(ctx, getStoreByID, id)
-	var i Store
+	var i GetStoreByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
@@ -179,6 +248,7 @@ func (q *Queries) GetStoreByID(ctx context.Context, id pgtype.UUID) (Store, erro
 		&i.ImageReference,
 		&i.Status,
 		&i.Plan,
+		&i.ProductCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -195,15 +265,30 @@ SELECT
     image_reference,
     status,
     plan,
+    product_count,
     created_at,
     updated_at
 FROM stores
 WHERE owner_id = $1
 `
 
-func (q *Queries) GetStoreByOwnerID(ctx context.Context, ownerID pgtype.UUID) (Store, error) {
+type GetStoreByOwnerIDRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	OwnerID        pgtype.UUID        `json:"owner_id"`
+	Name           string             `json:"name"`
+	Slug           string             `json:"slug"`
+	Description    string             `json:"description"`
+	ImageReference pgtype.Text        `json:"image_reference"`
+	Status         string             `json:"status"`
+	Plan           string             `json:"plan"`
+	ProductCount   int32              `json:"product_count"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetStoreByOwnerID(ctx context.Context, ownerID pgtype.UUID) (GetStoreByOwnerIDRow, error) {
 	row := q.db.QueryRow(ctx, getStoreByOwnerID, ownerID)
-	var i Store
+	var i GetStoreByOwnerIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
@@ -213,6 +298,7 @@ func (q *Queries) GetStoreByOwnerID(ctx context.Context, ownerID pgtype.UUID) (S
 		&i.ImageReference,
 		&i.Status,
 		&i.Plan,
+		&i.ProductCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -229,15 +315,30 @@ SELECT
     image_reference,
     status,
     plan,
+    product_count,
     created_at,
     updated_at
 FROM stores
 WHERE slug = $1
 `
 
-func (q *Queries) GetStoreBySlug(ctx context.Context, slug string) (Store, error) {
+type GetStoreBySlugRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	OwnerID        pgtype.UUID        `json:"owner_id"`
+	Name           string             `json:"name"`
+	Slug           string             `json:"slug"`
+	Description    string             `json:"description"`
+	ImageReference pgtype.Text        `json:"image_reference"`
+	Status         string             `json:"status"`
+	Plan           string             `json:"plan"`
+	ProductCount   int32              `json:"product_count"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetStoreBySlug(ctx context.Context, slug string) (GetStoreBySlugRow, error) {
 	row := q.db.QueryRow(ctx, getStoreBySlug, slug)
-	var i Store
+	var i GetStoreBySlugRow
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
@@ -247,10 +348,34 @@ func (q *Queries) GetStoreBySlug(ctx context.Context, slug string) (Store, error
 		&i.ImageReference,
 		&i.Status,
 		&i.Plan,
+		&i.ProductCount,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const incrementStoreProductCount = `-- name: IncrementStoreProductCount :one
+UPDATE stores
+SET
+    product_count = product_count + 1,
+    updated_at = NOW()
+WHERE id = $1
+  AND product_count < CASE plan
+      WHEN 'basic' THEN 2
+      WHEN 'premium' THEN 5
+      ELSE 0
+  END
+RETURNING product_count
+`
+
+// Atomically reserve one product slot without exceeding the Store plan limit.
+// A missing row means either the Store does not exist or its capacity is full.
+func (q *Queries) IncrementStoreProductCount(ctx context.Context, id pgtype.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, incrementStoreProductCount, id)
+	var product_count int32
+	err := row.Scan(&product_count)
+	return product_count, err
 }
 
 const listActiveStores = `-- name: ListActiveStores :many
@@ -263,6 +388,7 @@ SELECT
     image_reference,
     status,
     plan,
+    product_count,
     created_at,
     updated_at
 FROM stores
@@ -283,15 +409,29 @@ type ListActiveStoresParams struct {
 	Offset  int32       `json:"offset"`
 }
 
-func (q *Queries) ListActiveStores(ctx context.Context, arg ListActiveStoresParams) ([]Store, error) {
+type ListActiveStoresRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	OwnerID        pgtype.UUID        `json:"owner_id"`
+	Name           string             `json:"name"`
+	Slug           string             `json:"slug"`
+	Description    string             `json:"description"`
+	ImageReference pgtype.Text        `json:"image_reference"`
+	Status         string             `json:"status"`
+	Plan           string             `json:"plan"`
+	ProductCount   int32              `json:"product_count"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) ListActiveStores(ctx context.Context, arg ListActiveStoresParams) ([]ListActiveStoresRow, error) {
 	rows, err := q.db.Query(ctx, listActiveStores, arg.Column1, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Store{}
+	items := []ListActiveStoresRow{}
 	for rows.Next() {
-		var i Store
+		var i ListActiveStoresRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
@@ -301,6 +441,7 @@ func (q *Queries) ListActiveStores(ctx context.Context, arg ListActiveStoresPara
 			&i.ImageReference,
 			&i.Status,
 			&i.Plan,
+			&i.ProductCount,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

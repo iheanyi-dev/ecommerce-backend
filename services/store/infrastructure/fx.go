@@ -5,6 +5,7 @@ import (
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/ports"
 	chatinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/chat"
+	storegrpc "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/grpc"
 	identityinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/identity"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/image"
 	kafkainfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/messaging/kafka"
@@ -93,7 +94,11 @@ var Module = fx.Module(
 		fx.Annotate(
 			postgres.NewStoreRepository,
 			fx.As(new(ports.StoreRepository)),
+			fx.As(new(ports.ProductCapacityRepository)),
+			fx.As(new(ports.ActiveStoreLookupRepository)),
 		),
+
+		storegrpc.NewServer,
 
 		fx.Annotate(
 			postgres.NewKnowledgeRepository,

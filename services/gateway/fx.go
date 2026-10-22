@@ -40,6 +40,8 @@ var Module = fx.Module(
 		newStoreProxy,
 		newStorageProxy,
 		newRecommendationProxy,
+		newProductProxy,
+		newCartProxy,
 
 		gatewayhttp.NewRouter,
 		gatewayhttp.NewServer,
@@ -112,5 +114,23 @@ func newJWTValidator(cfg *config.Config) (*security.JWTValidator, error) {
 	return security.NewJWTValidator(
 		cfg.JWTSecret,
 		cfg.JWTIssuer,
+	)
+}
+
+// newProductProxy constructs the Gateway → Product reverse proxy.
+func newProductProxy(cfg *config.Config) (*proxy.ProductProxy, error) {
+	return proxy.NewProductProxy(
+		cfg.ProductServiceURL,
+		cfg.ProductServiceName,
+		cfg.ProductServiceSecret,
+	)
+}
+
+// newCartProxy constructs the Gateway → Cart reverse proxy.
+func newCartProxy(cfg *config.Config) (*proxy.CartProxy, error) {
+	return proxy.NewCartProxy(
+		cfg.CartServiceURL,
+		cfg.CartServiceName,
+		cfg.CartServiceSecret,
 	)
 }

@@ -38,6 +38,7 @@ SELECT
     image_reference,
     status,
     plan,
+    product_count,
     created_at,
     updated_at
 FROM stores
@@ -53,6 +54,7 @@ SELECT
     image_reference,
     status,
     plan,
+    product_count,
     created_at,
     updated_at
 FROM stores
@@ -68,6 +70,7 @@ SELECT
     image_reference,
     status,
     plan,
+    product_count,
     created_at,
     updated_at
 FROM stores
@@ -90,6 +93,7 @@ SELECT
     image_reference,
     status,
     plan,
+    product_count,
     created_at,
     updated_at
 FROM stores
@@ -125,7 +129,7 @@ SET
     updated_at = $8
 WHERE id = $1;
 
--- name: ChangeStorePlan :exec
+-- name: ChangeStorePlan :execrows
 UPDATE stores
 SET
     name = $2,
@@ -135,7 +139,12 @@ SET
     status = $6,
     plan = $7,
     updated_at = $8
-WHERE id = $1;
+WHERE id = $1
+  AND product_count <= CASE $7
+      WHEN 'basic' THEN 2
+      WHEN 'premium' THEN 5
+      ELSE 0
+  END;
 
 -- name: ChangeStoreStatus :exec
 UPDATE stores
@@ -143,3 +152,36 @@ SET
     status = $2,
     updated_at = NOW()
 WHERE id = $1;
+
+
+-- Atomically reserve one product slot without exceeding the Store plan limit.
+-- A missing row means either the Store does not exist or its capacity is full.
+-- name: IncrementStoreProductCount :one
+UPDATE stores
+SET
+    product_count = product_count + 1,
+    updated_at = NOW()
+WHERE id = $1
+  AND product_count < CASE plan
+      WHEN 'basic' THEN 2
+      WHEN 'premium' THEN 5
+      ELSE 0
+  END
+RETURNING product_count;
+
+-- Compensate for a failed product creation without allowing a negative count.
+-- name: DecrementStoreProductCount :one
+UPDATE stores
+SET
+    product_count = product_count - 1,
+    updated_at = NOW()
+WHERE id = $1
+  AND product_count > 0
+RETURNING product_count;
+
+-- Return only active Store IDs from the supplied candidate IDs.
+-- name: FilterActiveStoreIDs :many
+SELECT id
+FROM stores
+WHERE status = 'active'
+  AND id = ANY($1::uuid[]);

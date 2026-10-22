@@ -39,14 +39,14 @@ type SearchStoreProductResult struct {
 
 // SearchStoreProducts searches a single store's catalogue.
 type SearchStoreProducts struct {
-	products ports.StoreProductSearchRepository
+	products ports.ProductRepository
 	store    ports.StoreClient
 	logger   ports.Logger
 	metrics  ports.Metrics
 }
 
 func NewSearchStoreProducts(
-	products ports.StoreProductSearchRepository,
+	products ports.ProductRepository,
 	store ports.StoreClient,
 	logger ports.Logger,
 	metrics ports.Metrics,

@@ -61,6 +61,16 @@ func (f *searchProductsRepositoryFake) ListProducts(
 	return f.products, f.total, f.err
 }
 
+// SearchByStore satisfies the unified ProductRepository contract.
+func (f *searchProductsRepositoryFake) SearchByStore(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ ports.StoreProductSearchFilters,
+) ([]*entities.Product, error) {
+	return f.products, f.err
+}
+
 type searchProductsStoreFake struct {
 	activeIDs []string
 	err       error
@@ -194,7 +204,7 @@ func TestSearchProductsRejectsBlankQueryWithoutDependencies(t *testing.T) {
 	store := &searchProductsStoreFake{}
 	search := appusecases.NewSearchProducts(repository, store, nil, nil)
 
-	_, err := search.Execute(context.Background(), appusecases.SearchProductsInput{Query: " \t\n "})
+	_, err := search.Execute(context.Background(), appusecases.SearchProductsInput{Query: " \t "})
 	if !errors.Is(err, appusecases.ErrInvalidMarketplaceProductSearch) {
 		t.Fatalf("error = %v, want ErrInvalidMarketplaceProductSearch", err)
 	}

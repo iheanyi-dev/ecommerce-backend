@@ -22,6 +22,10 @@ func TestLoad(t *testing.T) {
 	t.Setenv("STORAGE_SERVICE_SECRET", "storage-secret")
 	t.Setenv("RECOMMENDATION_SERVICE_NAME", "recommendation")
 	t.Setenv("RECOMMENDATION_SERVICE_SECRET", "recommendation-secret")
+	t.Setenv("PRODUCT_SERVICE_NAME", "product")
+	t.Setenv("PRODUCT_SERVICE_SECRET", "product-secret")
+	t.Setenv("CART_SERVICE_NAME", "cart")
+	t.Setenv("CART_SERVICE_SECRET", "cart-secret")
 	t.Setenv("JWT_SECRET", "this-is-a-valid-development-jwt-secret-123456")
 	t.Setenv("JWT_ISSUER", "identity-service")
 
@@ -51,6 +55,10 @@ func TestLoad_UsesDefaults(t *testing.T) {
 	t.Setenv("STORAGE_SERVICE_SECRET", "storage-secret")
 	t.Setenv("RECOMMENDATION_SERVICE_NAME", "recommendation")
 	t.Setenv("RECOMMENDATION_SERVICE_SECRET", "recommendation-secret")
+	t.Setenv("PRODUCT_SERVICE_NAME", "product")
+	t.Setenv("PRODUCT_SERVICE_SECRET", "product-secret")
+	t.Setenv("CART_SERVICE_NAME", "cart")
+	t.Setenv("CART_SERVICE_SECRET", "cart-secret")
 	t.Setenv("JWT_SECRET", "this-is-a-valid-development-jwt-secret-123456")
 	t.Setenv("JWT_ISSUER", "identity-service")
 
@@ -78,6 +86,10 @@ func TestLoad_RejectsInvalidIdentityServiceURL(t *testing.T) {
 	t.Setenv("STORAGE_SERVICE_SECRET", "storage-secret")
 	t.Setenv("RECOMMENDATION_SERVICE_NAME", "recommendation")
 	t.Setenv("RECOMMENDATION_SERVICE_SECRET", "recommendation-secret")
+	t.Setenv("PRODUCT_SERVICE_NAME", "product")
+	t.Setenv("PRODUCT_SERVICE_SECRET", "product-secret")
+	t.Setenv("CART_SERVICE_NAME", "cart")
+	t.Setenv("CART_SERVICE_SECRET", "cart-secret")
 	t.Setenv("JWT_SECRET", "this-is-a-valid-development-jwt-secret-123456")
 	t.Setenv("JWT_ISSUER", "identity-service")
 
@@ -98,6 +110,10 @@ func TestLoad_RejectsMissingIdentityServiceName(t *testing.T) {
 	t.Setenv("STORAGE_SERVICE_SECRET", "storage-secret")
 	t.Setenv("RECOMMENDATION_SERVICE_NAME", "recommendation")
 	t.Setenv("RECOMMENDATION_SERVICE_SECRET", "recommendation-secret")
+	t.Setenv("PRODUCT_SERVICE_NAME", "product")
+	t.Setenv("PRODUCT_SERVICE_SECRET", "product-secret")
+	t.Setenv("CART_SERVICE_NAME", "cart")
+	t.Setenv("CART_SERVICE_SECRET", "cart-secret")
 	t.Setenv("JWT_SECRET", "this-is-a-valid-development-jwt-secret-123456")
 	t.Setenv("JWT_ISSUER", "identity-service")
 

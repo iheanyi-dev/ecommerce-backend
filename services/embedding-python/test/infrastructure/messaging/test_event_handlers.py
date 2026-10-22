@@ -10,6 +10,8 @@ from infrastructure.messaging.event_handlers import (
     EmbeddingEventHandlers,
     KNOWLEDGE_DELETION_REQUESTED,
     KNOWLEDGE_INGESTION_REQUESTED,
+    PRODUCT_EMBEDDING_REQUESTED,
+    PRODUCT_EMBEDDING_DELETION_REQUESTED,
     STORE_EMBEDDING_DELETION_REQUESTED,
     STORE_EMBEDDING_REQUESTED,
 )
@@ -17,6 +19,7 @@ from infrastructure.messaging.event_handlers import (
 
 STORE_ID = "233b7e6c-8920-4861-a778-6f11917db316"
 KNOWLEDGE_ID = "e30c5d63-c7ec-48c4-9bba-c3e4c3d8f1aa"
+PRODUCT_ID = "b7f43d12-4db2-46d9-a7e4-f0acb98cc243"
 
 
 class RecordingUseCase:
@@ -30,6 +33,8 @@ class RecordingUseCase:
 @pytest.fixture
 def handlers():
     use_cases = [
+        RecordingUseCase(),
+        RecordingUseCase(),
         RecordingUseCase(),
         RecordingUseCase(),
         RecordingUseCase(),
@@ -124,6 +129,59 @@ def test_invalid_event_is_rejected(handlers, topic, payload):
 
     assert all(not use_case.requests for use_case in use_cases)
 
+
+
+def test_product_embedding_requested_dispatches_event(handlers):
+    event_handlers, use_cases = handlers
+    event_handlers.handle(
+        PRODUCT_EMBEDDING_REQUESTED,
+        json.dumps({
+            "product_id": PRODUCT_ID,
+            "store_id": STORE_ID,
+            "name": "Test Product",
+            "description": "Test description",
+        }),
+    )
+
+    request = use_cases[4].requests[0]
+    assert request.product_id == UUID(PRODUCT_ID)
+    assert request.store_id == UUID(STORE_ID)
+    assert request.name == "Test Product"
+    assert request.description == "Test description"
+
+
+def test_product_embedding_deletion_validates_and_dispatches_event(handlers):
+    event_handlers, use_cases = handlers
+    event_handlers.handle(
+        PRODUCT_EMBEDDING_DELETION_REQUESTED,
+        json.dumps({"product_id": PRODUCT_ID, "store_id": STORE_ID}),
+    )
+
+    assert use_cases[5].requests[0].product_id == UUID(PRODUCT_ID)
+
+
+@pytest.mark.parametrize(
+    ("topic", "payload"),
+    [
+        (PRODUCT_EMBEDDING_REQUESTED, json.dumps({
+            "product_id": "invalid",
+            "store_id": STORE_ID,
+            "name": "Product",
+            "description": "Description",
+        })),
+        (PRODUCT_EMBEDDING_DELETION_REQUESTED, json.dumps({
+            "product_id": PRODUCT_ID,
+            "store_id": "invalid",
+        })),
+    ],
+)
+def test_invalid_product_embedding_event_is_rejected(handlers, topic, payload):
+    event_handlers, use_cases = handlers
+
+    with pytest.raises(ValueError):
+        event_handlers.handle(topic, payload)
+
+    assert all(not use_case.requests for use_case in use_cases)
 
 def test_unknown_topic_is_rejected(handlers):
     event_handlers, _ = handlers

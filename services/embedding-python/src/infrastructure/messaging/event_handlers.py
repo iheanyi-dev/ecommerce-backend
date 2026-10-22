@@ -12,18 +12,24 @@ from application.dto.create_store_embedding import CreateStoreEmbeddingInput
 from application.dto.delete_store_embedding import DeleteStoreEmbeddingInput
 from application.dto.ingest_knowledge import IngestKnowledgeInput
 from application.dto.delete_knowledge import DeleteKnowledgeInput
+from application.dto.create_product_embedding import CreateProductEmbeddingInput
+from application.dto.delete_product_embedding import DeleteProductEmbeddingInput
 
 
 STORE_EMBEDDING_REQUESTED = "store.embedding.requested"
 STORE_EMBEDDING_DELETION_REQUESTED = "store.embedding.deletion.requested"
 KNOWLEDGE_INGESTION_REQUESTED = "knowledge.ingestion.requested"
 KNOWLEDGE_DELETION_REQUESTED = "knowledge.deletion.requested"
+PRODUCT_EMBEDDING_REQUESTED = "product.embedding.requested"
+PRODUCT_EMBEDDING_DELETION_REQUESTED = "product.embedding.deletion.requested"
 
 EVENT_TOPICS = (
     STORE_EMBEDDING_REQUESTED,
     STORE_EMBEDDING_DELETION_REQUESTED,
     KNOWLEDGE_INGESTION_REQUESTED,
     KNOWLEDGE_DELETION_REQUESTED,
+    PRODUCT_EMBEDDING_REQUESTED,
+    PRODUCT_EMBEDDING_DELETION_REQUESTED,
 )
 
 
@@ -63,6 +69,8 @@ class EmbeddingEventHandlers:
     delete_store_embedding: Any
     ingest_knowledge: Any
     delete_knowledge: Any
+    create_product_embedding: Any
+    delete_product_embedding: Any
 
     def handle(self, topic: str, raw: bytes | str) -> None:
         event = _payload(raw)
@@ -100,6 +108,25 @@ class EmbeddingEventHandlers:
                 knowledge_id=_required_uuid(event, "knowledge_id"),
             )
             self.delete_knowledge.execute(request)
+            return
+
+        if topic == PRODUCT_EMBEDDING_REQUESTED:
+            request = CreateProductEmbeddingInput(
+                product_id=_required_uuid(event, "product_id"),
+                store_id=_required_uuid(event, "store_id"),
+                name=_required_string(event, "name"),
+                description=_required_string(event, "description"),
+            )
+            self.create_product_embedding.execute(request)
+            return
+
+        if topic == PRODUCT_EMBEDDING_DELETION_REQUESTED:
+            # Validate store_id because it is part of the published event contract.
+            _required_uuid(event, "store_id")
+            request = DeleteProductEmbeddingInput(
+                product_id=_required_uuid(event, "product_id"),
+            )
+            self.delete_product_embedding.execute(request)
             return
 
         raise ValueError(f"Unsupported Kafka topic: {topic}")

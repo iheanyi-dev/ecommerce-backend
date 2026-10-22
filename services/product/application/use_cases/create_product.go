@@ -14,12 +14,23 @@ import (
 // ErrProductCreationOutcomeUnknown indicates that persistence may have
 // succeeded even though the repository returned an error. In this situation,
 // Store capacity must not be decremented blindly.
-var ErrProductCreationOutcomeUnknown = errors.New("product creation outcome unknown")
+var (
+	// ErrProductCreationOutcomeUnknown indicates that persistence may have
+	// succeeded even though the repository returned an error.
+	ErrProductCreationOutcomeUnknown = errors.New("product creation outcome unknown")
+
+	// ErrProductOwnerStoreNotFound indicates that the authenticated owner
+	// does not have a store in which to create a product.
+	ErrProductOwnerStoreNotFound = errors.New("owner store not found")
+
+	// ErrInvalidProductOwner indicates that no authenticated owner was supplied.
+	ErrInvalidProductOwner = errors.New("product owner ID is required")
+)
 
 // CreateProductInput contains the data required to create a product.
 // Images are uploaded and attached in a separate workflow.
 type CreateProductInput struct {
-	StoreID     string
+	OwnerID     string
 	Name        string
 	Description string
 	Price       valueobjects.Money
@@ -58,8 +69,23 @@ func (uc *CreateProduct) Execute(
 	ctx context.Context,
 	input CreateProductInput,
 ) (*entities.Product, error) {
+	if input.OwnerID == "" {
+		uc.record(ctx, "product.create.validation_failed", "create_product", "validation")
+		return nil, ErrInvalidProductOwner
+	}
+
+	storeID, err := uc.store.GetStoreIDByOwnerID(ctx, input.OwnerID)
+	if err != nil {
+		uc.record(ctx, "product.create.store_lookup_failed", "create_product", "store")
+		return nil, fmt.Errorf("resolve owner store: %w", err)
+	}
+	if storeID == "" {
+		uc.record(ctx, "product.create.store_not_found", "create_product", "validation")
+		return nil, ErrProductOwnerStoreNotFound
+	}
+
 	product, err := entities.NewProduct(
-		input.StoreID,
+		storeID,
 		input.Name,
 		input.Description,
 		input.Price,

@@ -20,6 +20,15 @@ type ProductListFilters struct {
 
 // ProductRepository persists Product aggregates, including their ordered
 // Storage references. Implementations must preserve image ordering.
+type StoreProductSearchFilters struct {
+	Currency          string
+	MinPriceAmount    *int64
+	MaxPriceAmount    *int64
+	MinPriceInclusive bool
+	MaxPriceInclusive bool
+	AvailableOnly     bool
+}
+
 type ProductRepository interface {
 	Create(ctx context.Context, product *entities.Product) error
 	GetByID(ctx context.Context, productID string) (*entities.Product, error)
@@ -34,4 +43,11 @@ type ProductRepository interface {
 	CountByStore(ctx context.Context, storeID string) (int64, error)
 	// ListProducts returns a candidate page and its pre-eligibility total.
 	ListProducts(ctx context.Context, filters ProductListFilters, limit, offset int) ([]*entities.Product, int64, error)
+
+	SearchByStore(
+		ctx context.Context,
+		storeID string,
+		query string,
+		filters StoreProductSearchFilters,
+	) ([]*entities.Product, error)
 }

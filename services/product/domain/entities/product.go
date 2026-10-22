@@ -83,6 +83,54 @@ func NewProduct(
 	}, nil
 }
 
+// ReconstituteProduct restores a Product aggregate from persisted state.
+// It preserves the persisted identity and timestamps without generating a new ID.
+func ReconstituteProduct(
+	id, storeID, name, description string,
+	price valueobjects.Money,
+	quantity int64,
+	images []ProductImage,
+	createdAt, updatedAt time.Time,
+) (*Product, error) {
+	id = strings.TrimSpace(id)
+	storeID = strings.TrimSpace(storeID)
+	name = strings.TrimSpace(name)
+	description = strings.TrimSpace(description)
+
+	if id == "" || storeID == "" || name == "" || description == "" || quantity < 0 {
+		return nil, fmt.Errorf("%w: invalid persisted product fields", domainerrors.ErrInvalidProduct)
+	}
+	if _, err := valueobjects.NewMoney(price.Amount(), price.Currency()); err != nil {
+		return nil, fmt.Errorf("%w: invalid persisted price: %v", domainerrors.ErrInvalidProduct, err)
+	}
+	if createdAt.IsZero() || updatedAt.IsZero() || updatedAt.Before(createdAt) {
+		return nil, fmt.Errorf("%w: invalid persisted timestamps", domainerrors.ErrInvalidProduct)
+	}
+	if len(images) > MaxProductImages {
+		return nil, domainerrors.ErrImageLimitExceeded
+	}
+
+	restoredImages := make([]ProductImage, 0, MaxProductImages)
+	seen := make(map[string]struct{}, len(images))
+	for _, image := range images {
+		reference := strings.TrimSpace(image.StorageReference)
+		if reference == "" {
+			return nil, domainerrors.ErrInvalidImage
+		}
+		if _, exists := seen[reference]; exists {
+			return nil, domainerrors.ErrDuplicateImage
+		}
+		seen[reference] = struct{}{}
+		restoredImages = append(restoredImages, ProductImage{StorageReference: reference})
+	}
+
+	return &Product{
+		id: id, storeID: storeID, name: name, description: description,
+		price: price, quantity: quantity, images: restoredImages,
+		createdAt: createdAt.UTC(), updatedAt: updatedAt.UTC(),
+	}, nil
+}
+
 // newProductID generates a UUID v4 using the standard library.
 func newProductID() (string, error) {
 	var id [16]byte

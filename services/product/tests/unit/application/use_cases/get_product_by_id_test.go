@@ -110,6 +110,16 @@ func (f *productRepositoryFake) ListProducts(
 	return f.products, f.total, f.listProductsErr
 }
 
+// SearchByStore satisfies the unified ProductRepository contract.
+func (f *productRepositoryFake) SearchByStore(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ ports.StoreProductSearchFilters,
+) ([]*entities.Product, error) {
+	return f.products, nil
+}
+
 type storeClientFake struct {
 	ownerStoreID     string
 	ownerLookupErr   error

@@ -14,8 +14,9 @@ import (
 // by the Gateway, while Store consumes the trusted identity propagated by the
 // Gateway. ServiceAuth fields authenticate trusted internal callers.
 type Config struct {
-	AppEnv  string
-	AppPort string
+	AppEnv   string
+	AppPort  string
+	GRPCPort string
 
 	DatabaseHost     string
 	DatabasePort     string
@@ -49,8 +50,9 @@ func Load() (*Config, error) {
 	_ = godotenv.Load("services/store/.env")
 
 	cfg := &Config{
-		AppEnv:  getEnv("APP_ENV", "development"),
-		AppPort: getEnv("APP_PORT", "8082"),
+		AppEnv:   getEnv("APP_ENV", "development"),
+		AppPort:  getEnv("APP_PORT", "8082"),
+		GRPCPort: getEnv("GRPC_PORT", "9094"),
 
 		DatabaseHost:     getEnv("DATABASE_HOST", "localhost"),
 		DatabasePort:     getEnv("DATABASE_PORT", "5432"),

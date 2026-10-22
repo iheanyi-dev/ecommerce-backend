@@ -41,6 +41,8 @@ func NewRouter(
 	requestIDMiddleware *middleware.RequestIDMiddleware,
 	requestObservabilityMiddleware *middleware.RequestObservabilityMiddleware,
 	identityPropagationMiddleware *middleware.IdentityPropagationMiddleware,
+	productProxy *proxy.ProductProxy,
+	cartProxy *proxy.CartProxy,
 ) nethttp.Handler {
 	mux := nethttp.NewServeMux()
 
@@ -63,6 +65,17 @@ func NewRouter(
 	// identity is forwarded to Store through trusted internal headers.
 	mux.Handle("/api/v1/stores", storeProxy)
 	mux.Handle("/api/v1/stores/", storeProxy)
+
+	// Product owns the Product API namespace. The proxy overwrites external
+	// service-authentication headers with trusted Gateway-to-Product credentials.
+	mux.Handle("/api/v1/products", productProxy)
+	mux.Handle("/api/v1/products/", productProxy)
+
+	// Cart owns the Cart API namespace. The proxy supplies trusted Cart
+	// service credentials while identity propagation forwards validated
+	// client identity when available.
+	mux.Handle("/api/v1/cart", cartProxy)
+	mux.Handle("/api/v1/cart/", cartProxy)
 
 	// Recommendation owns the recommendation API namespace.
 	//

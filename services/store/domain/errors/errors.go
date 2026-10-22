@@ -3,6 +3,7 @@ package errors
 import "errors"
 
 var (
+	ErrInvalidProductCount     = errors.New("invalid store product count")
 	ErrInvalidPlanType         = errors.New("invalid plan type")
 	ErrInvalidStoreID          = errors.New("invalid store ID")
 	ErrInvalidOwnerID          = errors.New("invalid owner ID")

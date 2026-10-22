@@ -27,4 +27,5 @@ type Store struct {
 	Plan           string             `json:"plan"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	ProductCount   int32              `json:"product_count"`
 }

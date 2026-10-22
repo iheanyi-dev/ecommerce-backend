@@ -102,7 +102,7 @@ func (r *StoreRepository) FindByID(
 		return nil, translateReadError("find store by ID", err)
 	}
 
-	return fromRow(row)
+	return fromGetStoreByIDRow(row)
 }
 
 // FindByOwnerID retrieves the Store owned by a user.
@@ -118,7 +118,7 @@ func (r *StoreRepository) FindByOwnerID(
 		return nil, translateReadError("find store by owner ID", err)
 	}
 
-	return fromRow(row)
+	return fromGetStoreByOwnerIDRow(row)
 }
 
 // FindBySlug retrieves a Store by its public slug.
@@ -134,7 +134,7 @@ func (r *StoreRepository) FindBySlug(
 		return nil, translateReadError("find store by slug", err)
 	}
 
-	return fromRow(row)
+	return fromGetStoreBySlugRow(row)
 }
 
 // ExistsBySlug reports whether a Store already uses the supplied slug.
@@ -207,7 +207,7 @@ func (r *StoreRepository) ListActive(
 	stores := make([]*entities.Store, 0, len(rows))
 
 	for _, row := range rows {
-		store, err := fromRow(row)
+		store, err := fromListActiveStoresRow(row)
 		if err != nil {
 			return nil, 0, fmt.Errorf(
 				"reconstitute listed store: %w",
@@ -262,7 +262,7 @@ func (r *StoreRepository) ChangePlan(
 		return errors.New("store cannot be nil")
 	}
 
-	err := r.queries.ChangeStorePlan(
+	rowsAffected, err := r.queries.ChangeStorePlan(
 		ctx,
 		generated.ChangeStorePlanParams{
 			ID:             toUUID(store.ID().Value()),
@@ -277,6 +277,15 @@ func (r *StoreRepository) ChangePlan(
 	)
 	if err != nil {
 		return translateWriteError("change store plan", err)
+	}
+
+	if rowsAffected == 0 {
+		storeID := store.ID().Value()
+		if _, lookupErr := r.FindByID(ctx, storeID); lookupErr != nil {
+			return lookupErr
+		}
+
+		return applicationerrors.ErrStorePlanProductLimitExceeded
 	}
 
 	return nil
@@ -312,7 +321,85 @@ func (r *StoreRepository) ChangeStatus(
 //
 // Reconstitution goes through the domain factory rather than constructing
 // Store directly, ensuring persisted values still pass domain validation.
-func fromRow(row generated.Store) (*entities.Store, error) {
+type storeRow struct {
+	ID             pgtype.UUID
+	OwnerID        pgtype.UUID
+	Name           string
+	Slug           string
+	Description    string
+	ImageReference pgtype.Text
+	Status         string
+	Plan           string
+	ProductCount   int32
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+}
+
+func fromGetStoreByIDRow(row generated.GetStoreByIDRow) (*entities.Store, error) {
+	return fromStoreRow(storeRow{
+		ID:             row.ID,
+		OwnerID:        row.OwnerID,
+		Name:           row.Name,
+		Slug:           row.Slug,
+		Description:    row.Description,
+		ImageReference: row.ImageReference,
+		Status:         row.Status,
+		Plan:           row.Plan,
+		ProductCount:   row.ProductCount,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
+	})
+}
+
+func fromGetStoreByOwnerIDRow(row generated.GetStoreByOwnerIDRow) (*entities.Store, error) {
+	return fromStoreRow(storeRow{
+		ID:             row.ID,
+		OwnerID:        row.OwnerID,
+		Name:           row.Name,
+		Slug:           row.Slug,
+		Description:    row.Description,
+		ImageReference: row.ImageReference,
+		Status:         row.Status,
+		Plan:           row.Plan,
+		ProductCount:   row.ProductCount,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
+	})
+}
+
+func fromGetStoreBySlugRow(row generated.GetStoreBySlugRow) (*entities.Store, error) {
+	return fromStoreRow(storeRow{
+		ID:             row.ID,
+		OwnerID:        row.OwnerID,
+		Name:           row.Name,
+		Slug:           row.Slug,
+		Description:    row.Description,
+		ImageReference: row.ImageReference,
+		Status:         row.Status,
+		Plan:           row.Plan,
+		ProductCount:   row.ProductCount,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
+	})
+}
+
+func fromListActiveStoresRow(row generated.ListActiveStoresRow) (*entities.Store, error) {
+	return fromStoreRow(storeRow{
+		ID:             row.ID,
+		OwnerID:        row.OwnerID,
+		Name:           row.Name,
+		Slug:           row.Slug,
+		Description:    row.Description,
+		ImageReference: row.ImageReference,
+		Status:         row.Status,
+		Plan:           row.Plan,
+		ProductCount:   row.ProductCount,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
+	})
+}
+
+func fromStoreRow(row storeRow) (*entities.Store, error) {
 	storeID, err := fromUUID(row.ID)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -336,7 +423,7 @@ func fromRow(row generated.Store) (*entities.Store, error) {
 		imageReference = &value
 	}
 
-	store, err := entities.ReconstituteStore(
+	store, err := entities.ReconstituteStoreWithProductCount(
 		storeID,
 		ownerID,
 		row.Name,
@@ -345,6 +432,7 @@ func fromRow(row generated.Store) (*entities.Store, error) {
 		imageReference,
 		row.Plan,
 		row.Status,
+		int(row.ProductCount),
 		row.CreatedAt.Time,
 		row.UpdatedAt.Time,
 	)
@@ -450,4 +538,80 @@ func translateWriteError(
 		operation,
 		err,
 	)
+}
+
+var _ ports.ProductCapacityRepository = (*StoreRepository)(nil)
+var _ ports.ActiveStoreLookupRepository = (*StoreRepository)(nil)
+
+// IncrementProductCount atomically reserves one product slot for a Store.
+// PostgreSQL enforces the plan limit in the UPDATE predicate.
+func (r *StoreRepository) IncrementProductCount(
+	ctx context.Context,
+	storeID uuid.UUID,
+) (int, error) {
+	count, err := r.queries.IncrementStoreProductCount(ctx, toUUID(storeID))
+	if err == nil {
+		return int(count), nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("increment store product count: %w", err)
+	}
+
+	if _, lookupErr := r.FindByID(ctx, storeID); lookupErr != nil {
+		return 0, lookupErr
+	}
+
+	return 0, applicationerrors.ErrStoreProductCapacityExceeded
+}
+
+// DecrementProductCount compensates for a product creation that failed after
+// reserving capacity. PostgreSQL prevents the count from becoming negative.
+func (r *StoreRepository) DecrementProductCount(
+	ctx context.Context,
+	storeID uuid.UUID,
+) (int, error) {
+	count, err := r.queries.DecrementStoreProductCount(ctx, toUUID(storeID))
+	if err == nil {
+		return int(count), nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return 0, fmt.Errorf("decrement store product count: %w", err)
+	}
+
+	if _, lookupErr := r.FindByID(ctx, storeID); lookupErr != nil {
+		return 0, lookupErr
+	}
+
+	return 0, applicationerrors.ErrStoreProductCountUnderflow
+}
+
+// FilterActiveStoreIDs returns only candidate IDs belonging to active Stores.
+func (r *StoreRepository) FilterActiveStoreIDs(
+	ctx context.Context,
+	storeIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
+	if len(storeIDs) == 0 {
+		return []uuid.UUID{}, nil
+	}
+
+	ids := make([]pgtype.UUID, 0, len(storeIDs))
+	for _, id := range storeIDs {
+		ids = append(ids, toUUID(id))
+	}
+
+	rows, err := r.queries.FilterActiveStoreIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("filter active store IDs: %w", err)
+	}
+
+	activeIDs := make([]uuid.UUID, 0, len(rows))
+	for _, rowID := range rows {
+		id, err := fromUUID(rowID)
+		if err != nil {
+			return nil, fmt.Errorf("convert active store ID: %w", err)
+		}
+		activeIDs = append(activeIDs, id)
+	}
+
+	return activeIDs, nil
 }

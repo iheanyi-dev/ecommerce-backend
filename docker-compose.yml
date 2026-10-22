@@ -75,6 +75,38 @@ services:
     networks:
       - ecommerce
 
+  redis:
+    image: redis:8-alpine
+    container_name: e-redis
+    restart: unless-stopped
+
+    env_file:
+      - ./services/cart/.env
+
+    ports:
+      - "127.0.0.1:6379:6379"
+
+    volumes:
+      - redis_data:/data
+
+    command:
+      - sh
+      - -c
+      - 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'
+
+    networks:
+      - ecommerce
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping | grep -q PONG"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   qdrant:
     image: qdrant/qdrant:v1.19.1
     container_name: e-qdrant
@@ -141,3 +173,4 @@ volumes:
   postgres_data:
   redpanda_data:
   qdrant_data:
+  redis_data:

@@ -67,6 +67,16 @@ type Config struct {
 	// Gateway-to-Recommendation service authentication.
 	RecommendationServiceSecret string
 
+	// Product service connection and service-authentication credentials.
+	ProductServiceURL    string
+	ProductServiceName   string
+	ProductServiceSecret string
+
+	// Cart service connection and service-authentication credentials.
+	CartServiceURL    string
+	CartServiceName   string
+	CartServiceSecret string
+
 	// JWTSecret is the secret used by Identity to sign access tokens.
 	//
 	// The Gateway uses this secret only to validate client access tokens.
@@ -133,6 +143,24 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	productServiceURL := getEnv(
+		"PRODUCT_SERVICE_URL",
+		"http://localhost:8083",
+	)
+
+	if err := validateServiceURL("PRODUCT_SERVICE_URL", productServiceURL); err != nil {
+		return nil, err
+	}
+
+	cartServiceURL := getEnv(
+		"CART_SERVICE_URL",
+		"http://localhost:8090",
+	)
+
+	if err := validateServiceURL("CART_SERVICE_URL", cartServiceURL); err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		AppEnv:  getEnv("APP_ENV", "development"),
 		AppPort: getEnv("APP_PORT", "8081"),
@@ -152,6 +180,12 @@ func Load() (*Config, error) {
 		RecommendationServiceURL:    recommendationServiceURL,
 		RecommendationServiceName:   os.Getenv("RECOMMENDATION_SERVICE_NAME"),
 		RecommendationServiceSecret: os.Getenv("RECOMMENDATION_SERVICE_SECRET"),
+		ProductServiceURL:           productServiceURL,
+		ProductServiceName:          os.Getenv("PRODUCT_SERVICE_NAME"),
+		ProductServiceSecret:        os.Getenv("PRODUCT_SERVICE_SECRET"),
+		CartServiceURL:              cartServiceURL,
+		CartServiceName:             os.Getenv("CART_SERVICE_NAME"),
+		CartServiceSecret:           os.Getenv("CART_SERVICE_SECRET"),
 
 		JWTSecret: os.Getenv("JWT_SECRET"),
 		JWTIssuer: os.Getenv("JWT_ISSUER"),
@@ -187,6 +221,22 @@ func Load() (*Config, error) {
 
 	if cfg.RecommendationServiceSecret == "" {
 		return nil, fmt.Errorf("RECOMMENDATION_SERVICE_SECRET is required")
+	}
+
+	if cfg.ProductServiceName == "" {
+		return nil, fmt.Errorf("PRODUCT_SERVICE_NAME is required")
+	}
+
+	if cfg.ProductServiceSecret == "" {
+		return nil, fmt.Errorf("PRODUCT_SERVICE_SECRET is required")
+	}
+
+	if cfg.CartServiceName == "" {
+		return nil, fmt.Errorf("CART_SERVICE_NAME is required")
+	}
+
+	if cfg.CartServiceSecret == "" {
+		return nil, fmt.Errorf("CART_SERVICE_SECRET is required")
 	}
 
 	if cfg.JWTSecret == "" {

@@ -51,6 +51,7 @@ func TestCreateProduct(t *testing.T) {
 		name                 string
 		input                appusecases.CreateProductInput
 		capacityErr          error
+		storeLookupErr       error
 		persistenceErr       error
 		compensationErr      error
 		embeddingErr         error
@@ -68,7 +69,7 @@ func TestCreateProduct(t *testing.T) {
 		{
 			name: "creates product and dispatches embedding",
 			input: appusecases.CreateProductInput{
-				StoreID:     "store-123",
+				OwnerID:     "owner-123",
 				Name:        "Keyboard",
 				Description: "Mechanical keyboard",
 				Price:       mustMoney(t, 250000, "NGN"),
@@ -83,8 +84,8 @@ func TestCreateProduct(t *testing.T) {
 		{
 			name: "validation failure does not reserve or persist",
 			input: appusecases.CreateProductInput{
-				StoreID:     "",
-				Name:        "Keyboard",
+				OwnerID:     "owner-123",
+				Name:        "",
 				Description: "Mechanical keyboard",
 				Price:       mustMoney(t, 250000, "NGN"),
 				Quantity:    5,
@@ -98,9 +99,44 @@ func TestCreateProduct(t *testing.T) {
 			wantFailureCategory: "validation",
 		},
 		{
+			name: "owner without a store cannot create a product",
+			input: appusecases.CreateProductInput{
+				OwnerID:     "owner-123",
+				Name:        "Keyboard",
+				Description: "Mechanical keyboard",
+				Price:       mustMoney(t, 250000, "NGN"),
+				Quantity:    5,
+			},
+			wantErr:             appusecases.ErrProductOwnerStoreNotFound,
+			wantCreateCalls:     0,
+			wantIncrementCalls:  0,
+			wantDecrementCalls:  0,
+			wantEmbeddingCalls:  0,
+			wantEvent:           "product.create.store_not_found",
+			wantFailureCategory: "validation",
+		},
+		{
+			name: "owner store lookup failure does not reserve or persist",
+			input: appusecases.CreateProductInput{
+				OwnerID:     "owner-123",
+				Name:        "Keyboard",
+				Description: "Mechanical keyboard",
+				Price:       mustMoney(t, 250000, "NGN"),
+				Quantity:    5,
+			},
+			storeLookupErr:      errors.New("store service unavailable"),
+			wantErrorText:       "resolve owner store",
+			wantCreateCalls:     0,
+			wantIncrementCalls:  0,
+			wantDecrementCalls:  0,
+			wantEmbeddingCalls:  0,
+			wantEvent:           "product.create.store_lookup_failed",
+			wantFailureCategory: "store",
+		},
+		{
 			name: "capacity reservation failure does not persist",
 			input: appusecases.CreateProductInput{
-				StoreID:     "store-123",
+				OwnerID:     "owner-123",
 				Name:        "Keyboard",
 				Description: "Mechanical keyboard",
 				Price:       mustMoney(t, 250000, "NGN"),
@@ -118,7 +154,7 @@ func TestCreateProduct(t *testing.T) {
 		{
 			name: "persistence failure compensates capacity reservation",
 			input: appusecases.CreateProductInput{
-				StoreID:     "store-123",
+				OwnerID:     "owner-123",
 				Name:        "Keyboard",
 				Description: "Mechanical keyboard",
 				Price:       mustMoney(t, 250000, "NGN"),
@@ -136,7 +172,7 @@ func TestCreateProduct(t *testing.T) {
 		{
 			name: "unknown persistence outcome does not compensate",
 			input: appusecases.CreateProductInput{
-				StoreID:     "store-123",
+				OwnerID:     "owner-123",
 				Name:        "Keyboard",
 				Description: "Mechanical keyboard",
 				Price:       mustMoney(t, 250000, "NGN"),
@@ -155,7 +191,7 @@ func TestCreateProduct(t *testing.T) {
 		{
 			name: "compensation failure reports both failures",
 			input: appusecases.CreateProductInput{
-				StoreID:     "store-123",
+				OwnerID:     "owner-123",
 				Name:        "Keyboard",
 				Description: "Mechanical keyboard",
 				Price:       mustMoney(t, 250000, "NGN"),
@@ -176,7 +212,7 @@ func TestCreateProduct(t *testing.T) {
 			wantAdditionalEvents: []string{"product.create.embedding_dispatch_failed"},
 			name:                 "embedding dispatch failure does not fail product creation",
 			input: appusecases.CreateProductInput{
-				StoreID:     "store-123",
+				OwnerID:     "owner-123",
 				Name:        "Keyboard",
 				Description: "Mechanical keyboard",
 				Price:       mustMoney(t, 250000, "NGN"),
@@ -195,9 +231,15 @@ func TestCreateProduct(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repository := &productRepositoryFake{createErr: tt.persistenceErr}
+			ownerStoreID := "store-123"
+			if tt.wantErr == appusecases.ErrProductOwnerStoreNotFound {
+				ownerStoreID = ""
+			}
 			store := &storeClientFake{
-				incrementErr: tt.capacityErr,
-				decrementErr: tt.compensationErr,
+				ownerStoreID:   ownerStoreID,
+				ownerLookupErr: tt.storeLookupErr,
+				incrementErr:   tt.capacityErr,
+				decrementErr:   tt.compensationErr,
 			}
 			embeddings := &embeddingDispatcherFake{dispatchErr: tt.embeddingErr}
 			logger := &loggerFake{}
@@ -287,12 +329,12 @@ func TestCreateProductObservabilityFailuresDoNotChangeResult(t *testing.T) {
 	logger := &loggerFake{err: errors.New("logger unavailable")}
 	metrics := &metricsFake{err: errors.New("metrics unavailable")}
 	repository := &productRepositoryFake{}
-	store := &storeClientFake{}
+	store := &storeClientFake{ownerStoreID: "store-123"}
 	embeddings := &embeddingDispatcherFake{}
 
 	useCase := appusecases.NewCreateProduct(repository, store, embeddings, logger, metrics)
 	product, err := useCase.Execute(context.Background(), appusecases.CreateProductInput{
-		StoreID:     "store-123",
+		OwnerID:     "owner-123",
 		Name:        "Keyboard",
 		Description: "Mechanical keyboard",
 		Price:       mustMoney(t, 250000, "NGN"),

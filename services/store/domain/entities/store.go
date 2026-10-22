@@ -19,6 +19,7 @@ type Store struct {
 	imageReference *string
 	status         valueobjects.Status
 	plan           valueobjects.Plan
+	productCount   int
 	createdAt      time.Time
 	updatedAt      time.Time
 }
@@ -74,12 +75,14 @@ func NewStore(
 		imageReference: imageReference,
 		status:         valueobjects.StatusActive,
 		plan:           plan,
+		productCount:   0,
 		createdAt:      now,
 		updatedAt:      now,
 	}, nil
 }
 
 // ReconstituteStore restores a Store aggregate from persisted primitive values.
+// It preserves compatibility for callers that do not yet supply product count.
 func ReconstituteStore(
 	storeID uuid.UUID,
 	ownerID uuid.UUID,
@@ -92,6 +95,40 @@ func ReconstituteStore(
 	createdAt time.Time,
 	updatedAt time.Time,
 ) (*Store, error) {
+	return ReconstituteStoreWithProductCount(
+		storeID,
+		ownerID,
+		name,
+		slug,
+		description,
+		imageReference,
+		planType,
+		status,
+		0,
+		createdAt,
+		updatedAt,
+	)
+}
+
+// ReconstituteStoreWithProductCount restores a Store including its persisted
+// product count. Invalid negative counts are rejected as corrupt domain state.
+func ReconstituteStoreWithProductCount(
+	storeID uuid.UUID,
+	ownerID uuid.UUID,
+	name string,
+	slug string,
+	description string,
+	imageReference *string,
+	planType string,
+	status string,
+	productCount int,
+	createdAt time.Time,
+	updatedAt time.Time,
+) (*Store, error) {
+	if productCount < 0 {
+		return nil, domainerrors.ErrInvalidProductCount
+	}
+
 	id, err := valueobjects.NewStoreID(storeID)
 	if err != nil {
 		return nil, err
@@ -140,6 +177,7 @@ func ReconstituteStore(
 		imageReference: imageReference,
 		status:         storeStatus,
 		plan:           plan,
+		productCount:   productCount,
 		createdAt:      createdAt,
 		updatedAt:      updatedAt,
 	}, nil
@@ -190,6 +228,11 @@ func (s *Store) Status() valueobjects.Status {
 // Plan returns the Store plan.
 func (s *Store) Plan() valueobjects.Plan {
 	return s.plan
+}
+
+// ProductCount returns the number of products currently registered to the Store.
+func (s *Store) ProductCount() int {
+	return s.productCount
 }
 
 // CreatedAt returns the Store creation timestamp.

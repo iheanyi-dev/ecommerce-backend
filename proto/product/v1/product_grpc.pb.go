@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	ProductService_SearchProducts_FullMethodName       = "/product.v1.ProductService/SearchProducts"
 	ProductService_CountProductsByStore_FullMethodName = "/product.v1.ProductService/CountProductsByStore"
+	ProductService_GetProductsByIDs_FullMethodName     = "/product.v1.ProductService/GetProductsByIDs"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -29,6 +30,9 @@ const (
 type ProductServiceClient interface {
 	SearchProducts(ctx context.Context, in *SearchProductsRequest, opts ...grpc.CallOption) (*SearchProductsResponse, error)
 	CountProductsByStore(ctx context.Context, in *CountProductsByStoreRequest, opts ...grpc.CallOption) (*CountProductsByStoreResponse, error)
+	// Returns authoritative snapshots for the requested product IDs.
+	// Missing products are omitted; service failures are returned as RPC errors.
+	GetProductsByIDs(ctx context.Context, in *GetProductsByIDsRequest, opts ...grpc.CallOption) (*GetProductsByIDsResponse, error)
 }
 
 type productServiceClient struct {
@@ -59,12 +63,25 @@ func (c *productServiceClient) CountProductsByStore(ctx context.Context, in *Cou
 	return out, nil
 }
 
+func (c *productServiceClient) GetProductsByIDs(ctx context.Context, in *GetProductsByIDsRequest, opts ...grpc.CallOption) (*GetProductsByIDsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProductsByIDsResponse)
+	err := c.cc.Invoke(ctx, ProductService_GetProductsByIDs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
 type ProductServiceServer interface {
 	SearchProducts(context.Context, *SearchProductsRequest) (*SearchProductsResponse, error)
 	CountProductsByStore(context.Context, *CountProductsByStoreRequest) (*CountProductsByStoreResponse, error)
+	// Returns authoritative snapshots for the requested product IDs.
+	// Missing products are omitted; service failures are returned as RPC errors.
+	GetProductsByIDs(context.Context, *GetProductsByIDsRequest) (*GetProductsByIDsResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -80,6 +97,9 @@ func (UnimplementedProductServiceServer) SearchProducts(context.Context, *Search
 }
 func (UnimplementedProductServiceServer) CountProductsByStore(context.Context, *CountProductsByStoreRequest) (*CountProductsByStoreResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CountProductsByStore not implemented")
+}
+func (UnimplementedProductServiceServer) GetProductsByIDs(context.Context, *GetProductsByIDsRequest) (*GetProductsByIDsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetProductsByIDs not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -138,6 +158,24 @@ func _ProductService_CountProductsByStore_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_GetProductsByIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProductsByIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).GetProductsByIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_GetProductsByIDs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).GetProductsByIDs(ctx, req.(*GetProductsByIDsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductService_ServiceDesc is the grpc.ServiceDesc for ProductService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +190,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CountProductsByStore",
 			Handler:    _ProductService_CountProductsByStore_Handler,
+		},
+		{
+			MethodName: "GetProductsByIDs",
+			Handler:    _ProductService_GetProductsByIDs_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

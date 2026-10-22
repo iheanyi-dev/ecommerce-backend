@@ -13,46 +13,35 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/valueobjects"
 )
 
-// ErrStorePlanProductLimitExceeded indicates that the Store currently contains
-// more products than the requested plan permits.
-//
-// Product capacity is an application-level transition rule because the
-// application obtains the current product count through the ProductCountProvider
-// port before allowing the Store aggregate to change plan.
-var ErrStorePlanProductLimitExceeded = fmt.Errorf(
-	"store plan product limit exceeded",
-)
+// ErrStorePlanProductLimitExceeded indicates that the Store's current product
+// count exceeds the capacity of the requested plan. The repository's guarded
+// database update is the concurrency-safe authority for this rule.
+var ErrStorePlanProductLimitExceeded = applicationerrors.ErrStorePlanProductLimitExceeded
 
 // ChangeStorePlanUseCase coordinates an authenticated Store owner's plan
 // transition.
 //
-// The workflow deliberately keeps product ownership outside the Store
-// aggregate. Store owns the plan's capabilities, while the application layer
-// obtains the current product count through ProductCountProvider before
-// permitting a transition.
+// Product capacity is enforced atomically by StoreRepository.ChangePlan,
+// avoiding decisions based on a potentially stale product count.
 //
-// A plan change is persisted through StoreRepository.ChangePlan because the
-// transition may change more than the plan itself. In the current contract,
-// moving to Premium also deactivates the Store.
+// A plan change may also change Store status. Moving to Premium deliberately
+// deactivates the Store until Billing or Subscription later reactivates it.
 type ChangeStorePlanUseCase struct {
-	storeRepository      ports.StoreRepository
-	productCountProvider ports.ProductCountProvider
-	logger               ports.Logger
-	metrics              ports.Metrics
+	storeRepository ports.StoreRepository
+	logger          ports.Logger
+	metrics         ports.Metrics
 }
 
 // NewChangeStorePlanUseCase constructs the Change Store Plan use case.
 func NewChangeStorePlanUseCase(
 	storeRepository ports.StoreRepository,
-	productCountProvider ports.ProductCountProvider,
 	logger ports.Logger,
 	metrics ports.Metrics,
 ) *ChangeStorePlanUseCase {
 	return &ChangeStorePlanUseCase{
-		storeRepository:      storeRepository,
-		productCountProvider: productCountProvider,
-		logger:               logger,
-		metrics:              metrics,
+		storeRepository: storeRepository,
+		logger:          logger,
+		metrics:         metrics,
 	}
 }
 
@@ -117,28 +106,6 @@ func (uc *ChangeStorePlanUseCase) Execute(
 			startedAt,
 			"invalid_plan",
 			err,
-		)
-	}
-
-	productCount, err := uc.productCountProvider.CountByStoreID(
-		ctx,
-		store.ID().Value(),
-	)
-	if err != nil {
-		return uc.fail(
-			ctx,
-			startedAt,
-			"product_count",
-			fmt.Errorf("count store products: %w", err),
-		)
-	}
-
-	if !targetPlan.CanAccommodateProducts(productCount) {
-		return uc.fail(
-			ctx,
-			startedAt,
-			"plan_product_limit",
-			ErrStorePlanProductLimitExceeded,
 		)
 	}
 

@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package store.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/store/v1;storev1";
+
+// StoreService exposes the Store operations required by internal services.
+// Every RPC must be protected by service-to-service authentication.
+service StoreService {
+  // Retrieves the store owned by the specified user.
+  // Returns NotFound when the owner has no store.
+  rpc GetStoreIDByOwnerID(GetStoreIDByOwnerIDRequest) returns (GetStoreIDByOwnerIDResponse);
+
+  // Atomically reserves one product slot for the store.
+  // Returns NotFound for an unknown store and ResourceExhausted when its
+  // product capacity has been reached.
+  rpc IncrementProductCount(IncrementProductCountRequest) returns (IncrementProductCountResponse);
+
+  // Releases one previously reserved product slot.
+  // Must not allow the product count to become negative.
+  rpc DecrementProductCount(DecrementProductCountRequest) returns (DecrementProductCountResponse);
+
+  // Reports whether the store is active.
+  // Returns NotFound for an unknown store.
+  rpc IsStoreActive(IsStoreActiveRequest) returns (IsStoreActiveResponse);
+
+  // Returns only the IDs of stores that currently exist and are active.
+  // Unknown and inactive IDs are omitted from the result.
+  rpc FilterActiveStoreIDs(FilterActiveStoreIDsRequest) returns (FilterActiveStoreIDsResponse);
+}
+
+message GetStoreIDByOwnerIDRequest {
+  string owner_id = 1;
+}
+
+message GetStoreIDByOwnerIDResponse {
+  string store_id = 1;
+}
+
+message IncrementProductCountRequest {
+  string store_id = 1;
+}
+
+message IncrementProductCountResponse {}
+
+message DecrementProductCountRequest {
+  string store_id = 1;
+}
+
+message DecrementProductCountResponse {}
+
+message IsStoreActiveRequest {
+  string store_id = 1;
+}
+
+message IsStoreActiveResponse {
+  bool active = 1;
+}
+
+message FilterActiveStoreIDsRequest {
+  repeated string store_ids = 1;
+}
+
+message FilterActiveStoreIDsResponse {
+  repeated string active_store_ids = 1;
+}
