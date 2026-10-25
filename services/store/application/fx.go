@@ -74,5 +74,11 @@ var Module = fx.Module(
 			use_cases.NewRemoveStaleKnowledgeUseCase,
 			fx.As(new(ports.RemoveStaleKnowledgeService)),
 		),
+
+		fx.Annotate(use_cases.NewListStoreOrdersUseCase, fx.As(new(ports.ListStoreOrdersService))),
+		fx.Annotate(use_cases.NewGetStoreOrderUseCase, fx.As(new(ports.GetStoreOrderService))),
+		fx.Annotate(use_cases.NewAddShippingUseCase, fx.As(new(ports.AddShippingService))),
+		fx.Annotate(use_cases.NewMarkOrderSentUseCase, fx.As(new(ports.MarkOrderSentService))),
+		fx.Annotate(use_cases.NewCancelStoreOrderUseCase, fx.As(new(ports.CancelStoreOrderService))),
 	),
 )

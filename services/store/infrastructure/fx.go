@@ -11,6 +11,7 @@ import (
 	kafkainfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/messaging/kafka"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/migrations"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/observability"
+	orderinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/order"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/persistence/postgres"
 	productinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/product"
 	storageinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/storage"
@@ -26,6 +27,7 @@ var Module = fx.Module(
 	"infrastructure",
 
 	fx.Provide(fx.Annotate(productinfra.NewClient, fx.As(new(ports.ProductCountProvider)))),
+	fx.Provide(fx.Annotate(orderinfra.NewClient, fx.As(new(ports.OrderClient)))),
 	fx.Provide(
 		fx.Annotate(
 			chatinfra.NewClient,

@@ -20,6 +20,7 @@ var Module = fx.Module(
 		use_cases.NewRemoveCartItem,
 		use_cases.NewClearCart,
 		use_cases.NewCheckoutCart,
+		use_cases.NewCheckoutCartForOrder,
 
 		fx.Annotate(
 			handlers.NewGetMyCartHandler,

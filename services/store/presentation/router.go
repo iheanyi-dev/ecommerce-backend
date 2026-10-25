@@ -27,6 +27,11 @@ func NewRouter(
 	addStoreKnowledgeHandler http.Handler,
 	chatHandler http.Handler,
 	removeStaleKnowledgeHandler http.Handler,
+	listStoreOrdersHandler http.Handler,
+	getStoreOrderHandler http.Handler,
+	addShippingHandler http.Handler,
+	markOrderSentHandler http.Handler,
+	cancelStoreOrderHandler http.Handler,
 	serviceAuthenticationMiddleware *middleware.ServiceAuthenticationMiddleware,
 	requestObservabilityMiddleware *middleware.RequestObservabilityMiddleware,
 	tracingMiddleware *middleware.TracingMiddleware,
@@ -81,6 +86,12 @@ func NewRouter(
 		"DELETE /api/v1/stores/{id}/knowledge/stale",
 		middleware.RequireAuthentication(removeStaleKnowledgeHandler),
 	)
+
+	mux.Handle("GET /api/v1/stores/owner/orders", middleware.RequireAuthentication(listStoreOrdersHandler))
+	mux.Handle("GET /api/v1/stores/owner/orders/{orderID}", middleware.RequireAuthentication(getStoreOrderHandler))
+	mux.Handle("POST /api/v1/stores/owner/orders/{orderID}/shipping", middleware.RequireAuthentication(addShippingHandler))
+	mux.Handle("POST /api/v1/stores/owner/orders/{orderID}/sent", middleware.RequireAuthentication(markOrderSentHandler))
+	mux.Handle("POST /api/v1/stores/owner/orders/{orderID}/cancel", middleware.RequireAuthentication(cancelStoreOrderHandler))
 
 	// Subscription/Billing-controlled lifecycle operation.
 	//

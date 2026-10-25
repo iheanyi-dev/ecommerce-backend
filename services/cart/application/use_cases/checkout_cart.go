@@ -29,6 +29,7 @@ type CheckoutStore struct {
 // CheckoutCartOutput contains refreshed products grouped by store and the IDs
 // of products removed because they no longer exist in the Product service.
 type CheckoutCartOutput struct {
+	CartID            uuid.UUID
 	Stores            []CheckoutStore
 	RemovedProductIDs []uuid.UUID
 }
@@ -61,6 +62,24 @@ func (uc *CheckoutCart) Execute(
 	ctx context.Context,
 	customerID uuid.UUID,
 ) (*CheckoutCartOutput, error) {
+	return uc.execute(ctx, customerID, uuid.Nil)
+}
+
+// ExecuteForCart reconciles only the specified cart belonging to the customer.
+func (uc *CheckoutCart) ExecuteForCart(
+	ctx context.Context,
+	customerID, cartID uuid.UUID,
+) (*CheckoutCartOutput, error) {
+	if cartID == uuid.Nil {
+		return nil, errors.New("cart ID is required for internal checkout")
+	}
+	return uc.execute(ctx, customerID, cartID)
+}
+
+func (uc *CheckoutCart) execute(
+	ctx context.Context,
+	customerID, expectedCartID uuid.UUID,
+) (*CheckoutCartOutput, error) {
 	if customerID == uuid.Nil {
 		return nil, domainerrors.ErrInvalidCustomerID
 	}
@@ -77,8 +96,13 @@ func (uc *CheckoutCart) Execute(
 		uc.recordFailure("get_cart", "persistence")
 		return nil, errors.New("get customer cart for checkout: repository returned a nil cart")
 	}
+	if expectedCartID != uuid.Nil && cart.ID() != expectedCartID {
+		uc.recordFailure("validate_cart", "validation")
+		return nil, domainerrors.ErrCartOwnershipMismatch
+	}
 
 	output := &CheckoutCartOutput{
+		CartID:            cart.ID(),
 		Stores:            make([]CheckoutStore, 0),
 		RemovedProductIDs: make([]uuid.UUID, 0),
 	}

@@ -62,7 +62,6 @@ func NewStore(
 	if err != nil {
 		return nil, err
 	}
-	imageReference = imageReference
 
 	now := time.Now().UTC()
 

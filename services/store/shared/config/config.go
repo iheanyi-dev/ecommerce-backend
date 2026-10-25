@@ -38,6 +38,9 @@ type Config struct {
 	ProductServiceAddr          string
 	ProductServiceName          string
 	ProductServiceSecret        string
+	OrderServiceAddr            string
+	OrderServiceName            string
+	OrderServiceSecret          string
 	KafkaBrokers                string
 }
 
@@ -74,6 +77,9 @@ func Load() (*Config, error) {
 		ProductServiceAddr:          getEnv("PRODUCT_SERVICE_ADDR", "localhost:9091"),
 		ProductServiceName:          getEnv("PRODUCT_SERVICE_NAME", "product"),
 		ProductServiceSecret:        os.Getenv("PRODUCT_SERVICE_SECRET"),
+		OrderServiceAddr:            getEnv("ORDER_SERVICE_ADDR", "localhost:9093"),
+		OrderServiceName:            getEnv("ORDER_SERVICE_NAME", "order"),
+		OrderServiceSecret:          os.Getenv("ORDER_SERVICE_SECRET"),
 		KafkaBrokers:                getEnv("KAFKA_BROKERS", "localhost:19092"),
 	}
 

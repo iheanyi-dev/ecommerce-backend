@@ -32,18 +32,23 @@ func newRouterTestHandler() http.Handler {
 	})
 
 	return presentation.NewRouter(
-		handler,
-		handler,
-		handler,
-		handler,
-		handler,
-		handler,
-		handler,
-		handler,
-		handler,
-		handler,
-		handler,
-		handler,
+		handler, // createStoreHandler
+		handler, // getStoreByIDHandler
+		handler, // getStoreByOwnerHandler
+		handler, // getStoreBySlugHandler
+		handler, // listStoresHandler
+		handler, // updateStoreHandler
+		handler, // changeStoreImageHandler
+		handler, // changeStorePlanHandler
+		handler, // changeStoreStatusHandler
+		handler, // addStoreKnowledgeHandler
+		handler, // chatHandler
+		handler, // removeStaleKnowledgeHandler
+		handler, // listStoreOrdersHandler
+		handler, // getStoreOrderHandler
+		handler, // addShippingHandler
+		handler, // markOrderSentHandler
+		handler, // cancelStoreOrderHandler
 		serviceAuthMiddleware,
 		nil,
 		nil,

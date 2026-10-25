@@ -79,6 +79,12 @@ var Module = fx.Module(
 			fx.ResultTags(`name:"removeStaleKnowledgeHandler"`),
 		),
 
+		fx.Annotate(handlers.NewListStoreOrdersHandler, fx.As(new(http.Handler)), fx.ResultTags(`name:"listStoreOrdersHandler"`)),
+		fx.Annotate(handlers.NewGetStoreOrderHandler, fx.As(new(http.Handler)), fx.ResultTags(`name:"getStoreOrderHandler"`)),
+		fx.Annotate(handlers.NewAddShippingHandler, fx.As(new(http.Handler)), fx.ResultTags(`name:"addShippingHandler"`)),
+		fx.Annotate(handlers.NewMarkOrderSentHandler, fx.As(new(http.Handler)), fx.ResultTags(`name:"markOrderSentHandler"`)),
+		fx.Annotate(handlers.NewCancelStoreOrderHandler, fx.As(new(http.Handler)), fx.ResultTags(`name:"cancelStoreOrderHandler"`)),
+
 		// Request ID establishes correlation for every request, including
 		// requests rejected by the Store service authentication boundary.
 		middleware.NewRequestIDMiddleware,
@@ -111,6 +117,11 @@ var Module = fx.Module(
 				`name:"addStoreKnowledgeHandler"`,
 				`name:"chatHandler"`,
 				`name:"removeStaleKnowledgeHandler"`,
+				`name:"listStoreOrdersHandler"`,
+				`name:"getStoreOrderHandler"`,
+				`name:"addShippingHandler"`,
+				`name:"markOrderSentHandler"`,
+				`name:"cancelStoreOrderHandler"`,
 
 				// Four concrete middleware dependencies.
 				//

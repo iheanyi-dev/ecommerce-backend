@@ -3,6 +3,7 @@ package infrastructure
 
 import (
 	"context"
+	cartgrpc "github.com/iheanyi-dev/ecommerce-backend/services/cart/infrastructure/grpc"
 	"github.com/iheanyi-dev/ecommerce-backend/services/cart/infrastructure/observability"
 
 	goredis "github.com/redis/go-redis/v9"
@@ -18,6 +19,7 @@ import (
 var Module = fx.Module(
 	"cart-infrastructure",
 	fx.Provide(
+		cartgrpc.NewServer,
 		fx.Annotate(observability.NewTracer, fx.As(new(ports.Tracer))),
 		fx.Annotate(observability.NewProductionLogger, fx.As(new(ports.Logger))),
 		fx.Annotate(observability.NewMetrics, fx.As(new(ports.Metrics))),

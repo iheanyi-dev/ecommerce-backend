@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package cart.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/cart/v1;cartv1";
+
+// CartService exposes Cart operations intended for trusted internal services.
+service CartService {
+  // CheckoutCartForOrder refreshes a customer's specified cart and returns
+  // authoritative product snapshots for Order creation.
+  rpc CheckoutCartForOrder(CheckoutCartForOrderRequest)
+      returns (CheckoutCartForOrderResponse);
+}
+
+message CheckoutCartForOrderRequest {
+  string customer_id = 1;
+  string cart_id = 2;
+}
+
+message CheckoutCartForOrderResponse {
+  string cart_id = 1;
+  repeated CheckoutStore stores = 2;
+  repeated string removed_product_ids = 3;
+}
+
+message CheckoutStore {
+  string store_id = 1;
+  repeated CheckoutItem items = 2;
+}
+
+message CheckoutItem {
+  string product_id = 1;
+  string name = 2;
+  int64 quantity = 3;
+  int64 price_minor = 4;
+  string currency = 5;
+}
