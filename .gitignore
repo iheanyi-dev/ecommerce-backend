@@ -6,3 +6,5 @@
 services/recommendation-python/.env
 services/embedding-python/.cache
 storage-data
+# Payment service local environment
+services/payment/.env

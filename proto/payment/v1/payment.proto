@@ -1,0 +1,174 @@
+syntax = "proto3";
+
+package payment.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/payment/v1;paymentv1";
+
+import "google/protobuf/timestamp.proto";
+
+service PaymentService {
+  rpc InitiatePayment(InitiatePaymentRequest) returns (InitiatePaymentResponse);
+  rpc VerifyPayment(VerifyPaymentRequest) returns (PaymentDetails);
+  rpc GetPayment(GetPaymentRequest) returns (PaymentDetails);
+  rpc ListPayments(ListPaymentsRequest) returns (ListPaymentsResponse);
+
+  rpc InitiatePayout(InitiatePayoutRequest) returns (PayoutOperationResponse);
+  rpc VerifyPayout(VerifyPayoutRequest) returns (PayoutOperationResponse);
+  rpc GetPayout(GetPayoutRequest) returns (PayoutDetails);
+  rpc ListPayouts(ListPayoutsRequest) returns (ListPayoutsResponse);
+  rpc RetryPayout(RetryPayoutRequest) returns (PayoutOperationResponse);
+
+  rpc HandleWebhook(HandleWebhookRequest) returns (HandleWebhookResponse);
+}
+
+message InitiatePaymentRequest {
+  string payer_id = 1;
+  string purpose = 2;
+  string business_reference_type = 3;
+  string business_reference_id = 4;
+  int64 amount_minor = 5;
+  string currency = 6;
+  string customer_email = 7;
+}
+
+message VerifyPaymentRequest {
+  string payment_id = 1;
+}
+
+message GetPaymentRequest {
+  string payment_id = 1;
+}
+
+message ListPaymentsRequest {
+  string payer_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message InitiatePaymentResponse {
+  string payment_id = 1;
+  string attempt_id = 2;
+  string payment_status = 3;
+  string attempt_status = 4;
+  string provider = 5;
+  string checkout_url = 6;
+  int64 amount_minor = 7;
+  string currency = 8;
+}
+
+message PaymentDetails {
+  string id = 1;
+  string reference = 2;
+  string payer_id = 3;
+  string purpose = 4;
+  string business_reference_type = 5;
+  string business_reference_id = 6;
+  int64 amount_minor = 7;
+  string currency = 8;
+  string status = 9;
+  PaymentAttemptDetails attempt = 10;
+}
+
+message PaymentAttemptDetails {
+  string id = 1;
+  string payment_id = 2;
+  string provider = 3;
+  string provider_reference = 4;
+  string status = 5;
+  string failure_reason = 6;
+  string checkout_url = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  bytes metadata_json = 9;
+}
+
+message ListPaymentsResponse {
+  repeated PaymentDetails items = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 total = 4;
+  int32 total_pages = 5;
+}
+
+message InitiatePayoutRequest {
+  string business_reference_type = 1;
+  string business_reference_id = 2;
+  string store_id = 3;
+  string order_id = 4;
+  string reason = 5;
+  int64 amount_minor = 6;
+  string currency = 7;
+  PayoutBeneficiary beneficiary = 8;
+}
+
+message PayoutBeneficiary {
+  string account_name = 1;
+  string account_number = 2;
+  string bank_code = 3;
+  string bank_name = 4;
+  string country_code = 5;
+}
+
+message VerifyPayoutRequest {
+  string payout_id = 1;
+}
+
+message GetPayoutRequest {
+  string payout_id = 1;
+  string store_id = 2;
+}
+
+message ListPayoutsRequest {
+  string store_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message RetryPayoutRequest {
+  string payout_id = 1;
+  string store_id = 2;
+}
+
+message PayoutOperationResponse {
+  string payout_id = 1;
+  string attempt_id = 2;
+  string reference = 3;
+  string status = 4;
+  string attempt_status = 5;
+  string provider = 6;
+  int64 amount_minor = 7;
+  string currency = 8;
+}
+
+message PayoutDetails {
+  string id = 1;
+  string reference = 2;
+  string business_reference_type = 3;
+  string business_reference_id = 4;
+  string reason = 5;
+  string store_id = 6;
+  string order_id = 7;
+  int64 amount_minor = 8;
+  string currency = 9;
+  string status = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message ListPayoutsResponse {
+  repeated PayoutDetails payouts = 1;
+  int64 total = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message HandleWebhookRequest {
+  bytes body = 1;
+  map<string, string> headers = 2;
+}
+
+message HandleWebhookResponse {
+  string event_id = 1;
+  string event_type = 2;
+  string resource_type = 3;
+  string resource_id = 4;
+}

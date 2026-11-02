@@ -1,10 +1,91 @@
-CreateOrder	Create an order per store and persist product snapshots.
-AddShipping	Allow the owning store to propose a shipping amount.
-RejectShipping	Allow the customer to reject a proposed shipping amount.
-MarkPaid	Record trusted confirmation that payment succeeded.
-CancelOrder	Cancel an order when its current state and actor permit it.
-MarkSent	Let the owning store mark a paid order as dispatched.
-ConfirmReceipt	Let the customer confirm receipt of a dispatched order.
-GetOrderByID	Retrieve a single order with appropriate access checks.
-ListMyOrders	List orders belonging to the authenticated customer.
-ListStoreOrders	List orders belonging to a particular store, with authorization.
+ID	Use case	Responsibility
+P01	InitiatePayment	Create a payment for a trusted business request, with amount, currency, payer, purpose, and reference validated against application rules.
+P02	GetPayment	Retrieve a payment by ID with appropriate access checks.
+P03	GetPaymentByReference	Find a payment using a trusted business reference or merchant reference.
+P04	ListPayments	List payments for an authorized customer or permitted internal caller, with bounded pagination.
+P05	InitiatePaymentAttempt	Start a provider collection attempt for an existing eligible payment.
+P06	GetPaymentAttempt	Retrieve attempt status and safe provider-facing details without exposing secrets.
+P07	RetryPayment	Retry an eligible unsuccessful or abandoned collection without creating duplicate charges.
+
+B. Provider confirmation and payment state
+ID	Use case	Responsibility
+P08	VerifyPayment	Ask the provider to verify a payment outcome when required; never trust a client-supplied success flag.
+P09	HandleProviderWebhook	Process authenticated provider events, including duplicate and out-of-order delivery.
+P10	ReconcilePayment	Compare local payment state with authoritative provider state and resolve discrepancies safely.
+P11	ExpirePayment	Mark an eligible payment as expired after its permitted collection window, without overriding a confirmed success.
+P12	CancelPayment	Request cancellation where supported and transition local state only when the outcome is known.
+P13	RecordPaymentFailure	Record a verified failure with its reason and ensure repeated notifications are safe.
+
+These operations need careful coordination. For example, a webhook and a verification request may race, so both must preserve the same payment-state invariants.
+C. Refunds
+ID	Use case	Responsibility
+P14	InitiateRefund	Request a full or partial refund against an eligible payment, enforcing amount and currency rules.
+P15	ProcessRefund	Execute or advance the refund through the provider integration.
+P16	GetRefund	Retrieve a refund and its current status.
+P17	HandleRefundUpdate	Apply a verified provider refund result idempotently.
+P18	ReconcileRefund	Resolve refunds whose outcome is unknown or inconsistent with provider records.
+
+Refunds deserve their own lifecycle. A refund request being accepted does not necessarily mean the money has been returned.
+D. Store payouts and settlement
+Your domain already includes StorePayoutAttempt, and the platform collects customer payments before settling vendors. We should account for that without turning Payment into a general accounting service.
+ID	Use case	Responsibility
+P19	InitiateStorePayout	Request an authorized payout for a store, based on a trusted amount and settlement reference.
+P20	InitiateStorePayoutAttempt	Start a provider transfer for an eligible payout.
+P21	GetStorePayout	Retrieve payout status and safe details.
+P22	HandlePayoutUpdate	Process verified provider transfer outcomes idempotently.
+P23	RetryStorePayout	Retry a failed or safely recoverable transfer without risking duplicate disbursement.
+P24	ReconcileStorePayout	Resolve pending, unknown, or inconsistent transfer outcomes.
+
+Important boundary: Payment may execute transfers, but it must not independently invent vendor earnings or calculate commissions. The trusted settlement amount and eligibility must come from the appropriate business process.
+E. Operational and reliability use cases
+ID	Use case	Responsibility
+P25	ProcessPendingPayment	Resume a payment workflow that was interrupted or deferred.
+P26	ProcessPendingRefund	Resume a refund workflow safely.
+P27	ProcessPendingStorePayout	Resume an eligible payout workflow safely.
+P28	DispatchPendingOutboxEvents	Publish committed events that have not yet been delivered.
+P29	RecordProviderEvent	Persist a provider event or delivery receipt for deduplication and processing.
+P30	GetPaymentOperationStatus	Expose a safe operational view of an unresolved payment, refund, or payout operation where needed.
+
+These are candidates, not automatically 6–7 new public APIs. Some should be worker-triggered use cases or internal application operations. We should avoid creating a use case whose only purpose is to wrap one line of another use case without adding a meaningful boundary.
+2. Cross-cutting behavior, not separate use cases
+The following concerns should be built into the relevant use cases rather than blindly becoming separate services or use cases:
+- Idempotency: repeated client requests, provider callbacks, and worker retries.
+- Authorization: customer ownership, trusted service identity, and allowed internal operations.
+- Concurrency control: simultaneous attempts, callbacks, refunds, and reconciliation.
+- Transactional consistency: payment state changes and outbox records committed atomically where required.
+- Observability: structured logging, metrics, and trace propagation according to your project conventions.
+- Safe errors: distinguish business rejection, retryable infrastructure failures, and unknown external outcomes.
+3. Proposed implementation order
+I'd group the work by dependency so we don't implement downstream behavior before the foundations exist.
+
+Phase 1 — Core payment flow
+
+P01 → P04, then P05 → P08. Establish initiation, retrieval, attempt creation, and verification contracts.
+
+
+
+
+Phase 2 — Reliable payment outcomes
+
+P09 → P13. Webhooks, failure handling, expiration, cancellation, and reconciliation.
+
+
+
+
+Phase 3 — Refunds
+
+P14 → P18. Refund authorization, execution, lifecycle, and recovery.
+
+
+
+
+Phase 4 — Vendor payouts
+
+P19 → P24. Settlement execution and protection against duplicate transfers.
+
+
+
+
+Phase 5 — Recovery and operations
+
+P25 → P30. Background processing, durable event delivery, and operational visibility where justified.
