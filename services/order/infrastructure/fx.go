@@ -2,6 +2,9 @@ package infrastructure
 
 import (
 	cartinfra "github.com/iheanyi-dev/ecommerce-backend/services/order/infrastructure/cart"
+	identityinfra "github.com/iheanyi-dev/ecommerce-backend/services/order/infrastructure/identity"
+	kafkainfra "github.com/iheanyi-dev/ecommerce-backend/services/order/infrastructure/messaging/kafka"
+	paymentinfra "github.com/iheanyi-dev/ecommerce-backend/services/order/infrastructure/payment"
 	"go.uber.org/fx"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/order/application/ports"
@@ -19,6 +22,10 @@ var Module = fx.Module(
 
 	fx.Provide(
 		fx.Annotate(cartinfra.NewClient, fx.As(new(ports.CartClient))),
+		paymentinfra.NewClient,
+		providePaymentClient,
+		providePayoutClient,
+		fx.Annotate(identityinfra.NewClient, fx.As(new(ports.IdentityClient))),
 		config.Load,
 		postgres.NewPool,
 		fx.Annotate(
@@ -50,10 +57,24 @@ var Module = fx.Module(
 		),
 	),
 
-	fx.Invoke(postgres.RegisterLifecycle),
+	fx.Provide(kafkainfra.NewPaymentConsumer),
+	fx.Invoke(
+		postgres.RegisterLifecycle,
+		func(*kafkainfra.PaymentConsumer) {},
+	),
 )
 
 // newOrderTracer creates the infrastructure tracing adapter.
 func newOrderTracer() (*observability.OpenTelemetryTracer, error) {
 	return observability.NewOpenTelemetryTracer("order")
+}
+
+// providePaymentClient exposes the shared Payment adapter through its payment port.
+func providePaymentClient(client *paymentinfra.Client) ports.PaymentClient {
+	return client
+}
+
+// providePayoutClient exposes the shared Payment adapter through its payout port.
+func providePayoutClient(client *paymentinfra.Client) ports.PayoutClient {
+	return client
 }

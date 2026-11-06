@@ -12,13 +12,15 @@ import (
 type OrderState string
 
 const (
-	OrderStateCreated       OrderState = "created"
-	OrderStateShippingAdded OrderState = "shipping_added"
-	OrderStatePaid          OrderState = "paid"
-	OrderStateRejected      OrderState = "rejected"
-	OrderStateSent          OrderState = "sent"
-	OrderStateReceived      OrderState = "received"
-	OrderStateCancelled     OrderState = "cancelled"
+	OrderStateCreated              OrderState = "created"
+	OrderStateShippingAdded        OrderState = "shipping_added"
+	OrderStatePaymentSuccessful    OrderState = "payment_successful"
+	OrderStatePaymentFailed        OrderState = "payment_failed"
+	OrderStateRejected             OrderState = "rejected"
+	OrderStateSent                 OrderState = "sent"
+	OrderStateReceived             OrderState = "received"
+	OrderStateTransactionCompleted OrderState = "transaction_completed"
+	OrderStateCancelled            OrderState = "cancelled"
 )
 
 // Order represents one customer's order from one store.
@@ -108,13 +110,25 @@ func (o *Order) RejectShipping(customerID uuid.UUID) error {
 	return nil
 }
 
-// MarkPaid records trusted confirmation that payment succeeded.
-func (o *Order) MarkPaid() error {
+// MarkPaymentSuccessful records trusted confirmation that payment succeeded.
+// A failed payment can be retried without creating another order.
+func (o *Order) MarkPaymentSuccessful() error {
+	if o.State != OrderStateShippingAdded && o.State != OrderStatePaymentFailed {
+		return domain.ErrInvalidTransition
+	}
+
+	o.State = OrderStatePaymentSuccessful
+	o.touch()
+	return nil
+}
+
+// MarkPaymentFailed records trusted confirmation that payment failed.
+func (o *Order) MarkPaymentFailed() error {
 	if o.State != OrderStateShippingAdded {
 		return domain.ErrInvalidTransition
 	}
 
-	o.State = OrderStatePaid
+	o.State = OrderStatePaymentFailed
 	o.touch()
 	return nil
 }
@@ -152,7 +166,7 @@ func (o *Order) MarkSent(storeID uuid.UUID) error {
 	if storeID != o.StoreID {
 		return domain.ErrUnauthorizedActor
 	}
-	if o.State != OrderStatePaid {
+	if o.State != OrderStatePaymentSuccessful {
 		return domain.ErrInvalidTransition
 	}
 
@@ -171,6 +185,18 @@ func (o *Order) ConfirmReceipt(customerID uuid.UUID) error {
 	}
 
 	o.State = OrderStateReceived
+	o.touch()
+	return nil
+}
+
+// MarkTransactionCompleted records trusted confirmation that the store payout
+// succeeded after the customer confirmed receipt.
+func (o *Order) MarkTransactionCompleted() error {
+	if o.State != OrderStateReceived {
+		return domain.ErrInvalidTransition
+	}
+
+	o.State = OrderStateTransactionCompleted
 	o.touch()
 	return nil
 }

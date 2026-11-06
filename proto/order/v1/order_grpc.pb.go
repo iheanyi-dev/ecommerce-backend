@@ -19,10 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	OrderService_CreateOrder_FullMethodName      = "/order.v1.OrderService/CreateOrder"
+	OrderService_GetOrder_FullMethodName         = "/order.v1.OrderService/GetOrder"
+	OrderService_ListOrders_FullMethodName       = "/order.v1.OrderService/ListOrders"
+	OrderService_AddShipping_FullMethodName      = "/order.v1.OrderService/AddShipping"
+	OrderService_RejectShipping_FullMethodName   = "/order.v1.OrderService/RejectShipping"
+	OrderService_InitiatePayment_FullMethodName  = "/order.v1.OrderService/InitiatePayment"
+	OrderService_InitiatePayout_FullMethodName   = "/order.v1.OrderService/InitiatePayout"
+	OrderService_CancelOrder_FullMethodName      = "/order.v1.OrderService/CancelOrder"
+	OrderService_MarkSent_FullMethodName         = "/order.v1.OrderService/MarkSent"
+	OrderService_ConfirmReceipt_FullMethodName   = "/order.v1.OrderService/ConfirmReceipt"
 	OrderService_ListStoreOrders_FullMethodName  = "/order.v1.OrderService/ListStoreOrders"
 	OrderService_GetStoreOrder_FullMethodName    = "/order.v1.OrderService/GetStoreOrder"
-	OrderService_AddShipping_FullMethodName      = "/order.v1.OrderService/AddShipping"
-	OrderService_MarkSent_FullMethodName         = "/order.v1.OrderService/MarkSent"
 	OrderService_CancelStoreOrder_FullMethodName = "/order.v1.OrderService/CancelStoreOrder"
 )
 
@@ -30,10 +38,18 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type OrderServiceClient interface {
+	CreateOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*CreateOrderResponse, error)
+	GetOrder(ctx context.Context, in *GetOrderRequest, opts ...grpc.CallOption) (*GetOrderResponse, error)
+	ListOrders(ctx context.Context, in *ListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
+	AddShipping(ctx context.Context, in *AddShippingRequest, opts ...grpc.CallOption) (*OrderActionResponse, error)
+	RejectShipping(ctx context.Context, in *RejectShippingRequest, opts ...grpc.CallOption) (*OrderActionResponse, error)
+	InitiatePayment(ctx context.Context, in *InitiatePaymentRequest, opts ...grpc.CallOption) (*InitiatePaymentResponse, error)
+	InitiatePayout(ctx context.Context, in *InitiatePayoutRequest, opts ...grpc.CallOption) (*InitiatePayoutResponse, error)
+	CancelOrder(ctx context.Context, in *CancelOrderRequest, opts ...grpc.CallOption) (*OrderActionResponse, error)
+	MarkSent(ctx context.Context, in *MarkSentRequest, opts ...grpc.CallOption) (*OrderActionResponse, error)
+	ConfirmReceipt(ctx context.Context, in *ConfirmReceiptRequest, opts ...grpc.CallOption) (*OrderActionResponse, error)
 	ListStoreOrders(ctx context.Context, in *ListStoreOrdersRequest, opts ...grpc.CallOption) (*ListStoreOrdersResponse, error)
 	GetStoreOrder(ctx context.Context, in *GetStoreOrderRequest, opts ...grpc.CallOption) (*GetStoreOrderResponse, error)
-	AddShipping(ctx context.Context, in *AddShippingRequest, opts ...grpc.CallOption) (*OrderActionResponse, error)
-	MarkSent(ctx context.Context, in *MarkSentRequest, opts ...grpc.CallOption) (*OrderActionResponse, error)
 	CancelStoreOrder(ctx context.Context, in *CancelStoreOrderRequest, opts ...grpc.CallOption) (*OrderActionResponse, error)
 }
 
@@ -43,6 +59,106 @@ type orderServiceClient struct {
 
 func NewOrderServiceClient(cc grpc.ClientConnInterface) OrderServiceClient {
 	return &orderServiceClient{cc}
+}
+
+func (c *orderServiceClient) CreateOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*CreateOrderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateOrderResponse)
+	err := c.cc.Invoke(ctx, OrderService_CreateOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderServiceClient) GetOrder(ctx context.Context, in *GetOrderRequest, opts ...grpc.CallOption) (*GetOrderResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetOrderResponse)
+	err := c.cc.Invoke(ctx, OrderService_GetOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderServiceClient) ListOrders(ctx context.Context, in *ListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOrdersResponse)
+	err := c.cc.Invoke(ctx, OrderService_ListOrders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderServiceClient) AddShipping(ctx context.Context, in *AddShippingRequest, opts ...grpc.CallOption) (*OrderActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderActionResponse)
+	err := c.cc.Invoke(ctx, OrderService_AddShipping_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderServiceClient) RejectShipping(ctx context.Context, in *RejectShippingRequest, opts ...grpc.CallOption) (*OrderActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderActionResponse)
+	err := c.cc.Invoke(ctx, OrderService_RejectShipping_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderServiceClient) InitiatePayment(ctx context.Context, in *InitiatePaymentRequest, opts ...grpc.CallOption) (*InitiatePaymentResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InitiatePaymentResponse)
+	err := c.cc.Invoke(ctx, OrderService_InitiatePayment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderServiceClient) InitiatePayout(ctx context.Context, in *InitiatePayoutRequest, opts ...grpc.CallOption) (*InitiatePayoutResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(InitiatePayoutResponse)
+	err := c.cc.Invoke(ctx, OrderService_InitiatePayout_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderServiceClient) CancelOrder(ctx context.Context, in *CancelOrderRequest, opts ...grpc.CallOption) (*OrderActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderActionResponse)
+	err := c.cc.Invoke(ctx, OrderService_CancelOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderServiceClient) MarkSent(ctx context.Context, in *MarkSentRequest, opts ...grpc.CallOption) (*OrderActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderActionResponse)
+	err := c.cc.Invoke(ctx, OrderService_MarkSent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderServiceClient) ConfirmReceipt(ctx context.Context, in *ConfirmReceiptRequest, opts ...grpc.CallOption) (*OrderActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderActionResponse)
+	err := c.cc.Invoke(ctx, OrderService_ConfirmReceipt_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *orderServiceClient) ListStoreOrders(ctx context.Context, in *ListStoreOrdersRequest, opts ...grpc.CallOption) (*ListStoreOrdersResponse, error) {
@@ -65,26 +181,6 @@ func (c *orderServiceClient) GetStoreOrder(ctx context.Context, in *GetStoreOrde
 	return out, nil
 }
 
-func (c *orderServiceClient) AddShipping(ctx context.Context, in *AddShippingRequest, opts ...grpc.CallOption) (*OrderActionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(OrderActionResponse)
-	err := c.cc.Invoke(ctx, OrderService_AddShipping_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *orderServiceClient) MarkSent(ctx context.Context, in *MarkSentRequest, opts ...grpc.CallOption) (*OrderActionResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(OrderActionResponse)
-	err := c.cc.Invoke(ctx, OrderService_MarkSent_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *orderServiceClient) CancelStoreOrder(ctx context.Context, in *CancelStoreOrderRequest, opts ...grpc.CallOption) (*OrderActionResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(OrderActionResponse)
@@ -99,10 +195,18 @@ func (c *orderServiceClient) CancelStoreOrder(ctx context.Context, in *CancelSto
 // All implementations must embed UnimplementedOrderServiceServer
 // for forward compatibility.
 type OrderServiceServer interface {
+	CreateOrder(context.Context, *CreateOrderRequest) (*CreateOrderResponse, error)
+	GetOrder(context.Context, *GetOrderRequest) (*GetOrderResponse, error)
+	ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersResponse, error)
+	AddShipping(context.Context, *AddShippingRequest) (*OrderActionResponse, error)
+	RejectShipping(context.Context, *RejectShippingRequest) (*OrderActionResponse, error)
+	InitiatePayment(context.Context, *InitiatePaymentRequest) (*InitiatePaymentResponse, error)
+	InitiatePayout(context.Context, *InitiatePayoutRequest) (*InitiatePayoutResponse, error)
+	CancelOrder(context.Context, *CancelOrderRequest) (*OrderActionResponse, error)
+	MarkSent(context.Context, *MarkSentRequest) (*OrderActionResponse, error)
+	ConfirmReceipt(context.Context, *ConfirmReceiptRequest) (*OrderActionResponse, error)
 	ListStoreOrders(context.Context, *ListStoreOrdersRequest) (*ListStoreOrdersResponse, error)
 	GetStoreOrder(context.Context, *GetStoreOrderRequest) (*GetStoreOrderResponse, error)
-	AddShipping(context.Context, *AddShippingRequest) (*OrderActionResponse, error)
-	MarkSent(context.Context, *MarkSentRequest) (*OrderActionResponse, error)
 	CancelStoreOrder(context.Context, *CancelStoreOrderRequest) (*OrderActionResponse, error)
 	mustEmbedUnimplementedOrderServiceServer()
 }
@@ -114,17 +218,41 @@ type OrderServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedOrderServiceServer struct{}
 
+func (UnimplementedOrderServiceServer) CreateOrder(context.Context, *CreateOrderRequest) (*CreateOrderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateOrder not implemented")
+}
+func (UnimplementedOrderServiceServer) GetOrder(context.Context, *GetOrderRequest) (*GetOrderResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetOrder not implemented")
+}
+func (UnimplementedOrderServiceServer) ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOrders not implemented")
+}
+func (UnimplementedOrderServiceServer) AddShipping(context.Context, *AddShippingRequest) (*OrderActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddShipping not implemented")
+}
+func (UnimplementedOrderServiceServer) RejectShipping(context.Context, *RejectShippingRequest) (*OrderActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RejectShipping not implemented")
+}
+func (UnimplementedOrderServiceServer) InitiatePayment(context.Context, *InitiatePaymentRequest) (*InitiatePaymentResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method InitiatePayment not implemented")
+}
+func (UnimplementedOrderServiceServer) InitiatePayout(context.Context, *InitiatePayoutRequest) (*InitiatePayoutResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method InitiatePayout not implemented")
+}
+func (UnimplementedOrderServiceServer) CancelOrder(context.Context, *CancelOrderRequest) (*OrderActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelOrder not implemented")
+}
+func (UnimplementedOrderServiceServer) MarkSent(context.Context, *MarkSentRequest) (*OrderActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MarkSent not implemented")
+}
+func (UnimplementedOrderServiceServer) ConfirmReceipt(context.Context, *ConfirmReceiptRequest) (*OrderActionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfirmReceipt not implemented")
+}
 func (UnimplementedOrderServiceServer) ListStoreOrders(context.Context, *ListStoreOrdersRequest) (*ListStoreOrdersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListStoreOrders not implemented")
 }
 func (UnimplementedOrderServiceServer) GetStoreOrder(context.Context, *GetStoreOrderRequest) (*GetStoreOrderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStoreOrder not implemented")
-}
-func (UnimplementedOrderServiceServer) AddShipping(context.Context, *AddShippingRequest) (*OrderActionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method AddShipping not implemented")
-}
-func (UnimplementedOrderServiceServer) MarkSent(context.Context, *MarkSentRequest) (*OrderActionResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method MarkSent not implemented")
 }
 func (UnimplementedOrderServiceServer) CancelStoreOrder(context.Context, *CancelStoreOrderRequest) (*OrderActionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelStoreOrder not implemented")
@@ -148,6 +276,186 @@ func RegisterOrderServiceServer(s grpc.ServiceRegistrar, srv OrderServiceServer)
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&OrderService_ServiceDesc, srv)
+}
+
+func _OrderService_CreateOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).CreateOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_CreateOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).CreateOrder(ctx, req.(*CreateOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderService_GetOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).GetOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_GetOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).GetOrder(ctx, req.(*GetOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderService_ListOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOrdersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).ListOrders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_ListOrders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).ListOrders(ctx, req.(*ListOrdersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderService_AddShipping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddShippingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).AddShipping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_AddShipping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).AddShipping(ctx, req.(*AddShippingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderService_RejectShipping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RejectShippingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).RejectShipping(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_RejectShipping_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).RejectShipping(ctx, req.(*RejectShippingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderService_InitiatePayment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitiatePaymentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).InitiatePayment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_InitiatePayment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).InitiatePayment(ctx, req.(*InitiatePaymentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderService_InitiatePayout_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitiatePayoutRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).InitiatePayout(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_InitiatePayout_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).InitiatePayout(ctx, req.(*InitiatePayoutRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderService_CancelOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).CancelOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_CancelOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).CancelOrder(ctx, req.(*CancelOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderService_MarkSent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MarkSentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).MarkSent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_MarkSent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).MarkSent(ctx, req.(*MarkSentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _OrderService_ConfirmReceipt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmReceiptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServiceServer).ConfirmReceipt(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OrderService_ConfirmReceipt_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServiceServer).ConfirmReceipt(ctx, req.(*ConfirmReceiptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _OrderService_ListStoreOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -186,42 +494,6 @@ func _OrderService_GetStoreOrder_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _OrderService_AddShipping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AddShippingRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(OrderServiceServer).AddShipping(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: OrderService_AddShipping_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OrderServiceServer).AddShipping(ctx, req.(*AddShippingRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _OrderService_MarkSent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MarkSentRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(OrderServiceServer).MarkSent(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: OrderService_MarkSent_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OrderServiceServer).MarkSent(ctx, req.(*MarkSentRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _OrderService_CancelStoreOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CancelStoreOrderRequest)
 	if err := dec(in); err != nil {
@@ -248,20 +520,52 @@ var OrderService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*OrderServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ListStoreOrders",
-			Handler:    _OrderService_ListStoreOrders_Handler,
+			MethodName: "CreateOrder",
+			Handler:    _OrderService_CreateOrder_Handler,
 		},
 		{
-			MethodName: "GetStoreOrder",
-			Handler:    _OrderService_GetStoreOrder_Handler,
+			MethodName: "GetOrder",
+			Handler:    _OrderService_GetOrder_Handler,
+		},
+		{
+			MethodName: "ListOrders",
+			Handler:    _OrderService_ListOrders_Handler,
 		},
 		{
 			MethodName: "AddShipping",
 			Handler:    _OrderService_AddShipping_Handler,
 		},
 		{
+			MethodName: "RejectShipping",
+			Handler:    _OrderService_RejectShipping_Handler,
+		},
+		{
+			MethodName: "InitiatePayment",
+			Handler:    _OrderService_InitiatePayment_Handler,
+		},
+		{
+			MethodName: "InitiatePayout",
+			Handler:    _OrderService_InitiatePayout_Handler,
+		},
+		{
+			MethodName: "CancelOrder",
+			Handler:    _OrderService_CancelOrder_Handler,
+		},
+		{
 			MethodName: "MarkSent",
 			Handler:    _OrderService_MarkSent_Handler,
+		},
+		{
+			MethodName: "ConfirmReceipt",
+			Handler:    _OrderService_ConfirmReceipt_Handler,
+		},
+		{
+			MethodName: "ListStoreOrders",
+			Handler:    _OrderService_ListStoreOrders_Handler,
+		},
+		{
+			MethodName: "GetStoreOrder",
+			Handler:    _OrderService_GetStoreOrder_Handler,
 		},
 		{
 			MethodName: "CancelStoreOrder",

@@ -170,21 +170,28 @@ func (u *User) PromoteToVendor() error {
 	return nil
 }
 
-// Activate moves a user into the active account state.
-//
-// Both pending-verification and inactive accounts can become active through
-// the appropriate application workflow. Suspended accounts require a
-// separate domain decision and cannot be activated blindly.
-func (u *User) Activate() error {
-	switch u.status {
-	case StatusPendingVerification, StatusInactive:
-		u.status = StatusActive
-		u.touch()
-		return nil
-
-	default:
+// VerifyEmail activates an account after successful email verification.
+func (u *User) VerifyEmail() error {
+	if u.status != StatusPendingVerification {
 		return domain_errors.ErrInvalidStatusTransition
 	}
+
+	u.status = StatusActive
+	u.touch()
+
+	return nil
+}
+
+// Activate reactivates an account that was previously suspended.
+func (u *User) Activate() error {
+	if u.status != StatusSuspended {
+		return domain_errors.ErrInvalidStatusTransition
+	}
+
+	u.status = StatusActive
+	u.touch()
+
+	return nil
 }
 
 // Suspend places an active account into the suspended state.

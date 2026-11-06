@@ -9,6 +9,8 @@ import (
 )
 
 func TestLoad(t *testing.T) {
+	t.Setenv("ORDER_SERVICE_AUTH_NAME", "order")
+	t.Setenv("ORDER_SERVICE_AUTH_SECRET", "order-secret")
 	t.Setenv("APP_ENV", "test")
 	t.Setenv("APP_PORT", "9090")
 	t.Setenv("IDENTITY_SERVICE_URL", "http://identity:8080")
@@ -42,6 +44,8 @@ func TestLoad(t *testing.T) {
 }
 
 func TestLoad_UsesDefaults(t *testing.T) {
+	t.Setenv("ORDER_SERVICE_AUTH_NAME", "order")
+	t.Setenv("ORDER_SERVICE_AUTH_SECRET", "order-secret")
 	t.Setenv("APP_ENV", "")
 	t.Setenv("APP_PORT", "")
 	t.Setenv("IDENTITY_SERVICE_URL", "")
@@ -75,6 +79,8 @@ func TestLoad_UsesDefaults(t *testing.T) {
 }
 
 func TestLoad_RejectsInvalidIdentityServiceURL(t *testing.T) {
+	t.Setenv("ORDER_SERVICE_AUTH_NAME", "order")
+	t.Setenv("ORDER_SERVICE_AUTH_SECRET", "order-secret")
 	t.Setenv("IDENTITY_SERVICE_URL", "://invalid-url")
 	t.Setenv("IDENTITY_SERVICE_NAME", "gateway")
 	t.Setenv("IDENTITY_SERVICE_SECRET", "gateway-secret")
@@ -99,6 +105,8 @@ func TestLoad_RejectsInvalidIdentityServiceURL(t *testing.T) {
 }
 
 func TestLoad_RejectsMissingIdentityServiceName(t *testing.T) {
+	t.Setenv("ORDER_SERVICE_AUTH_NAME", "order")
+	t.Setenv("ORDER_SERVICE_AUTH_SECRET", "order-secret")
 	t.Setenv("IDENTITY_SERVICE_URL", "http://localhost:8080")
 	t.Setenv("IDENTITY_SERVICE_NAME", "")
 	t.Setenv("IDENTITY_SERVICE_SECRET", "gateway-secret")
@@ -123,6 +131,8 @@ func TestLoad_RejectsMissingIdentityServiceName(t *testing.T) {
 }
 
 func TestLoad_RejectsMissingIdentityServiceSecret(t *testing.T) {
+	t.Setenv("ORDER_SERVICE_AUTH_NAME", "order")
+	t.Setenv("ORDER_SERVICE_AUTH_SECRET", "order-secret")
 	t.Setenv("IDENTITY_SERVICE_URL", "http://localhost:8080")
 	t.Setenv("IDENTITY_SERVICE_NAME", "gateway")
 	t.Setenv("IDENTITY_SERVICE_SECRET", "")

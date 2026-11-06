@@ -74,6 +74,22 @@ func WriteError(w http.ResponseWriter, err error) {
 		status = http.StatusNotFound
 		message = "store not found"
 
+	case stderrors.Is(err, application_errors.ErrBillingPlanNotAvailable):
+		status = http.StatusNotFound
+		message = "billing plan not found"
+
+	case stderrors.Is(err, application_errors.ErrBillingSubscriptionNotFound):
+		status = http.StatusNotFound
+		message = "subscription not found"
+
+	case stderrors.Is(err, application_errors.ErrInvalidPayoutRequest):
+		status = http.StatusBadRequest
+		message = "invalid payout request"
+
+	case stderrors.Is(err, application_errors.ErrInvalidSubscriptionRequest):
+		status = http.StatusBadRequest
+		message = "invalid subscription request"
+
 	case stderrors.Is(err, application_errors.ErrInvalidPagination):
 		status = http.StatusBadRequest
 		message = "invalid pagination"

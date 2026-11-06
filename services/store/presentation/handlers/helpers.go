@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 )
@@ -20,7 +21,9 @@ func decodeJSON(r *http.Request, destination any) error {
 	// Reject trailing JSON values instead of silently accepting a body
 	// containing multiple independent JSON documents.
 	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
+	if err := decoder.Decode(&extra); err == nil {
+		return errors.New("request body must contain exactly one JSON value")
+	} else if err != io.EOF {
 		return err
 	}
 

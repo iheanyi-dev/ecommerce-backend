@@ -209,3 +209,64 @@ func timestamp(in *timestamppb.Timestamp) (time.Time, error) {
 	}
 	return in.AsTime(), nil
 }
+
+// InitiatePayout forwards a store payout request to the Order service.
+func (c *client) InitiatePayout(
+	ctx context.Context,
+	storeID, orderID uuid.UUID,
+	beneficiary ports.PayoutBeneficiary,
+) (*dto.InitiatePayoutOutput, error) {
+	if storeID == uuid.Nil {
+		return nil, fmt.Errorf("store ID is required")
+	}
+	if orderID == uuid.Nil {
+		return nil, fmt.Errorf("order ID is required")
+	}
+	if beneficiary.AccountName == "" ||
+		beneficiary.AccountNumber == "" ||
+		beneficiary.BankCode == "" ||
+		beneficiary.BankName == "" ||
+		beneficiary.CountryCode == "" {
+		return nil, fmt.Errorf("complete beneficiary details are required")
+	}
+
+	response, err := c.rpc.InitiatePayout(
+		c.authenticated(ctx),
+		&orderv1.InitiatePayoutRequest{
+			OrderId:       orderID.String(),
+			StoreId:       storeID.String(),
+			AccountName:   beneficiary.AccountName,
+			AccountNumber: beneficiary.AccountNumber,
+			BankCode:      beneficiary.BankCode,
+			BankName:      beneficiary.BankName,
+			CountryCode:   beneficiary.CountryCode,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("initiate order payout: %w", err)
+	}
+	if response == nil {
+		return nil, fmt.Errorf("order service returned an empty payout response")
+	}
+
+	payoutID, err := uuid.Parse(response.GetPayoutId())
+	if err != nil {
+		return nil, fmt.Errorf("parse payout ID: %w", err)
+	}
+
+	attemptID, err := uuid.Parse(response.GetAttemptId())
+	if err != nil {
+		return nil, fmt.Errorf("parse payout attempt ID: %w", err)
+	}
+
+	return &dto.InitiatePayoutOutput{
+		PayoutID:      payoutID,
+		AttemptID:     attemptID,
+		Reference:     response.GetReference(),
+		Status:        response.GetStatus(),
+		AttemptStatus: response.GetAttemptStatus(),
+		Provider:      response.GetProvider(),
+		AmountMinor:   response.GetAmountMinor(),
+		Currency:      response.GetCurrency(),
+	}, nil
+}

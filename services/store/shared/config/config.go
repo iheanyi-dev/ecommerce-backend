@@ -25,23 +25,26 @@ type Config struct {
 	DatabaseName     string
 	DatabaseSSLMode  string
 
-	ServiceAuthName             string
-	ServiceAuthSecret           string
-	IdentityServiceAddr         string
-	StorageServiceAddr          string
-	RecommendationServiceAddr   string
-	RecommendationServiceName   string
-	RecommendationServiceSecret string
-	ChatServiceAddr             string
-	ChatServiceName             string
-	ChatServiceSecret           string
-	ProductServiceAddr          string
-	ProductServiceName          string
-	ProductServiceSecret        string
-	OrderServiceAddr            string
-	OrderServiceName            string
-	OrderServiceSecret          string
-	KafkaBrokers                string
+	ServiceAuthName                string
+	ServiceAuthSecret              string
+	IdentityServiceAddr            string
+	BillingServiceAddr             string
+	StorageServiceAddr             string
+	RecommendationServiceAddr      string
+	RecommendationServiceName      string
+	RecommendationServiceSecret    string
+	ChatServiceAddr                string
+	ChatServiceName                string
+	ChatServiceSecret              string
+	ProductServiceAddr             string
+	ProductServiceName             string
+	ProductServiceSecret           string
+	OrderServiceAddr               string
+	OrderServiceName               string
+	OrderServiceSecret             string
+	KafkaBrokers                   string
+	BillingStoreEventsTopic        string
+	StoreSubscriptionConsumerGroup string
 }
 
 // Load loads Store configuration from environment variables.
@@ -64,23 +67,26 @@ func Load() (*Config, error) {
 		DatabaseName:     os.Getenv("DATABASE_NAME"),
 		DatabaseSSLMode:  getEnv("DATABASE_SSL_MODE", "disable"),
 
-		ServiceAuthName:             os.Getenv("SERVICE_AUTH_NAME"),
-		ServiceAuthSecret:           os.Getenv("SERVICE_AUTH_SECRET"),
-		IdentityServiceAddr:         getEnv("IDENTITY_SERVICE_ADDR", "localhost:9090"),
-		StorageServiceAddr:          getEnv("STORAGE_SERVICE_ADDR", "localhost:9082"),
-		RecommendationServiceAddr:   getEnv("RECOMMENDATION_SERVICE_ADDR", "localhost:8090"),
-		RecommendationServiceName:   getEnv("RECOMMENDATION_SERVICE_NAME", "recommendation"),
-		RecommendationServiceSecret: os.Getenv("RECOMMENDATION_SERVICE_SECRET"),
-		ChatServiceAddr:             getEnv("CHAT_SERVICE_ADDR", "localhost:9092"),
-		ChatServiceName:             getEnv("CHAT_SERVICE_NAME", "chat"),
-		ChatServiceSecret:           os.Getenv("CHAT_SERVICE_SECRET"),
-		ProductServiceAddr:          getEnv("PRODUCT_SERVICE_ADDR", "localhost:9091"),
-		ProductServiceName:          getEnv("PRODUCT_SERVICE_NAME", "product"),
-		ProductServiceSecret:        os.Getenv("PRODUCT_SERVICE_SECRET"),
-		OrderServiceAddr:            getEnv("ORDER_SERVICE_ADDR", "localhost:9093"),
-		OrderServiceName:            getEnv("ORDER_SERVICE_NAME", "order"),
-		OrderServiceSecret:          os.Getenv("ORDER_SERVICE_SECRET"),
-		KafkaBrokers:                getEnv("KAFKA_BROKERS", "localhost:19092"),
+		ServiceAuthName:                os.Getenv("SERVICE_AUTH_NAME"),
+		ServiceAuthSecret:              os.Getenv("SERVICE_AUTH_SECRET"),
+		IdentityServiceAddr:            getEnv("IDENTITY_SERVICE_ADDR", "localhost:9090"),
+		BillingServiceAddr:             getEnv("BILLING_SERVICE_ADDR", "localhost:9095"),
+		StorageServiceAddr:             getEnv("STORAGE_SERVICE_ADDR", "localhost:9082"),
+		RecommendationServiceAddr:      getEnv("RECOMMENDATION_SERVICE_ADDR", "localhost:8090"),
+		RecommendationServiceName:      getEnv("RECOMMENDATION_SERVICE_NAME", "recommendation"),
+		RecommendationServiceSecret:    os.Getenv("RECOMMENDATION_SERVICE_SECRET"),
+		ChatServiceAddr:                getEnv("CHAT_SERVICE_ADDR", "localhost:9092"),
+		ChatServiceName:                getEnv("CHAT_SERVICE_NAME", "chat"),
+		ChatServiceSecret:              os.Getenv("CHAT_SERVICE_SECRET"),
+		ProductServiceAddr:             getEnv("PRODUCT_SERVICE_ADDR", "localhost:9091"),
+		ProductServiceName:             getEnv("PRODUCT_SERVICE_NAME", "product"),
+		ProductServiceSecret:           os.Getenv("PRODUCT_SERVICE_SECRET"),
+		OrderServiceAddr:               getEnv("ORDER_SERVICE_ADDR", "localhost:9093"),
+		OrderServiceName:               getEnv("ORDER_SERVICE_NAME", "order"),
+		OrderServiceSecret:             os.Getenv("ORDER_SERVICE_SECRET"),
+		KafkaBrokers:                   getEnv("KAFKA_BROKERS", "localhost:19092"),
+		BillingStoreEventsTopic:        getEnv("BILLING_STORE_EVENTS_TOPIC", "billing.subscription.events"),
+		StoreSubscriptionConsumerGroup: getEnv("STORE_SUBSCRIPTION_CONSUMER_GROUP", "store-subscription-updates"),
 	}
 
 	if cfg.DatabaseUser == "" {

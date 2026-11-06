@@ -19,6 +19,7 @@ type VerifyPayoutUseCase struct {
 	payouts  ports.PayoutRepository
 	attempts ports.PayoutAttemptRepository
 	provider ports.PayoutProvider
+	outbox   ports.PaymentOutboxRepository
 	uow      ports.UnitOfWork
 }
 
@@ -26,13 +27,14 @@ func NewVerifyPayoutUseCase(
 	payouts ports.PayoutRepository,
 	attempts ports.PayoutAttemptRepository,
 	provider ports.PayoutProvider,
+	outbox ports.PaymentOutboxRepository,
 	uow ports.UnitOfWork,
 ) (*VerifyPayoutUseCase, error) {
-	if payouts == nil || attempts == nil || provider == nil || uow == nil {
+	if payouts == nil || attempts == nil || provider == nil || outbox == nil || uow == nil {
 		return nil, fmt.Errorf("payout verification dependencies are required")
 	}
 	return &VerifyPayoutUseCase{
-		payouts: payouts, attempts: attempts, provider: provider, uow: uow,
+		payouts: payouts, attempts: attempts, provider: provider, outbox: outbox, uow: uow,
 	}, nil
 }
 
@@ -146,6 +148,9 @@ func (uc *VerifyPayoutUseCase) Execute(
 		}
 		if err := uc.attempts.Save(txCtx, currentAttempt); err != nil {
 			return fmt.Errorf("save verified payout attempt: %w", err)
+		}
+		if err := enqueuePayoutStatusChanged(txCtx, uc.outbox, currentPayout); err != nil {
+			return fmt.Errorf("enqueue payout status event: %w", err)
 		}
 		return nil
 	})

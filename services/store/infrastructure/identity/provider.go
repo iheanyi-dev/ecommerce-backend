@@ -54,6 +54,51 @@ func NewConfiguredProvider(
 	)
 }
 
+// GetUser retrieves a user's identity information from the Identity Service.
+func (p *Provider) GetUser(
+	ctx context.Context,
+	userID uuid.UUID,
+) (*ports.IdentityUser, error) {
+	ctx = p.withServiceMetadata(ctx)
+
+	response, err := p.client.GetUser(
+		ctx,
+		&identityv1.GetUserRequest{
+			UserId: userID.String(),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get user from identity service: %w", err)
+	}
+
+	if response == nil || response.GetUser() == nil {
+		return nil, fmt.Errorf(
+			"identity service returned an empty user response",
+		)
+	}
+
+	user := response.GetUser()
+
+	parsedID, err := uuid.Parse(user.GetId())
+	if err != nil {
+		return nil, fmt.Errorf(
+			"identity service returned an invalid user ID: %w",
+			err,
+		)
+	}
+
+	if user.GetEmail() == "" {
+		return nil, fmt.Errorf(
+			"identity service returned an empty user email",
+		)
+	}
+
+	return &ports.IdentityUser{
+		ID:    parsedID,
+		Email: user.GetEmail(),
+	}, nil
+}
+
 // IsVendor determines whether the supplied user currently has vendor status.
 func (p *Provider) IsVendor(
 	ctx context.Context,

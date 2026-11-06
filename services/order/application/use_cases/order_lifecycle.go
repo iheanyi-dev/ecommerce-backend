@@ -150,32 +150,104 @@ func (uc *RejectShipping) Execute(ctx context.Context, input RejectShippingInput
 	})
 }
 
-// MarkPaidInput identifies the order whose payment has been confirmed.
-type MarkPaidInput struct {
-	OrderID uuid.UUID
+// HandlePaymentInput contains the order reference and terminal payment status.
+type HandlePaymentInput struct {
+	OrderID string
+	Status  string
 }
 
-// MarkPaid records trusted payment confirmation from the Payment service.
-// The calling adapter must authenticate the integration and establish that
-// payment has actually succeeded before invoking this use case.
-type MarkPaid struct {
+// HandlePayment handles successful and failed payment events.
+type HandlePayment struct {
 	lifecycle *orderLifecycle
 }
 
-// NewMarkPaid constructs the MarkPaid use case.
-func NewMarkPaid(
-	repository ports.OrderRepository,
-	logger ports.Logger,
-	metrics ports.Metrics,
-) *MarkPaid {
-	return &MarkPaid{lifecycle: newOrderLifecycle(repository, logger, metrics)}
+func NewHandlePayment(repository ports.OrderRepository, logger ports.Logger, metrics ports.Metrics) *HandlePayment {
+	return &HandlePayment{lifecycle: newOrderLifecycle(repository, logger, metrics)}
 }
 
-// Execute marks an eligible order as paid after trusted payment confirmation.
-func (uc *MarkPaid) Execute(ctx context.Context, input MarkPaidInput) error {
-	return uc.lifecycle.execute(ctx, input.OrderID, "mark_paid", func(order *entities.Order) error {
-		return order.MarkPaid()
+// Execute applies a terminal payment status. Repeated and stale terminal
+// events are harmless, allowing safe Kafka redelivery.
+func (uc *HandlePayment) Execute(ctx context.Context, input HandlePaymentInput) error {
+	orderID, err := uuid.Parse(input.OrderID)
+	if err != nil || orderID == uuid.Nil {
+		return fmt.Errorf("handle_payment: invalid order ID")
+	}
+	if input.Status != "succeeded" && input.Status != "failed" {
+		return fmt.Errorf("handle_payment: unsupported payment status %q", input.Status)
+	}
+
+	return uc.lifecycle.execute(ctx, orderID, "handle_payment", func(order *entities.Order) error {
+		switch input.Status {
+		case "succeeded":
+			if order.State == entities.OrderStatePaymentSuccessful {
+				return nil
+			}
+			return order.MarkPaymentSuccessful()
+		case "failed":
+			if order.State == entities.OrderStatePaymentFailed ||
+				order.State == entities.OrderStatePaymentSuccessful {
+				return nil
+			}
+			return order.MarkPaymentFailed()
+		}
+		return nil
 	})
+}
+
+// HandlePayoutInput contains the order reference and terminal payout status.
+type HandlePayoutInput struct {
+	OrderID string
+	Status  string
+}
+
+// HandlePayout completes the order transaction after a successful payout.
+type HandlePayout struct {
+	lifecycle *orderLifecycle
+}
+
+func NewHandlePayout(repository ports.OrderRepository, logger ports.Logger, metrics ports.Metrics) *HandlePayout {
+	return &HandlePayout{lifecycle: newOrderLifecycle(repository, logger, metrics)}
+}
+
+// Execute completes the transaction only after successful payout. Failed
+// payouts leave the order received for a possible later payout attempt.
+func (uc *HandlePayout) Execute(ctx context.Context, input HandlePayoutInput) error {
+	orderID, err := uuid.Parse(input.OrderID)
+	if err != nil || orderID == uuid.Nil {
+		return fmt.Errorf("handle_payout: invalid order ID")
+	}
+	if input.Status != "succeeded" && input.Status != "failed" {
+		return fmt.Errorf("handle_payout: unsupported payout status %q", input.Status)
+	}
+	if input.Status == "failed" {
+		return nil
+	}
+
+	return uc.lifecycle.execute(ctx, orderID, "handle_payout", func(order *entities.Order) error {
+		if order.State == entities.OrderStateTransactionCompleted {
+			return nil
+		}
+		return order.MarkTransactionCompleted()
+	})
+}
+
+// paymentEventHandler adapts the two use cases to the application port used
+// by the messaging infrastructure.
+type paymentEventHandler struct {
+	payment *HandlePayment
+	payout  *HandlePayout
+}
+
+func NewPaymentEventHandler(payment *HandlePayment, payout *HandlePayout) ports.PaymentEventHandler {
+	return &paymentEventHandler{payment: payment, payout: payout}
+}
+
+func (h *paymentEventHandler) HandlePayment(ctx context.Context, orderID, status string) error {
+	return h.payment.Execute(ctx, HandlePaymentInput{OrderID: orderID, Status: status})
+}
+
+func (h *paymentEventHandler) HandlePayout(ctx context.Context, orderID, status string) error {
+	return h.payout.Execute(ctx, HandlePayoutInput{OrderID: orderID, Status: status})
 }
 
 // CancelOrderInput identifies the order and actor requesting cancellation.

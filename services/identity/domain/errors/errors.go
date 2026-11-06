@@ -33,3 +33,15 @@ var ErrUserAlreadyVendor = stderrors.New("user is already a vendor")
 // ErrInvalidVendorPromotion indicates that the user does not satisfy
 // the domain rules required for vendor promotion.
 var ErrInvalidVendorPromotion = stderrors.New("user cannot be promoted to vendor")
+
+// ErrInvalidActivationTokenHash indicates that an activation token hash is invalid.
+var ErrInvalidActivationTokenHash = stderrors.New("invalid activation token hash")
+
+// ErrInvalidActivationTokenExpiry indicates that an activation token expiry is invalid.
+var ErrInvalidActivationTokenExpiry = stderrors.New("invalid activation token expiry")
+
+// ErrActivationTokenExpired indicates that an activation token has expired.
+var ErrActivationTokenExpired = stderrors.New("activation token has expired")
+
+// ErrActivationTokenAlreadyConsumed indicates that an activation token was already consumed.
+var ErrActivationTokenAlreadyConsumed = stderrors.New("activation token has already been consumed")

@@ -18,15 +18,15 @@ import (
 const maxRequestBodyBytes = 1 << 20
 
 type OrderHandlers struct {
-	create         *use_cases.CreateOrder
-	get            *use_cases.GetOrder
-	list           *use_cases.ListOrders
-	addShipping    *use_cases.AddShipping
-	rejectShipping *use_cases.RejectShipping
-	markPaid       *use_cases.MarkPaid
-	cancel         *use_cases.CancelOrder
-	markSent       *use_cases.MarkSent
-	confirmReceipt *use_cases.ConfirmReceipt
+	create          *use_cases.CreateOrder
+	get             *use_cases.GetOrder
+	list            *use_cases.ListOrders
+	addShipping     *use_cases.AddShipping
+	rejectShipping  *use_cases.RejectShipping
+	cancel          *use_cases.CancelOrder
+	markSent        *use_cases.MarkSent
+	confirmReceipt  *use_cases.ConfirmReceipt
+	initiatePayment *use_cases.InitiatePayment
 }
 
 func NewOrderHandlers(
@@ -35,16 +35,17 @@ func NewOrderHandlers(
 	list *use_cases.ListOrders,
 	addShipping *use_cases.AddShipping,
 	rejectShipping *use_cases.RejectShipping,
-	markPaid *use_cases.MarkPaid,
 	cancel *use_cases.CancelOrder,
 	markSent *use_cases.MarkSent,
 	confirmReceipt *use_cases.ConfirmReceipt,
+	initiatePayment *use_cases.InitiatePayment,
 ) *OrderHandlers {
 	return &OrderHandlers{
 		create: create, get: get, list: list,
 		addShipping: addShipping, rejectShipping: rejectShipping,
-		markPaid: markPaid, cancel: cancel, markSent: markSent,
-		confirmReceipt: confirmReceipt,
+		cancel: cancel, markSent: markSent,
+		confirmReceipt:  confirmReceipt,
+		initiatePayment: initiatePayment,
 	}
 }
 
@@ -213,23 +214,6 @@ func (h *OrderHandlers) RejectShipping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// MarkPaid is intended for a trusted, service-authenticated payment callback.
-func (h *OrderHandlers) MarkPaid(w http.ResponseWriter, r *http.Request) {
-	if !requireMethod(w, r, http.MethodPost) {
-		return
-	}
-	orderID, ok := pathUUID(r, "order_id", "id")
-	if !ok {
-		presentationerrors.WriteError(w, presentationerrors.ErrInvalidRequestBody)
-		return
-	}
-	if err := h.markPaid.Execute(r.Context(), use_cases.MarkPaidInput{OrderID: orderID}); err != nil {
-		presentationerrors.WriteError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
 func (h *OrderHandlers) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	if !requireMethod(w, r, http.MethodPost) {
 		return
@@ -278,6 +262,36 @@ func (h *OrderHandlers) MarkSent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// InitiatePayment starts checkout for an order owned by the authenticated customer.
+func (h *OrderHandlers) InitiatePayment(w http.ResponseWriter, r *http.Request) {
+	if !requireMethod(w, r, http.MethodPost) {
+		return
+	}
+	identity, ok := authenticatedIdentity(r)
+	if !ok {
+		presentationerrors.WriteError(w, presentationerrors.ErrAuthenticationRequired)
+		return
+	}
+	orderID, ok := pathUUID(r, "order_id", "id")
+	if !ok {
+		presentationerrors.WriteError(w, presentationerrors.ErrInvalidRequestBody)
+		return
+	}
+
+	result, err := h.initiatePayment.Execute(r.Context(), use_cases.InitiatePaymentInput{
+		OrderID: orderID, CustomerID: identity.UserID,
+	})
+	if err != nil {
+		presentationerrors.WriteError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, schemas.InitiatePaymentResponse{
+		PaymentID: result.PaymentID, AttemptID: result.AttemptID,
+		CheckoutURL: result.CheckoutURL,
+	})
 }
 
 func (h *OrderHandlers) ConfirmReceipt(w http.ResponseWriter, r *http.Request) {

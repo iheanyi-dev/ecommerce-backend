@@ -11,7 +11,6 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/payment/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/payment/domain/entities"
 	"github.com/iheanyi-dev/ecommerce-backend/services/payment/domain/enums"
-	"github.com/iheanyi-dev/ecommerce-backend/services/payment/domain/value_objects"
 )
 
 type InitiatePayoutOutput struct {
@@ -30,6 +29,7 @@ type InitiatePayoutUseCase struct {
 	payouts      ports.PayoutRepository
 	attempts     ports.PayoutAttemptRepository
 	provider     ports.PayoutProvider
+	outbox       ports.PaymentOutboxRepository
 	uow          ports.UnitOfWork
 	providerName string
 }
@@ -39,11 +39,12 @@ func NewInitiatePayoutUseCase(
 	payouts ports.PayoutRepository,
 	attempts ports.PayoutAttemptRepository,
 	provider ports.PayoutProvider,
+	outbox ports.PaymentOutboxRepository,
 	uow ports.UnitOfWork,
 	providerName string,
 ) (*InitiatePayoutUseCase, error) {
 	if payments == nil || payouts == nil || attempts == nil ||
-		provider == nil || uow == nil {
+		provider == nil || outbox == nil || uow == nil {
 		return nil, fmt.Errorf("payout initiation dependencies are required")
 	}
 	if strings.TrimSpace(providerName) == "" {
@@ -54,6 +55,7 @@ func NewInitiatePayoutUseCase(
 		payouts:      payouts,
 		attempts:     attempts,
 		provider:     provider,
+		outbox:       outbox,
 		uow:          uow,
 		providerName: strings.TrimSpace(providerName),
 	}, nil
@@ -84,13 +86,13 @@ func (uc *InitiatePayoutUseCase) Execute(
 		return nil, fmt.Errorf("customer payment must succeed before payout: payment status %q", payment.Status())
 	}
 	payout, err := uc.payouts.GetByBusinessReference(ctx, input.BusinessReference)
-	if err == nil {
+	if err == nil && payout != nil {
 		if !samePayoutRequest(payout, input) {
 			return nil, application.ErrPayoutIdempotencyConflict
 		}
 		return uc.reconcileExisting(ctx, payout)
 	}
-	if !errors.Is(err, application.ErrPayoutNotFound) {
+	if err != nil && !errors.Is(err, application.ErrPayoutNotFound) {
 		return nil, fmt.Errorf("find existing payout: %w", err)
 	}
 
@@ -174,6 +176,9 @@ func (uc *InitiatePayoutUseCase) Execute(
 		if err := uc.attempts.Save(txCtx, attempt); err != nil {
 			return fmt.Errorf("save payout attempt result: %w", err)
 		}
+		if err := enqueuePayoutStatusChanged(txCtx, uc.outbox, payout); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return nil, fmt.Errorf("persist payout provider result: %w", err)
@@ -186,23 +191,16 @@ func (uc *InitiatePayoutUseCase) reconcileExisting(
 	ctx context.Context,
 	payout *entities.Payout,
 ) (*InitiatePayoutOutput, error) {
-	if payout.Status() == enums.PayoutStatusSucceeded {
-		return &InitiatePayoutOutput{
-			PayoutID:  payout.ID(),
-			AttemptID: payout.AttemptID(),
-			Reference: payout.Reference(),
-			Status:    payout.Status(),
-			Amount:    payout.Amount().Amount(),
-			Currency:  payout.Amount().Currency(),
-		}, nil
-	}
-
 	if payout.AttemptID() == "" {
 		return nil, fmt.Errorf("existing payout has no current attempt")
 	}
 	attempt, err := uc.attempts.GetByID(ctx, payout.AttemptID())
 	if err != nil {
 		return nil, fmt.Errorf("load current payout attempt: %w", err)
+	}
+
+	if payout.Status() == enums.PayoutStatusSucceeded {
+		return payoutOutput(payout, attempt), nil
 	}
 
 	// A confirmed failure must not silently trigger another transfer.
@@ -238,6 +236,9 @@ func (uc *InitiatePayoutUseCase) reconcileExisting(
 		}
 		if err := uc.attempts.Save(txCtx, attempt); err != nil {
 			return fmt.Errorf("save reconciled payout attempt: %w", err)
+		}
+		if err := enqueuePayoutStatusChanged(txCtx, uc.outbox, payout); err != nil {
+			return err
 		}
 		return nil
 	}); err != nil {
@@ -419,6 +420,3 @@ func payoutOutput(
 		Currency:      payout.Amount().Currency(),
 	}
 }
-
-// Keep this compile-time assertion close to the use-case contract.
-var _ value_objects.BusinessReference

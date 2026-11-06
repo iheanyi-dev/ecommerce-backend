@@ -4,6 +4,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/ports"
+	billinginfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/billing"
 	chatinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/chat"
 	storegrpc "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/grpc"
 	identityinfra "github.com/iheanyi-dev/ecommerce-backend/services/store/infrastructure/identity"
@@ -52,6 +53,15 @@ var Module = fx.Module(
 			fx.As(new(ports.IdentityProvider)),
 		),
 
+		fx.Annotate(
+			billinginfra.NewClient,
+		),
+
+		fx.Annotate(
+			billinginfra.NewConfiguredProvider,
+			fx.As(new(ports.BillingProvider)),
+		),
+
 		// Store's synchronous image operations use Storage through the
 		// application-layer ImageStorage port.
 		fx.Annotate(
@@ -76,6 +86,9 @@ var Module = fx.Module(
 			kafkainfra.NewKnowledgeDeletionDispatcher,
 			fx.As(new(ports.KnowledgeDeletionDispatcher)),
 		),
+
+		// Billing subscription events are consumed independently of the producer.
+		kafkainfra.NewSubscriptionEventConsumer,
 
 		// Kafka producer used by Store asynchronous image workflows.
 		fx.Annotate(
@@ -136,6 +149,7 @@ var Module = fx.Module(
 	fx.Invoke(
 		postgres.RegisterLifecycle,
 		migrations.RegisterLifecycle,
+		func(*kafkainfra.SubscriptionEventConsumer) {},
 	),
 )
 

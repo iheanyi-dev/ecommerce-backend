@@ -2,6 +2,7 @@ package use_cases_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -27,7 +28,7 @@ func newVerificationFixture(t *testing.T) *verificationFixture {
 	}
 
 	verify, err := use_cases.NewVerifyPaymentUseCase(
-		f.payments, f.attempts, f.provider, f.uow,
+		f.payments, f.attempts, f.outbox, f.provider, f.uow,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -43,6 +44,37 @@ func newVerificationFixture(t *testing.T) *verificationFixture {
 	return &verificationFixture{fixture: f, verify: verify, paymentID: created.PaymentID}
 }
 
+func assertPaymentStatusEvent(t *testing.T, f *verificationFixture, want enums.PaymentStatus) {
+	t.Helper()
+
+	if len(f.outbox.events) != 1 {
+		t.Fatalf("outbox events = %d, want 1", len(f.outbox.events))
+	}
+
+	event := f.outbox.events[0]
+	var payload struct {
+		EventID               string              `json:"event_id"`
+		BusinessReferenceType string              `json:"business_reference_type"`
+		BusinessReference     string              `json:"business_reference"`
+		Status                enums.PaymentStatus `json:"status"`
+	}
+	if err := json.Unmarshal(event.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal outbox payload: %v", err)
+	}
+	if payload.EventID != event.ID {
+		t.Errorf("payload event ID = %q, want %q", payload.EventID, event.ID)
+	}
+	if payload.BusinessReferenceType != "order" {
+		t.Errorf("business reference type = %q, want order", payload.BusinessReferenceType)
+	}
+	if payload.BusinessReference != testOrderID {
+		t.Errorf("business reference = %q, want %q", payload.BusinessReference, testOrderID)
+	}
+	if payload.Status != want {
+		t.Errorf("event status = %q, want %q", payload.Status, want)
+	}
+}
+
 func TestVerifyPaymentMarksPaymentAndAttemptSucceeded(t *testing.T) {
 	f := newVerificationFixture(t)
 
@@ -56,6 +88,7 @@ func TestVerifyPaymentMarksPaymentAndAttemptSucceeded(t *testing.T) {
 	if got.Attempt == nil || got.Attempt.Status != enums.PaymentAttemptStatusSucceeded {
 		t.Fatalf("attempt details = %+v, want succeeded", got.Attempt)
 	}
+	assertPaymentStatusEvent(t, f, enums.PaymentStatusSucceeded)
 	if f.provider.reconcileCalls != 1 {
 		t.Errorf("reconcile calls = %d, want 1", f.provider.reconcileCalls)
 	}
@@ -79,6 +112,7 @@ func TestVerifyPaymentMarksPaymentAndAttemptFailed(t *testing.T) {
 	if got.Attempt.FailureReason != "card declined" {
 		t.Errorf("failure reason = %q", got.Attempt.FailureReason)
 	}
+	assertPaymentStatusEvent(t, f, enums.PaymentStatusFailed)
 }
 
 func TestVerifyPaymentKeepsPaymentProcessingForInconclusiveResult(t *testing.T) {
@@ -94,6 +128,9 @@ func TestVerifyPaymentKeepsPaymentProcessingForInconclusiveResult(t *testing.T) 
 	}
 	if got.Attempt.Status != enums.PaymentAttemptStatusProcessing {
 		t.Errorf("attempt status = %q, want processing", got.Attempt.Status)
+	}
+	if len(f.outbox.events) != 0 {
+		t.Errorf("outbox events = %d, want 0 for nonterminal payment", len(f.outbox.events))
 	}
 }
 
@@ -173,6 +210,7 @@ func TestVerifyPaymentTerminalReplayDoesNotCallProviderAgain(t *testing.T) {
 	if _, err := f.verify.Execute(context.Background(), f.paymentID); err != nil {
 		t.Fatal(err)
 	}
+	assertPaymentStatusEvent(t, f, enums.PaymentStatusSucceeded)
 	calls := f.provider.reconcileCalls
 
 	got, err := f.verify.Execute(context.Background(), f.paymentID)
@@ -185,6 +223,7 @@ func TestVerifyPaymentTerminalReplayDoesNotCallProviderAgain(t *testing.T) {
 	if f.provider.reconcileCalls != calls {
 		t.Errorf("reconcile calls = %d, want unchanged at %d", f.provider.reconcileCalls, calls)
 	}
+	assertPaymentStatusEvent(t, f, enums.PaymentStatusSucceeded)
 }
 
 func TestVerifyPaymentRejectsTerminalAttemptWithNonterminalPayment(t *testing.T) {
@@ -215,5 +254,18 @@ func TestVerifyPaymentRejectsTerminalAttemptWithNonterminalPayment(t *testing.T)
 	_, err = f.verify.Execute(ctx, f.paymentID)
 	if !errors.Is(err, application.ErrInvalidProviderResponse) {
 		t.Fatalf("error = %v, want ErrInvalidProviderResponse", err)
+	}
+}
+
+func TestVerifyPaymentReturnsOutboxPersistenceError(t *testing.T) {
+	f := newVerificationFixture(t)
+	f.outbox.err = errors.New("outbox unavailable")
+
+	_, err := f.verify.Execute(context.Background(), f.paymentID)
+	if err == nil {
+		t.Fatal("expected outbox persistence error")
+	}
+	if !errors.Is(err, f.outbox.err) {
+		t.Errorf("error = %v, want outbox persistence error", err)
 	}
 }

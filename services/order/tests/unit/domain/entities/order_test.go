@@ -176,18 +176,18 @@ func TestOrderCancellationRules(t *testing.T) {
 		}
 	})
 
-	t.Run("cannot cancel paid order", func(t *testing.T) {
+	t.Run("cannot cancel payment-successful order", func(t *testing.T) {
 		order, storeID, customerID := newTestOrder(t)
 		if err := order.AddShipping(storeID, 1000); err != nil {
 			t.Fatal(err)
 		}
-		if err := order.MarkPaid(); err != nil {
+		if err := order.MarkPaymentSuccessful(); err != nil {
 			t.Fatal(err)
 		}
 		if err := order.Cancel(customerID); !errors.Is(err, domain.ErrInvalidTransition) {
 			t.Fatalf("Cancel() error = %v, want invalid transition", err)
 		}
-		assertState(t, order, entities.OrderStatePaid)
+		assertState(t, order, entities.OrderStatePaymentSuccessful)
 	})
 
 	t.Run("cancelled order is terminal", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestOrderFulfillmentLifecycle(t *testing.T) {
 	if err := order.AddShipping(storeID, 2000); err != nil {
 		t.Fatal(err)
 	}
-	if err := order.MarkPaid(); err != nil {
+	if err := order.MarkPaymentSuccessful(); err != nil {
 		t.Fatal(err)
 	}
 	if err := order.MarkSent(storeID); err != nil {
@@ -219,8 +219,16 @@ func TestOrderFulfillmentLifecycle(t *testing.T) {
 
 	assertState(t, order, entities.OrderStateReceived)
 
+	if err := order.MarkTransactionCompleted(); err != nil {
+		t.Fatalf("MarkTransactionCompleted() error = %v", err)
+	}
+	assertState(t, order, entities.OrderStateTransactionCompleted)
+
 	if err := order.MarkSent(storeID); !errors.Is(err, domain.ErrInvalidTransition) {
 		t.Fatalf("MarkSent() after receipt error = %v, want invalid transition", err)
+	}
+	if err := order.MarkTransactionCompleted(); !errors.Is(err, domain.ErrInvalidTransition) {
+		t.Fatalf("MarkTransactionCompleted() twice error = %v, want invalid transition", err)
 	}
 }
 
@@ -241,7 +249,7 @@ func TestOrderRejectsUnauthorizedActions(t *testing.T) {
 	if err := order.AddShipping(storeID, 1000); err != nil {
 		t.Fatal(err)
 	}
-	if err := order.MarkPaid(); err != nil {
+	if err := order.MarkPaymentSuccessful(); err != nil {
 		t.Fatal(err)
 	}
 	if err := order.MarkSent(strangerID); !errors.Is(err, domain.ErrUnauthorizedActor) {
@@ -311,5 +319,48 @@ func assertState(t *testing.T, order *entities.Order, want entities.OrderState) 
 	t.Helper()
 	if order.State != want {
 		t.Fatalf("State = %q, want %q", order.State, want)
+	}
+}
+
+func TestOrderPaymentFailureAndRetry(t *testing.T) {
+	order, storeID, _ := newTestOrder(t)
+
+	if err := order.AddShipping(storeID, 2000); err != nil {
+		t.Fatal(err)
+	}
+	if err := order.MarkPaymentFailed(); err != nil {
+		t.Fatalf("MarkPaymentFailed() error = %v", err)
+	}
+	assertState(t, order, entities.OrderStatePaymentFailed)
+
+	if err := order.MarkSent(storeID); !errors.Is(err, domain.ErrInvalidTransition) {
+		t.Fatalf("MarkSent() after payment failure error = %v, want invalid transition", err)
+	}
+	if err := order.MarkTransactionCompleted(); !errors.Is(err, domain.ErrInvalidTransition) {
+		t.Fatalf("MarkTransactionCompleted() after payment failure error = %v, want invalid transition", err)
+	}
+
+	if err := order.MarkPaymentSuccessful(); err != nil {
+		t.Fatalf("MarkPaymentSuccessful() retry error = %v", err)
+	}
+	assertState(t, order, entities.OrderStatePaymentSuccessful)
+
+	if err := order.MarkPaymentFailed(); !errors.Is(err, domain.ErrInvalidTransition) {
+		t.Fatalf("MarkPaymentFailed() after success error = %v, want invalid transition", err)
+	}
+}
+
+func TestOrderTransactionCannotCompleteBeforeReceipt(t *testing.T) {
+	order, storeID, _ := newTestOrder(t)
+
+	if err := order.MarkTransactionCompleted(); !errors.Is(err, domain.ErrInvalidTransition) {
+		t.Fatalf("MarkTransactionCompleted() error = %v, want invalid transition", err)
+	}
+
+	if err := order.AddShipping(storeID, 1000); err != nil {
+		t.Fatal(err)
+	}
+	if err := order.MarkTransactionCompleted(); !errors.Is(err, domain.ErrInvalidTransition) {
+		t.Fatalf("MarkTransactionCompleted() before payment error = %v, want invalid transition", err)
 	}
 }

@@ -42,6 +42,8 @@ var Module = fx.Module(
 		newRecommendationProxy,
 		newProductProxy,
 		newCartProxy,
+		newOrderProxy,
+		newPaymentProxy,
 
 		gatewayhttp.NewRouter,
 		gatewayhttp.NewServer,
@@ -133,4 +135,20 @@ func newCartProxy(cfg *config.Config) (*proxy.CartProxy, error) {
 		cfg.CartServiceName,
 		cfg.CartServiceSecret,
 	)
+}
+
+// newOrderProxy constructs the Gateway → Order reverse proxy.
+func newOrderProxy(cfg *config.Config) (*proxy.OrderProxy, error) {
+	return proxy.NewOrderProxy(
+		cfg.OrderServiceURL,
+		cfg.OrderServiceAuthName,
+		cfg.OrderServiceAuthSecret,
+	)
+}
+
+// newPaymentProxy constructs the Gateway → Payment reverse proxy.
+// Payment's Gateway-facing endpoints use authenticated user identity;
+// internal service credentials are reserved for trusted service callers.
+func newPaymentProxy(cfg *config.Config) (*proxy.PaymentProxy, error) {
+	return proxy.NewPaymentProxy(cfg.PaymentServiceURL)
 }

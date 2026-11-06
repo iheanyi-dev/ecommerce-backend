@@ -10,6 +10,7 @@ import (
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/dto"
 	applicationerrors "github.com/iheanyi-dev/ecommerce-backend/services/store/application/errors"
+	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/store/domain/valueobjects"
 )
@@ -26,8 +27,11 @@ func (s *orderOwnerStub) Execute(context.Context) (*dto.StoreOutput, error) {
 }
 
 type orderClientStub struct {
-	calls   int
-	storeID uuid.UUID
+	calls             int
+	storeID           uuid.UUID
+	payoutOrderID     uuid.UUID
+	payoutBeneficiary ports.PayoutBeneficiary
+	payoutOutput      *dto.InitiatePayoutOutput
 }
 
 func (s *orderClientStub) ListStoreOrders(_ context.Context, id uuid.UUID, page, size int) (*dto.ListStoreOrdersOutput, error) {
@@ -56,6 +60,20 @@ func (s *orderClientStub) CancelStoreOrder(_ context.Context, id, _ uuid.UUID) e
 	return nil
 }
 
+func (s *orderClientStub) InitiatePayout(
+	_ context.Context,
+	storeID, orderID uuid.UUID,
+	beneficiary ports.PayoutBeneficiary,
+) (*dto.InitiatePayoutOutput, error) {
+	s.calls++
+	s.storeID = storeID
+	s.payoutOrderID = orderID
+	s.payoutBeneficiary = beneficiary
+	if s.payoutOutput != nil {
+		return s.payoutOutput, nil
+	}
+	return &dto.InitiatePayoutOutput{PayoutID: uuid.New(), AttemptID: uuid.New()}, nil
+}
 func TestStoreOrderUseCasesAuthorizeBeforeRPC(t *testing.T) {
 	storeUUID := uuid.New()
 	storeID, err := valueobjects.NewStoreID(storeUUID)
@@ -83,8 +101,19 @@ func TestStoreOrderUseCasesAuthorizeBeforeRPC(t *testing.T) {
 	cancel := use_cases.NewCancelStoreOrderUseCase(owner, client)
 	require.NoError(t, cancel.Execute(ctx, orderID))
 
-	require.Equal(t, 5, owner.calls)
-	require.Equal(t, 5, client.calls)
+	payout := use_cases.NewInitiatePayoutUseCase(owner, client)
+	payoutOutput, err := payout.Execute(ctx, orderID, ports.PayoutBeneficiary{
+		AccountName:   "Store Owner",
+		AccountNumber: "0123456789",
+		BankCode:      "044",
+		BankName:      "Access Bank",
+		CountryCode:   "NG",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, payoutOutput)
+
+	require.Equal(t, 6, owner.calls)
+	require.Equal(t, 6, client.calls)
 
 	owner.err = errors.New("owner lookup failed")
 	before := client.calls
@@ -100,5 +129,78 @@ func TestListStoreOrdersRejectsInvalidPaginationBeforeRPC(t *testing.T) {
 
 	_, err := uc.Execute(context.Background(), 0, 20)
 	require.ErrorIs(t, err, applicationerrors.ErrInvalidPagination)
+	require.Zero(t, client.calls)
+}
+
+func TestInitiatePayoutResolvesAuthenticatedOwnersStore(t *testing.T) {
+	storeUUID := uuid.New()
+	orderID := uuid.New()
+	storeID, err := valueobjects.NewStoreID(storeUUID)
+	require.NoError(t, err)
+
+	owner := &orderOwnerStub{output: &dto.StoreOutput{ID: storeID}}
+	client := &orderClientStub{}
+	beneficiary := ports.PayoutBeneficiary{
+		AccountName:   "Test Store",
+		AccountNumber: "0123456789",
+		BankCode:      "044",
+		BankName:      "Access Bank",
+		CountryCode:   "NG",
+	}
+	expected := &dto.InitiatePayoutOutput{
+		PayoutID:  uuid.New(),
+		AttemptID: uuid.New(),
+		Reference: "payout-reference",
+		Status:    "pending",
+	}
+	client.payoutOutput = expected
+
+	uc := use_cases.NewInitiatePayoutUseCase(owner, client)
+	result, err := uc.Execute(context.Background(), orderID, beneficiary)
+
+	require.NoError(t, err)
+	require.Equal(t, expected, result)
+	require.Equal(t, storeUUID, client.storeID)
+	require.Equal(t, orderID, client.payoutOrderID)
+	require.Equal(t, beneficiary, client.payoutBeneficiary)
+	require.Equal(t, 1, owner.calls)
+	require.Equal(t, 1, client.calls)
+}
+
+func TestInitiatePayoutRejectsInvalidRequestBeforeOwnerLookup(t *testing.T) {
+	owner := &orderOwnerStub{}
+	client := &orderClientStub{}
+	uc := use_cases.NewInitiatePayoutUseCase(owner, client)
+
+	_, err := uc.Execute(
+		context.Background(),
+		uuid.Nil,
+		ports.PayoutBeneficiary{},
+	)
+
+	require.ErrorIs(t, err, applicationerrors.ErrInvalidPayoutRequest)
+	require.Zero(t, owner.calls)
+	require.Zero(t, client.calls)
+}
+
+func TestInitiatePayoutDoesNotCallOrderWhenOwnerLookupFails(t *testing.T) {
+	owner := &orderOwnerStub{err: errors.New("owner lookup failed")}
+	client := &orderClientStub{}
+	uc := use_cases.NewInitiatePayoutUseCase(owner, client)
+
+	_, err := uc.Execute(
+		context.Background(),
+		uuid.New(),
+		ports.PayoutBeneficiary{
+			AccountName:   "Test Store",
+			AccountNumber: "0123456789",
+			BankCode:      "044",
+			BankName:      "Access Bank",
+			CountryCode:   "NG",
+		},
+	)
+
+	require.Error(t, err)
+	require.Equal(t, 1, owner.calls)
 	require.Zero(t, client.calls)
 }

@@ -27,6 +27,9 @@ type Config struct {
 	PaystackSecretKey string
 	PaystackBaseURL   string
 
+	KafkaBrokers       []string
+	PaymentEventsTopic string
+
 	ServiceAuthName          string
 	ServiceAuthSecret        string
 	BeneficiaryEncryptionKey []byte
@@ -59,6 +62,8 @@ func Load() (*Config, error) {
 		TestDatabaseURL:          strings.TrimSpace(os.Getenv("PAYMENT_TEST_DATABASE_URL")),
 		PaystackSecretKey:        strings.TrimSpace(os.Getenv("PAYSTACK_SECRET_KEY")),
 		PaystackBaseURL:          getEnv("PAYSTACK_BASE_URL", "https://api.paystack.co"),
+		KafkaBrokers:             splitCSV(getEnv("KAFKA_BROKERS", "localhost:9092")),
+		PaymentEventsTopic:       strings.TrimSpace(getEnv("PAYMENT_EVENTS_TOPIC", "payment.events")),
 		ServiceAuthName:          strings.TrimSpace(os.Getenv("SERVICE_AUTH_NAME")),
 		ServiceAuthSecret:        os.Getenv("SERVICE_AUTH_SECRET"),
 		BeneficiaryEncryptionKey: encryptionKey,
@@ -78,6 +83,14 @@ func Load() (*Config, error) {
 
 	if cfg.PaystackSecretKey == "" {
 		return nil, fmt.Errorf("PAYSTACK_SECRET_KEY is required")
+	}
+
+	if len(cfg.KafkaBrokers) == 0 {
+		return nil, fmt.Errorf("KAFKA_BROKERS must contain at least one broker")
+	}
+
+	if cfg.PaymentEventsTopic == "" {
+		return nil, fmt.Errorf("PAYMENT_EVENTS_TOPIC is required")
 	}
 
 	if cfg.ServiceAuthName == "" {
@@ -138,4 +151,19 @@ func getEnv(key, fallback string) string {
 	}
 
 	return fallback
+}
+
+// splitCSV parses a comma-separated environment variable into trimmed,
+// non-empty values.
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			values = append(values, part)
+		}
+	}
+
+	return values
 }

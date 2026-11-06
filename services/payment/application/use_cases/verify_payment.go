@@ -17,6 +17,7 @@ import (
 type VerifyPaymentUseCase struct {
 	payments ports.PaymentRepository
 	attempts ports.PaymentAttemptRepository
+	outbox   ports.PaymentOutboxRepository
 	provider ports.PaymentProvider
 	uow      ports.UnitOfWork
 }
@@ -25,16 +26,18 @@ type VerifyPaymentUseCase struct {
 func NewVerifyPaymentUseCase(
 	payments ports.PaymentRepository,
 	attempts ports.PaymentAttemptRepository,
+	outbox ports.PaymentOutboxRepository,
 	provider ports.PaymentProvider,
 	uow ports.UnitOfWork,
 ) (*VerifyPaymentUseCase, error) {
-	if payments == nil || attempts == nil || provider == nil || uow == nil {
+	if payments == nil || attempts == nil || outbox == nil || provider == nil || uow == nil {
 		return nil, fmt.Errorf("payment verification dependencies are required")
 	}
 
 	return &VerifyPaymentUseCase{
 		payments: payments,
 		attempts: attempts,
+		outbox:   outbox,
 		provider: provider,
 		uow:      uow,
 	}, nil
@@ -234,6 +237,9 @@ func (uc *VerifyPaymentUseCase) Execute(
 		}
 		if err := uc.attempts.Save(txCtx, currentAttempt); err != nil {
 			return fmt.Errorf("save verified attempt: %w", err)
+		}
+		if err := enqueuePaymentStatusChanged(txCtx, uc.outbox, currentPayment); err != nil {
+			return fmt.Errorf("enqueue payment status event: %w", err)
 		}
 		return nil
 	})

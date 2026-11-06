@@ -128,6 +128,7 @@ type payoutFixture struct {
 	payouts  *payoutRepoFake
 	attempts *payoutAttemptRepoFake
 	provider *payoutProviderFake
+	outbox   *fakeOutbox
 	uow      *fakeUOW
 	uc       *use_cases.InitiatePayoutUseCase
 	input    ports.PayoutRequest
@@ -179,9 +180,10 @@ func newPayoutFixture(t *testing.T) *payoutFixture {
 			Status:            enums.PayoutAttemptStatusProcessing,
 		},
 	}
+	outbox := &fakeOutbox{}
 	uow := &fakeUOW{}
 	uc, err := use_cases.NewInitiatePayoutUseCase(
-		payments, payouts, attempts, provider, uow, "test-provider",
+		payments, payouts, attempts, provider, outbox, uow, "test-provider",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -192,6 +194,7 @@ func newPayoutFixture(t *testing.T) *payoutFixture {
 		payouts:  payouts,
 		attempts: attempts,
 		provider: provider,
+		outbox:   outbox,
 		uow:      uow,
 		uc:       uc,
 		input: ports.PayoutRequest{
@@ -362,7 +365,7 @@ func TestRetryPayoutRequiresExplicitRetryOfDefinitivelyFailedAttempt(t *testing.
 	}
 
 	retry, err := use_cases.NewRetryPayoutUseCase(
-		f.payouts, f.attempts, f.provider, f.uow, "test-provider",
+		f.payouts, f.attempts, f.provider, f.outbox, f.uow, "test-provider",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -394,7 +397,7 @@ func TestRetryPayoutRejectsNonFailedAttempt(t *testing.T) {
 		t.Fatal(err)
 	}
 	retry, err := use_cases.NewRetryPayoutUseCase(
-		f.payouts, f.attempts, f.provider, f.uow, "test-provider",
+		f.payouts, f.attempts, f.provider, f.outbox, f.uow, "test-provider",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -450,5 +453,103 @@ func TestListPayoutsByStoreIDValidatesScopeAndPagination(t *testing.T) {
 	}
 	if _, err := list.Execute(context.Background(), "", 10, 0); !errors.Is(err, application.ErrInvalidPagination) {
 		t.Fatalf("empty store error = %v", err)
+	}
+}
+
+func TestInitiatePayoutEmitsEventWhenImmediatelySucceeded(t *testing.T) {
+	f := newPayoutFixture(t)
+	f.provider.initResult.Status = enums.PayoutAttemptStatusSucceeded
+
+	got, err := f.uc.Execute(context.Background(), f.input)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got.Status != enums.PayoutStatusSucceeded {
+		t.Fatalf("payout status = %q, want succeeded", got.Status)
+	}
+	if len(f.outbox.events) != 1 {
+		t.Fatalf("outbox events = %d, want 1", len(f.outbox.events))
+	}
+
+	var payload struct {
+		PayoutID  string `json:"payout_id"`
+		AttemptID string `json:"attempt_id"`
+		Status    string `json:"status"`
+	}
+	if err := json.Unmarshal(f.outbox.events[0].Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.PayoutID != got.PayoutID ||
+		payload.AttemptID != got.AttemptID ||
+		payload.Status != string(enums.PayoutStatusSucceeded) {
+		t.Fatalf("unexpected payout event payload: %+v", payload)
+	}
+}
+
+func TestInitiatePayoutDoesNotEmitEventWhileProcessing(t *testing.T) {
+	f := newPayoutFixture(t)
+
+	if _, err := f.uc.Execute(context.Background(), f.input); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.outbox.events) != 0 {
+		t.Fatalf("outbox events = %d, want 0 for processing payout", len(f.outbox.events))
+	}
+}
+
+func TestRetryPayoutEmitsEventForNewSuccessfulAttempt(t *testing.T) {
+	f := newPayoutFixture(t)
+	first, err := f.uc.Execute(context.Background(), f.input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	oldAttempt, err := f.attempts.GetByID(context.Background(), first.AttemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := oldAttempt.MarkFailed("bank rejected transfer"); err != nil {
+		t.Fatal(err)
+	}
+	payout, err := f.payouts.GetByBusinessReference(context.Background(), f.input.BusinessReference)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := payout.MarkFailed(); err != nil {
+		t.Fatal(err)
+	}
+
+	f.provider.initResult.Status = enums.PayoutAttemptStatusSucceeded
+	retry, err := use_cases.NewRetryPayoutUseCase(
+		f.payouts, f.attempts, f.provider, f.outbox, f.uow, "test-provider",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := retry.Execute(context.Background(), first.PayoutID, f.input.StoreID)
+	if err != nil {
+		t.Fatalf("retry Execute() error = %v", err)
+	}
+	if got.Status != enums.PayoutStatusSucceeded {
+		t.Fatalf("payout status = %q, want succeeded", got.Status)
+	}
+	if got.AttemptID == first.AttemptID {
+		t.Fatal("retry reused the previous attempt ID")
+	}
+	if len(f.outbox.events) != 1 {
+		t.Fatalf("outbox events = %d, want 1", len(f.outbox.events))
+	}
+
+	var payload struct {
+		AttemptID string `json:"attempt_id"`
+		Status    string `json:"status"`
+	}
+	if err := json.Unmarshal(f.outbox.events[0].Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.AttemptID != got.AttemptID ||
+		payload.Status != string(enums.PayoutStatusSucceeded) {
+		t.Fatalf("unexpected retry event payload: %+v", payload)
 	}
 }

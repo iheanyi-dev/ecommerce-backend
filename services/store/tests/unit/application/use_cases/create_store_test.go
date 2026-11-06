@@ -468,6 +468,13 @@ type fakeIdentityProvider struct {
 	PromoteError   error
 }
 
+func (f *fakeIdentityProvider) GetUser(
+	ctx context.Context,
+	userID uuid.UUID,
+) (*ports.IdentityUser, error) {
+	return nil, nil
+}
+
 func (f *fakeIdentityProvider) IsVendor(
 	_ context.Context,
 	_ uuid.UUID,

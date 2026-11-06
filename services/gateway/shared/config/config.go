@@ -77,6 +77,15 @@ type Config struct {
 	CartServiceName   string
 	CartServiceSecret string
 
+	// Order service connection and service-authentication credentials.
+	OrderServiceURL        string
+	OrderServiceAuthName   string
+	OrderServiceAuthSecret string
+
+	// Payment service connection. Gateway access is restricted to
+	// Payment routes that require authenticated user identity.
+	PaymentServiceURL string
+
 	// JWTSecret is the secret used by Identity to sign access tokens.
 	//
 	// The Gateway uses this secret only to validate client access tokens.
@@ -161,6 +170,16 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	orderServiceURL := getEnv("ORDER_SERVICE_URL", "http://localhost:8094")
+	if err := validateServiceURL("ORDER_SERVICE_URL", orderServiceURL); err != nil {
+		return nil, err
+	}
+
+	paymentServiceURL := getEnv("PAYMENT_SERVICE_URL", "http://localhost:8095")
+	if err := validateServiceURL("PAYMENT_SERVICE_URL", paymentServiceURL); err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		AppEnv:  getEnv("APP_ENV", "development"),
 		AppPort: getEnv("APP_PORT", "8081"),
@@ -186,6 +205,10 @@ func Load() (*Config, error) {
 		CartServiceURL:              cartServiceURL,
 		CartServiceName:             os.Getenv("CART_SERVICE_NAME"),
 		CartServiceSecret:           os.Getenv("CART_SERVICE_SECRET"),
+		OrderServiceURL:             orderServiceURL,
+		OrderServiceAuthName:        getEnv("ORDER_SERVICE_AUTH_NAME", "order"),
+		OrderServiceAuthSecret:      os.Getenv("ORDER_SERVICE_AUTH_SECRET"),
+		PaymentServiceURL:           paymentServiceURL,
 
 		JWTSecret: os.Getenv("JWT_SECRET"),
 		JWTIssuer: os.Getenv("JWT_ISSUER"),
@@ -237,6 +260,14 @@ func Load() (*Config, error) {
 
 	if cfg.CartServiceSecret == "" {
 		return nil, fmt.Errorf("CART_SERVICE_SECRET is required")
+	}
+
+	if strings.TrimSpace(cfg.OrderServiceAuthName) == "" {
+		return nil, fmt.Errorf("ORDER_SERVICE_AUTH_NAME is required")
+	}
+
+	if cfg.OrderServiceAuthSecret == "" {
+		return nil, fmt.Errorf("ORDER_SERVICE_AUTH_SECRET is required")
 	}
 
 	if cfg.JWTSecret == "" {

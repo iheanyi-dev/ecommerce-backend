@@ -43,6 +43,8 @@ func NewRouter(
 	identityPropagationMiddleware *middleware.IdentityPropagationMiddleware,
 	productProxy *proxy.ProductProxy,
 	cartProxy *proxy.CartProxy,
+	orderProxy *proxy.OrderProxy,
+	paymentProxy *proxy.PaymentProxy,
 ) nethttp.Handler {
 	mux := nethttp.NewServeMux()
 
@@ -90,6 +92,19 @@ func NewRouter(
 	// trusted service credentials supplied by StorageProxy.
 	mux.Handle("/api/v1/storage", storageProxy)
 	mux.Handle("/api/v1/storage/", storageProxy)
+
+	// Order owns the complete Order API namespace. The proxy supplies
+	// trusted service credentials; identity propagation forwards the
+	// validated customer identity when available.
+	mux.Handle("/api/v1/orders", orderProxy)
+	mux.Handle("/api/v1/orders/", orderProxy)
+
+	// Only Payment endpoints explicitly classified as Gateway-facing
+	// by Payment's router are exposed here. Internal payment creation,
+	// verification, payout operations, and webhooks are not proxied.
+	mux.Handle("GET /api/v1/payments", paymentProxy)
+	mux.Handle("GET /api/v1/payments/{paymentID}", paymentProxy)
+	mux.Handle("GET /api/v1/payouts/{payoutID}", paymentProxy)
 
 	var handler nethttp.Handler = mux
 

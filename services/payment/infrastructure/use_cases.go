@@ -29,6 +29,7 @@ type UseCases struct {
 func NewUseCases(
 	payments ports.PaymentRepository,
 	paymentAttempts ports.PaymentAttemptRepository,
+	paymentOutbox ports.PaymentOutboxRepository,
 	payouts ports.PayoutRepository,
 	payoutAttempts ports.PayoutAttemptRepository,
 	uow ports.UnitOfWork,
@@ -37,14 +38,14 @@ func NewUseCases(
 	webhookProvider ports.WebhookProvider,
 ) (*UseCases, error) {
 	initiatePayment, err := use_cases.NewInitiatePaymentUseCase(
-		payments, paymentAttempts, paymentProvider, uow, paymentProviderName,
+		payments, paymentAttempts, paymentOutbox, paymentProvider, uow, paymentProviderName,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("construct initiate payment use case: %w", err)
 	}
 
 	verifyPayment, err := use_cases.NewVerifyPaymentUseCase(
-		payments, paymentAttempts, paymentProvider, uow,
+		payments, paymentAttempts, paymentOutbox, paymentProvider, uow,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("construct verify payment use case: %w", err)
@@ -63,14 +64,14 @@ func NewUseCases(
 	}
 
 	initiatePayout, err := use_cases.NewInitiatePayoutUseCase(
-		payments, payouts, payoutAttempts, payoutProvider, uow, paymentProviderName,
+		payments, payouts, payoutAttempts, payoutProvider, paymentOutbox, uow, paymentProviderName,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("construct initiate payout use case: %w", err)
 	}
 
 	verifyPayout, err := use_cases.NewVerifyPayoutUseCase(
-		payouts, payoutAttempts, payoutProvider, uow,
+		payouts, payoutAttempts, payoutProvider, paymentOutbox, uow,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("construct verify payout use case: %w", err)
@@ -87,7 +88,7 @@ func NewUseCases(
 	}
 
 	retryPayout, err := use_cases.NewRetryPayoutUseCase(
-		payouts, payoutAttempts, payoutProvider, uow, paymentProviderName,
+		payouts, payoutAttempts, payoutProvider, paymentOutbox, uow, paymentProviderName,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("construct retry payout use case: %w", err)

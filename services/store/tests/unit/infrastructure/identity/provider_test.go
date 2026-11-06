@@ -57,6 +57,151 @@ func (m *mockIdentityClient) PromoteToVendor(
 
 func (m *mockIdentityClient) mustEmbedUnimplementedIdentityServiceClient() {}
 
+func TestProvider_GetUser_ReturnsUserIdentity(t *testing.T) {
+	userID := uuid.New()
+	expectedEmail := "owner@example.com"
+
+	client := &mockIdentityClient{
+		getUserFunc: func(
+			ctx context.Context,
+			req *identityv1.GetUserRequest,
+			_ ...grpc.CallOption,
+		) (*identityv1.GetUserResponse, error) {
+			require.Equal(t, userID.String(), req.GetUserId())
+
+			md, ok := metadata.FromOutgoingContext(ctx)
+			require.True(t, ok)
+			require.Equal(t, []string{"store"}, md.Get("x-service-name"))
+			require.Equal(t, []string{"secret"}, md.Get("x-service-secret"))
+
+			return &identityv1.GetUserResponse{
+				User: &identityv1.User{
+					Id:    userID.String(),
+					Email: expectedEmail,
+				},
+			}, nil
+		},
+	}
+
+	provider := identityinfra.NewProvider(client, "store", "secret")
+
+	user, err := provider.GetUser(context.Background(), userID)
+
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	require.Equal(t, userID, user.ID)
+	require.Equal(t, expectedEmail, user.Email)
+	require.True(t, client.getUserCalled)
+}
+
+func TestProvider_GetUser_PropagatesRPCError(t *testing.T) {
+	expectedErr := status.Error(codes.Internal, "identity unavailable")
+
+	client := &mockIdentityClient{
+		getUserFunc: func(
+			ctx context.Context,
+			req *identityv1.GetUserRequest,
+			_ ...grpc.CallOption,
+		) (*identityv1.GetUserResponse, error) {
+			return nil, expectedErr
+		},
+	}
+
+	provider := identityinfra.NewProvider(client, "store", "secret")
+
+	user, err := provider.GetUser(context.Background(), uuid.New())
+
+	require.Nil(t, user)
+	require.ErrorIs(t, err, expectedErr)
+}
+
+func TestProvider_GetUser_RejectsNilResponse(t *testing.T) {
+	client := &mockIdentityClient{
+		getUserFunc: func(
+			ctx context.Context,
+			req *identityv1.GetUserRequest,
+			_ ...grpc.CallOption,
+		) (*identityv1.GetUserResponse, error) {
+			return nil, nil
+		},
+	}
+
+	provider := identityinfra.NewProvider(client, "store", "secret")
+
+	user, err := provider.GetUser(context.Background(), uuid.New())
+
+	require.Nil(t, user)
+	require.Error(t, err)
+}
+
+func TestProvider_GetUser_RejectsMissingUser(t *testing.T) {
+	client := &mockIdentityClient{
+		getUserFunc: func(
+			ctx context.Context,
+			req *identityv1.GetUserRequest,
+			_ ...grpc.CallOption,
+		) (*identityv1.GetUserResponse, error) {
+			return &identityv1.GetUserResponse{}, nil
+		},
+	}
+
+	provider := identityinfra.NewProvider(client, "store", "secret")
+
+	user, err := provider.GetUser(context.Background(), uuid.New())
+
+	require.Nil(t, user)
+	require.Error(t, err)
+}
+
+func TestProvider_GetUser_RejectsInvalidUserID(t *testing.T) {
+	client := &mockIdentityClient{
+		getUserFunc: func(
+			ctx context.Context,
+			req *identityv1.GetUserRequest,
+			_ ...grpc.CallOption,
+		) (*identityv1.GetUserResponse, error) {
+			return &identityv1.GetUserResponse{
+				User: &identityv1.User{
+					Id:    "invalid-uuid",
+					Email: "owner@example.com",
+				},
+			}, nil
+		},
+	}
+
+	provider := identityinfra.NewProvider(client, "store", "secret")
+
+	user, err := provider.GetUser(context.Background(), uuid.New())
+
+	require.Nil(t, user)
+	require.Error(t, err)
+}
+
+func TestProvider_GetUser_RejectsEmptyEmail(t *testing.T) {
+	userID := uuid.New()
+
+	client := &mockIdentityClient{
+		getUserFunc: func(
+			ctx context.Context,
+			req *identityv1.GetUserRequest,
+			_ ...grpc.CallOption,
+		) (*identityv1.GetUserResponse, error) {
+			return &identityv1.GetUserResponse{
+				User: &identityv1.User{
+					Id: userID.String(),
+				},
+			}, nil
+		},
+	}
+
+	provider := identityinfra.NewProvider(client, "store", "secret")
+
+	user, err := provider.GetUser(context.Background(), userID)
+
+	require.Nil(t, user)
+	require.Error(t, err)
+}
+
 func TestProvider_IsVendor_ReturnsTrueForVendor(t *testing.T) {
 	userID := uuid.New()
 

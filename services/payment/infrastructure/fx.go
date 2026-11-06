@@ -9,6 +9,7 @@ import (
 	"github.com/iheanyi-dev/ecommerce-backend/services/payment/infrastructure/persistence/postgres"
 	"github.com/iheanyi-dev/ecommerce-backend/services/payment/infrastructure/providers/paystack"
 	"github.com/iheanyi-dev/ecommerce-backend/services/payment/shared/config"
+	"github.com/iheanyi-dev/ecommerce-backend/services/payment/infrastructure/messaging/kafka"
 )
 
 var Module = fx.Module(
@@ -30,5 +31,6 @@ var Module = fx.Module(
 		},
 	),
 	postgres.Module,
+		kafka.Module,
 	paystack.Module,
 )

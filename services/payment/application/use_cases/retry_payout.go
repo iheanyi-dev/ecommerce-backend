@@ -17,6 +17,7 @@ type RetryPayoutUseCase struct {
 	payouts      ports.PayoutRepository
 	attempts     ports.PayoutAttemptRepository
 	provider     ports.PayoutProvider
+	outbox       ports.PaymentOutboxRepository
 	uow          ports.UnitOfWork
 	providerName string
 }
@@ -25,10 +26,11 @@ func NewRetryPayoutUseCase(
 	payouts ports.PayoutRepository,
 	attempts ports.PayoutAttemptRepository,
 	provider ports.PayoutProvider,
+	outbox ports.PaymentOutboxRepository,
 	uow ports.UnitOfWork,
 	providerName string,
 ) (*RetryPayoutUseCase, error) {
-	if payouts == nil || attempts == nil || provider == nil || uow == nil {
+	if payouts == nil || attempts == nil || provider == nil || outbox == nil || uow == nil {
 		return nil, fmt.Errorf("payout retry dependencies are required")
 	}
 	if strings.TrimSpace(providerName) == "" {
@@ -38,6 +40,7 @@ func NewRetryPayoutUseCase(
 		payouts:      payouts,
 		attempts:     attempts,
 		provider:     provider,
+		outbox:       outbox,
 		uow:          uow,
 		providerName: strings.TrimSpace(providerName),
 	}, nil
@@ -195,6 +198,9 @@ func (uc *RetryPayoutUseCase) saveRetryState(
 		}
 		if err := uc.attempts.Save(txCtx, attempt); err != nil {
 			return fmt.Errorf("save retried payout attempt: %w", err)
+		}
+		if err := enqueuePayoutStatusChanged(txCtx, uc.outbox, payout); err != nil {
+			return fmt.Errorf("enqueue payout status event: %w", err)
 		}
 		return nil
 	}); err != nil {

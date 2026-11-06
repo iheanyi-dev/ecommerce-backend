@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package billing.v1;
+
+option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/billing/v1;billingv1";
+
+import "google/protobuf/timestamp.proto";
+
+service BillingService {
+  rpc CreatePlan(CreatePlanRequest) returns (PlanResponse);
+  rpc UpdatePlan(UpdatePlanRequest) returns (PlanResponse);
+  rpc DeletePlan(DeletePlanRequest) returns (Empty);
+  rpc GetPlan(GetPlanRequest) returns (PlanResponse);
+  rpc ListPlans(Empty) returns (ListPlansResponse);
+
+  rpc Subscribe(SubscribeRequest) returns (SubscribeResponse);
+  rpc CancelSubscription(CancelSubscriptionRequest) returns (SubscriptionResponse);
+  rpc GetSubscription(GetSubscriptionRequest) returns (SubscriptionResponse);
+  rpc ListStoreSubscriptions(ListStoreSubscriptionsRequest) returns (ListStoreSubscriptionsResponse);
+}
+
+message Empty {}
+
+message Money {
+  int64 amount_minor = 1;
+  string currency = 2;
+}
+
+message Promotion {
+  string name = 1;
+  int64 discount_amount_minor = 2;
+  google.protobuf.Timestamp starts_at = 3;
+  google.protobuf.Timestamp ends_at = 4;
+}
+
+message PlanCapabilities {
+  int32 max_products = 1;
+  bool ai_enabled = 2;
+}
+
+message Plan {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  string description = 4;
+  Money price = 5;
+  int64 duration_seconds = 6;
+  PlanCapabilities capabilities = 7;
+  bool available = 8;
+  Promotion promotion = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message Subscription {
+  string id = 1;
+  string store_id = 2;
+  string plan_id = 3;
+  Money price = 4;
+  int64 duration_seconds = 5;
+  string status = 6;
+  google.protobuf.Timestamp started_at = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message CreatePlanRequest {
+  string type = 1;
+  string name = 2;
+  string description = 3;
+  Money price = 4;
+  int64 duration_seconds = 5;
+  PlanCapabilities capabilities = 6;
+  bool available = 7;
+  Promotion promotion = 8;
+}
+
+message UpdatePlanRequest {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+  string description = 4;
+  Money price = 5;
+  int64 duration_seconds = 6;
+  PlanCapabilities capabilities = 7;
+  bool available = 8;
+  Promotion promotion = 9;
+}
+
+message DeletePlanRequest {
+  string id = 1;
+}
+
+message GetPlanRequest {
+  string id = 1;
+}
+
+message PlanResponse {
+  Plan plan = 1;
+}
+
+message ListPlansResponse {
+  repeated Plan plans = 1;
+}
+
+message SubscribeRequest {
+  string store_id = 1;
+  string payer_id = 2;
+  string plan_id = 3;
+  string customer_email = 4;
+}
+
+message SubscribeResponse {
+  Subscription subscription = 1;
+  string payment_id = 2;
+  string checkout_url = 3;
+}
+
+message CancelSubscriptionRequest {
+  string store_id = 1;
+  string subscription_id = 2;
+}
+
+message GetSubscriptionRequest {
+  string subscription_id = 1;
+}
+
+message SubscriptionResponse {
+  Subscription subscription = 1;
+}
+
+message ListStoreSubscriptionsRequest {
+  string store_id = 1;
+}
+
+message ListStoreSubscriptionsResponse {
+  repeated Subscription subscriptions = 1;
+}

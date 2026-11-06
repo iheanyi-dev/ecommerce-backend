@@ -12,15 +12,24 @@ import (
 
 	orderv1 "github.com/iheanyi-dev/ecommerce-backend/proto/order/v1"
 	"github.com/iheanyi-dev/ecommerce-backend/services/order/application"
+	"github.com/iheanyi-dev/ecommerce-backend/services/order/application/use_cases"
 	"github.com/iheanyi-dev/ecommerce-backend/services/order/infrastructure"
-	ordergrpc "github.com/iheanyi-dev/ecommerce-backend/services/order/infrastructure/grpc"
 	"github.com/iheanyi-dev/ecommerce-backend/services/order/presentation"
+	ordergrpc "github.com/iheanyi-dev/ecommerce-backend/services/order/presentation/grpc"
 	"github.com/iheanyi-dev/ecommerce-backend/services/order/shared/config"
 )
 
 func main() {
 	fx.New(
 		fx.Provide(ordergrpc.NewServer),
+		fx.Provide(
+			func(uc *use_cases.ListOrders) ordergrpc.ListStoreOrdersUseCase { return uc },
+			func(uc *use_cases.GetOrder) ordergrpc.GetStoreOrderUseCase { return uc },
+			func(uc *use_cases.AddShipping) ordergrpc.AddOrderShippingUseCase { return uc },
+			func(uc *use_cases.MarkSent) ordergrpc.MarkOrderSentUseCase { return uc },
+			func(uc *use_cases.CancelOrder) ordergrpc.CancelStoreOrderUseCase { return uc },
+			func(uc *use_cases.InitiatePayout) ordergrpc.InitiateOrderPayoutUseCase { return uc },
+		),
 		infrastructure.Module,
 		application.Module,
 		presentation.Module,

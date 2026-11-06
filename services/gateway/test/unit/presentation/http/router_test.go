@@ -75,6 +75,8 @@ func TestNewRouter_Health(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 
 	request := httptest.NewRequest(
@@ -144,6 +146,8 @@ func TestNewRouter_IdentityRoute(t *testing.T) {
 		nil,
 		requestIDMiddleware,
 		observabilityMiddleware,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -245,6 +249,8 @@ func TestNewRouter_IdentityRoute_BypassesJWTValidation(t *testing.T) {
 		identityPropagationMiddleware,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 
 	request := httptest.NewRequest(
@@ -318,6 +324,8 @@ func TestNewRouter_UnknownRoute(t *testing.T) {
 		nil,
 		requestIDMiddleware,
 		observabilityMiddleware,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -406,6 +414,8 @@ func TestNewRouter_StoreRoute(t *testing.T) {
 		nil,
 		requestIDMiddleware,
 		observabilityMiddleware,
+		nil,
+		nil,
 		nil,
 		nil,
 		nil,

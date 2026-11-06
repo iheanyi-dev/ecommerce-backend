@@ -128,7 +128,7 @@ func newPromoteVendorUser(t *testing.T) *user.User {
 		t.Fatalf("failed to create user: %v", err)
 	}
 
-	if err := newUser.Activate(); err != nil {
+	if err := newUser.VerifyEmail(); err != nil {
 		t.Fatalf("failed to activate user: %v", err)
 	}
 

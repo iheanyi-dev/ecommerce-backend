@@ -7,10 +7,19 @@ option go_package = "github.com/iheanyi-dev/ecommerce-backend/proto/order/v1;ord
 import "google/protobuf/timestamp.proto";
 
 service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc GetOrder(GetOrderRequest) returns (GetOrderResponse);
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+  rpc AddShipping(AddShippingRequest) returns (OrderActionResponse);
+  rpc RejectShipping(RejectShippingRequest) returns (OrderActionResponse);
+  rpc InitiatePayment(InitiatePaymentRequest) returns (InitiatePaymentResponse);
+  rpc InitiatePayout(InitiatePayoutRequest) returns (InitiatePayoutResponse);
+  rpc CancelOrder(CancelOrderRequest) returns (OrderActionResponse);
+  rpc MarkSent(MarkSentRequest) returns (OrderActionResponse);
+  rpc ConfirmReceipt(ConfirmReceiptRequest) returns (OrderActionResponse);
+
   rpc ListStoreOrders(ListStoreOrdersRequest) returns (ListStoreOrdersResponse);
   rpc GetStoreOrder(GetStoreOrderRequest) returns (GetStoreOrderResponse);
-  rpc AddShipping(AddShippingRequest) returns (OrderActionResponse);
-  rpc MarkSent(MarkSentRequest) returns (OrderActionResponse);
   rpc CancelStoreOrder(CancelStoreOrderRequest) returns (OrderActionResponse);
 }
 
@@ -38,6 +47,97 @@ message Order {
   repeated OrderProduct products = 12;
 }
 
+message CreateOrderRequest {
+  string cart_id = 1;
+  string delivery_location = 2;
+}
+
+message CreateOrderResponse {
+  repeated Order orders = 1;
+}
+
+message GetOrderRequest {
+  string order_id = 1;
+  string store_id = 2;
+}
+
+message GetOrderResponse {
+  Order order = 1;
+}
+
+message ListOrdersRequest {
+  string store_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message ListOrdersResponse {
+  repeated Order orders = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int64 total_items = 4;
+  int64 total_pages = 5;
+}
+
+message AddShippingRequest {
+  string store_id = 1;
+  string order_id = 2;
+  int64 shipping_amount = 3;
+}
+
+message RejectShippingRequest {
+  string order_id = 1;
+}
+
+message InitiatePaymentRequest {
+  string order_id = 1;
+  string customer_email = 2;
+}
+
+message InitiatePaymentResponse {
+  string payment_id = 1;
+  string attempt_id = 2;
+  string checkout_url = 3;
+}
+
+message InitiatePayoutRequest {
+  string order_id = 1;
+  string store_id = 2;
+  string account_name = 3;
+  string account_number = 4;
+  string bank_code = 5;
+  string bank_name = 6;
+  string country_code = 7;
+}
+
+message InitiatePayoutResponse {
+  string payout_id = 1;
+  string attempt_id = 2;
+  string reference = 3;
+  string status = 4;
+  string attempt_status = 5;
+  string provider = 6;
+  int64 amount_minor = 7;
+  string currency = 8;
+}
+
+message CancelOrderRequest {
+  string order_id = 1;
+}
+
+message MarkSentRequest {
+  string store_id = 1;
+  string order_id = 2;
+}
+
+message ConfirmReceiptRequest {
+  string order_id = 1;
+}
+
+message OrderActionResponse {
+  bool success = 1;
+}
+
 message ListStoreOrdersRequest {
   string store_id = 1;
   int32 page = 2;
@@ -61,22 +161,7 @@ message GetStoreOrderResponse {
   Order order = 1;
 }
 
-message AddShippingRequest {
-  string store_id = 1;
-  string order_id = 2;
-  int64 shipping_amount = 3;
-}
-
-message MarkSentRequest {
-  string store_id = 1;
-  string order_id = 2;
-}
-
 message CancelStoreOrderRequest {
   string store_id = 1;
   string order_id = 2;
-}
-
-message OrderActionResponse {
-  bool success = 1;
 }

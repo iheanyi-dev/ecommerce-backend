@@ -103,22 +103,39 @@ func prepareOrderState(t *testing.T, order *entities.Order, state entities.Order
 		if err := order.RejectShipping(order.CustomerID); err != nil {
 			t.Fatalf("RejectShipping() error = %v", err)
 		}
-	case entities.OrderStatePaid:
+	case entities.OrderStatePaymentSuccessful:
 		if err := order.AddShipping(order.StoreID, 100); err != nil {
 			t.Fatalf("AddShipping() error = %v", err)
 		}
-		if err := order.MarkPaid(); err != nil {
-			t.Fatalf("MarkPaid() error = %v", err)
+		if err := order.MarkPaymentSuccessful(); err != nil {
+			t.Fatalf("MarkPaymentSuccessful() error = %v", err)
 		}
-	case entities.OrderStateSent:
+	case entities.OrderStatePaymentFailed:
 		if err := order.AddShipping(order.StoreID, 100); err != nil {
 			t.Fatalf("AddShipping() error = %v", err)
 		}
-		if err := order.MarkPaid(); err != nil {
-			t.Fatalf("MarkPaid() error = %v", err)
+		if err := order.MarkPaymentFailed(); err != nil {
+			t.Fatalf("MarkPaymentFailed() error = %v", err)
+		}
+	case entities.OrderStateSent, entities.OrderStateReceived, entities.OrderStateTransactionCompleted:
+		if err := order.AddShipping(order.StoreID, 100); err != nil {
+			t.Fatalf("AddShipping() error = %v", err)
+		}
+		if err := order.MarkPaymentSuccessful(); err != nil {
+			t.Fatalf("MarkPaymentSuccessful() error = %v", err)
 		}
 		if err := order.MarkSent(order.StoreID); err != nil {
 			t.Fatalf("MarkSent() error = %v", err)
+		}
+		if state == entities.OrderStateReceived || state == entities.OrderStateTransactionCompleted {
+			if err := order.ConfirmReceipt(order.CustomerID); err != nil {
+				t.Fatalf("ConfirmReceipt() error = %v", err)
+			}
+		}
+		if state == entities.OrderStateTransactionCompleted {
+			if err := order.MarkTransactionCompleted(); err != nil {
+				t.Fatalf("MarkTransactionCompleted() error = %v", err)
+			}
 		}
 	default:
 		t.Fatalf("unsupported fixture state %q", state)
@@ -155,11 +172,27 @@ func TestOrderLifecycleUseCasesApplyValidTransitions(t *testing.T) {
 			},
 		},
 		{
-			name: "mark paid", initial: entities.OrderStateShippingAdded,
-			want: entities.OrderStatePaid,
+			name: "mark payment successful", initial: entities.OrderStateShippingAdded,
+			want: entities.OrderStatePaymentSuccessful,
 			execute: func(repo *orderLifecycleRepositoryMock, order *entities.Order) error {
-				return use_cases.NewMarkPaid(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
-					Execute(context.Background(), use_cases.MarkPaidInput{OrderID: order.ID})
+				return use_cases.NewHandlePayment(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
+					Execute(context.Background(), use_cases.HandlePaymentInput{OrderID: order.ID.String(), Status: "succeeded"})
+			},
+		},
+		{
+			name: "mark payment failed", initial: entities.OrderStateShippingAdded,
+			want: entities.OrderStatePaymentFailed,
+			execute: func(repo *orderLifecycleRepositoryMock, order *entities.Order) error {
+				return use_cases.NewHandlePayment(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
+					Execute(context.Background(), use_cases.HandlePaymentInput{OrderID: order.ID.String(), Status: "failed"})
+			},
+		},
+		{
+			name: "complete transaction", initial: entities.OrderStateReceived,
+			want: entities.OrderStateTransactionCompleted,
+			execute: func(repo *orderLifecycleRepositoryMock, order *entities.Order) error {
+				return use_cases.NewHandlePayout(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
+					Execute(context.Background(), use_cases.HandlePayoutInput{OrderID: order.ID.String(), Status: "succeeded"})
 			},
 		},
 		{
@@ -173,7 +206,7 @@ func TestOrderLifecycleUseCasesApplyValidTransitions(t *testing.T) {
 			},
 		},
 		{
-			name: "mark sent", initial: entities.OrderStatePaid,
+			name: "mark sent", initial: entities.OrderStatePaymentSuccessful,
 			want: entities.OrderStateSent,
 			execute: func(repo *orderLifecycleRepositoryMock, order *entities.Order) error {
 				return use_cases.NewMarkSent(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
@@ -222,8 +255,8 @@ func TestOrderLifecycleDoesNotPersistInvalidTransitions(t *testing.T) {
 	order := newLifecycleTestOrder(t)
 	repo := &orderLifecycleRepositoryMock{order: order}
 
-	err := use_cases.NewMarkPaid(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
-		Execute(context.Background(), use_cases.MarkPaidInput{OrderID: order.ID})
+	err := use_cases.NewHandlePayment(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
+		Execute(context.Background(), use_cases.HandlePaymentInput{OrderID: order.ID.String(), Status: "succeeded"})
 	if !errors.Is(err, domain.ErrInvalidTransition) {
 		t.Fatalf("Execute() error = %v, want ErrInvalidTransition", err)
 	}
@@ -260,8 +293,8 @@ func TestOrderLifecycleReturnsRepositoryErrors(t *testing.T) {
 		order := newLifecycleTestOrder(t)
 		repo := &orderLifecycleRepositoryMock{order: order, findErr: errors.New("database unavailable")}
 
-		err := use_cases.NewMarkPaid(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
-			Execute(context.Background(), use_cases.MarkPaidInput{OrderID: order.ID})
+		err := use_cases.NewHandlePayment(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
+			Execute(context.Background(), use_cases.HandlePaymentInput{OrderID: order.ID.String(), Status: "succeeded"})
 		if err == nil {
 			t.Fatal("Execute() error = nil, want load failure")
 		}
@@ -277,8 +310,8 @@ func TestOrderLifecycleReturnsRepositoryErrors(t *testing.T) {
 			order: order, updateErr: errors.New("database unavailable"),
 		}
 
-		err := use_cases.NewMarkPaid(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
-			Execute(context.Background(), use_cases.MarkPaidInput{OrderID: order.ID})
+		err := use_cases.NewHandlePayment(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
+			Execute(context.Background(), use_cases.HandlePaymentInput{OrderID: order.ID.String(), Status: "succeeded"})
 		if err == nil {
 			t.Fatal("Execute() error = nil, want update failure")
 		}
@@ -293,8 +326,8 @@ func TestOrderLifecycleReturnsRepositoryErrors(t *testing.T) {
 func TestOrderLifecycleRejectsMissingOrderID(t *testing.T) {
 	repo := &orderLifecycleRepositoryMock{order: newLifecycleTestOrder(t)}
 
-	err := use_cases.NewMarkPaid(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
-		Execute(context.Background(), use_cases.MarkPaidInput{OrderID: uuid.Nil})
+	err := use_cases.NewHandlePayment(repo, lifecycleLoggerMock{}, lifecycleMetricsMock{}).
+		Execute(context.Background(), use_cases.HandlePaymentInput{OrderID: uuid.Nil.String(), Status: "succeeded"})
 	if err == nil {
 		t.Fatal("Execute() error = nil, want validation error")
 	}

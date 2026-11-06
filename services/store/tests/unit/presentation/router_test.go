@@ -40,6 +40,11 @@ func newRouterTestHandler() http.Handler {
 		handler, // updateStoreHandler
 		handler, // changeStoreImageHandler
 		handler, // changeStorePlanHandler
+		handler, // subscribeHandler
+		handler, // listBillingPlansHandler
+		handler, // getBillingPlanHandler
+		handler, // listStoreSubscriptionsHandler
+		handler, // getStoreSubscriptionHandler
 		handler, // changeStoreStatusHandler
 		handler, // addStoreKnowledgeHandler
 		handler, // chatHandler
@@ -49,6 +54,7 @@ func newRouterTestHandler() http.Handler {
 		handler, // addShippingHandler
 		handler, // markOrderSentHandler
 		handler, // cancelStoreOrderHandler
+		handler, // initiatePayoutHandler
 		serviceAuthMiddleware,
 		nil,
 		nil,
@@ -106,6 +112,18 @@ func TestNewRouter_RegistersRoutes(t *testing.T) {
 			userAuth: false,
 		},
 		{
+			name:     "list billing plans",
+			method:   http.MethodGet,
+			path:     "/api/v1/stores/plans",
+			userAuth: false,
+		},
+		{
+			name:     "get billing plan",
+			method:   http.MethodGet,
+			path:     "/api/v1/stores/plans/11111111-1111-1111-1111-111111111111",
+			userAuth: false,
+		},
+		{
 			name:     "get store by id",
 			method:   http.MethodGet,
 			path:     "/api/v1/stores/11111111-1111-1111-1111-111111111111",
@@ -142,6 +160,24 @@ func TestNewRouter_RegistersRoutes(t *testing.T) {
 			userAuth: true,
 		},
 		{
+			name:     "subscribe to store plan",
+			method:   http.MethodPost,
+			path:     "/api/v1/stores/11111111-1111-1111-1111-111111111111/subscribe",
+			userAuth: true,
+		},
+		{
+			name:     "list store subscriptions",
+			method:   http.MethodGet,
+			path:     "/api/v1/stores/11111111-1111-1111-1111-111111111111/billing/subscriptions",
+			userAuth: true,
+		},
+		{
+			name:     "get store subscription",
+			method:   http.MethodGet,
+			path:     "/api/v1/stores/11111111-1111-1111-1111-111111111111/billing/subscriptions/22222222-2222-2222-2222-222222222222",
+			userAuth: true,
+		},
+		{
 			name:     "change store status",
 			method:   http.MethodPatch,
 			path:     "/api/v1/stores/11111111-1111-1111-1111-111111111111/status",
@@ -157,6 +193,12 @@ func TestNewRouter_RegistersRoutes(t *testing.T) {
 			name:     "chat",
 			method:   http.MethodPost,
 			path:     "/api/v1/stores/11111111-1111-1111-1111-111111111111/chat",
+			userAuth: true,
+		},
+		{
+			name:     "initiate store payout",
+			method:   http.MethodPost,
+			path:     "/api/v1/stores/owner/payouts",
 			userAuth: true,
 		},
 		{

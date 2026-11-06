@@ -526,7 +526,7 @@ func newRefreshTestUser(t *testing.T) *user.User {
 		t.Fatalf("failed to create test user: %v", err)
 	}
 
-	if err := testUser.Activate(); err != nil {
+	if err := testUser.VerifyEmail(); err != nil {
 		t.Fatalf("failed to activate test user: %v", err)
 	}
 

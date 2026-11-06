@@ -25,9 +25,9 @@ type ChatRequest struct {
 // response. It forwards the stream returned by the AI dispatcher to the
 // presentation layer.
 type ChatEvent struct {
-	Type            string
-	Content         string
-	ConversationID  *uuid.UUID
+	Type           string
+	Content        string
+	ConversationID *uuid.UUID
 }
 
 // ChatStream represents a live AI chat response stream.

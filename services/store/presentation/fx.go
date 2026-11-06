@@ -59,6 +59,32 @@ var Module = fx.Module(
 			fx.ResultTags(`name:"changeStorePlanHandler"`),
 		),
 		fx.Annotate(
+			handlers.NewSubscribeHandler,
+			fx.As(new(http.Handler)),
+			fx.ResultTags(`name:"subscribeHandler"`),
+		),
+
+		fx.Annotate(
+			handlers.NewListBillingPlansHandler,
+			fx.As(new(http.Handler)),
+			fx.ResultTags(`name:"listBillingPlansHandler"`),
+		),
+		fx.Annotate(
+			handlers.NewGetBillingPlanHandler,
+			fx.As(new(http.Handler)),
+			fx.ResultTags(`name:"getBillingPlanHandler"`),
+		),
+		fx.Annotate(
+			handlers.NewListStoreSubscriptionsHandler,
+			fx.As(new(http.Handler)),
+			fx.ResultTags(`name:"listStoreSubscriptionsHandler"`),
+		),
+		fx.Annotate(
+			handlers.NewGetStoreSubscriptionHandler,
+			fx.As(new(http.Handler)),
+			fx.ResultTags(`name:"getStoreSubscriptionHandler"`),
+		),
+		fx.Annotate(
 			handlers.NewChangeStoreStatusHandler,
 			fx.As(new(http.Handler)),
 			fx.ResultTags(`name:"changeStoreStatusHandler"`),
@@ -84,6 +110,7 @@ var Module = fx.Module(
 		fx.Annotate(handlers.NewAddShippingHandler, fx.As(new(http.Handler)), fx.ResultTags(`name:"addShippingHandler"`)),
 		fx.Annotate(handlers.NewMarkOrderSentHandler, fx.As(new(http.Handler)), fx.ResultTags(`name:"markOrderSentHandler"`)),
 		fx.Annotate(handlers.NewCancelStoreOrderHandler, fx.As(new(http.Handler)), fx.ResultTags(`name:"cancelStoreOrderHandler"`)),
+		fx.Annotate(handlers.NewInitiatePayoutHandler, fx.As(new(http.Handler)), fx.ResultTags(`name:"initiatePayoutHandler"`)),
 
 		// Request ID establishes correlation for every request, including
 		// requests rejected by the Store service authentication boundary.
@@ -104,7 +131,7 @@ var Module = fx.Module(
 		fx.Annotate(
 			NewRouter,
 			fx.ParamTags(
-				// Twelve named HTTP handlers.
+				// Twenty-three named HTTP handlers.
 				`name:"createStoreHandler"`,
 				`name:"getStoreByIDHandler"`,
 				`name:"getStoreByOwnerHandler"`,
@@ -113,6 +140,11 @@ var Module = fx.Module(
 				`name:"updateStoreHandler"`,
 				`name:"changeStoreImageHandler"`,
 				`name:"changeStorePlanHandler"`,
+				`name:"subscribeHandler"`,
+				`name:"listBillingPlansHandler"`,
+				`name:"getBillingPlanHandler"`,
+				`name:"listStoreSubscriptionsHandler"`,
+				`name:"getStoreSubscriptionHandler"`,
 				`name:"changeStoreStatusHandler"`,
 				`name:"addStoreKnowledgeHandler"`,
 				`name:"chatHandler"`,
@@ -122,6 +154,7 @@ var Module = fx.Module(
 				`name:"addShippingHandler"`,
 				`name:"markOrderSentHandler"`,
 				`name:"cancelStoreOrderHandler"`,
+				`name:"initiatePayoutHandler"`,
 
 				// Four concrete middleware dependencies.
 				//

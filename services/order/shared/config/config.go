@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -20,7 +21,13 @@ type Config struct {
 	OrderServiceAuthSecret string
 	OrderServiceAuthName   string
 	CartServiceAddr        string
+	PaymentServiceAddr     string
+	IdentityServiceAddr    string
 	AppEnv                 string
+
+	KafkaBrokers         []string
+	PaymentEventsTopic   string
+	PaymentConsumerGroup string
 
 	DatabaseHost     string
 	DatabasePort     string
@@ -46,13 +53,26 @@ func Load() (*Config, error) {
 		OrderServiceAuthSecret: os.Getenv("ORDER_SERVICE_AUTH_SECRET"),
 		OrderServiceAuthName:   getEnv("ORDER_SERVICE_AUTH_NAME", "order"),
 		CartServiceAddr:        getEnv("CART_SERVICE_ADDR", "localhost:9092"),
+		PaymentServiceAddr:     getEnv("PAYMENT_SERVICE_ADDR", "localhost:9095"),
+		IdentityServiceAddr:    getEnv("IDENTITY_SERVICE_ADDR", "localhost:9090"),
 		AppEnv:                 getEnv("APP_ENV", "development"),
+		KafkaBrokers:           splitCSV(getEnv("KAFKA_BROKERS", "localhost:9092")),
+		PaymentEventsTopic:     getEnv("PAYMENT_EVENTS_TOPIC", "payment.events"),
+		PaymentConsumerGroup:   getEnv("ORDER_PAYMENT_CONSUMER_GROUP", "order-payment-consumer"),
 		DatabaseHost:           getEnv("DATABASE_HOST", "localhost"),
 		DatabasePort:           getEnv("DATABASE_PORT", "5432"),
 		DatabaseUser:           os.Getenv("DATABASE_USER"),
 		DatabasePassword:       os.Getenv("DATABASE_PASSWORD"),
 		DatabaseName:           os.Getenv("DATABASE_NAME"),
 		DatabaseSSLMode:        getEnv("DATABASE_SSL_MODE", "disable"),
+	}
+
+	if len(cfg.KafkaBrokers) == 0 {
+		return nil, fmt.Errorf("KAFKA_BROKERS must contain at least one broker")
+	}
+
+	if cfg.PaymentEventsTopic == "" || cfg.PaymentConsumerGroup == "" {
+		return nil, fmt.Errorf("PAYMENT_EVENTS_TOPIC and ORDER_PAYMENT_CONSUMER_GROUP are required")
 	}
 
 	if cfg.DatabaseUser == "" {
@@ -99,4 +119,16 @@ func getEnv(key, fallback string) string {
 	}
 
 	return fallback
+}
+
+// splitCSV parses a comma-separated environment variable.
+func splitCSV(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part = strings.TrimSpace(part); part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
 }

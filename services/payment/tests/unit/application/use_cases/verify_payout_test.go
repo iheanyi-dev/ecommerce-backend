@@ -27,7 +27,7 @@ func newPayoutVerificationFixture(t *testing.T) *payoutVerificationFixture {
 	}
 
 	verify, err := use_cases.NewVerifyPayoutUseCase(
-		f.payouts, f.attempts, f.provider, f.uow,
+		f.payouts, f.attempts, f.provider, f.outbox, f.uow,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -191,5 +191,40 @@ func TestVerifyPayoutRejectsInvalidIDBeforeProviderCall(t *testing.T) {
 	}
 	if f.provider.reconcileCalls != 0 {
 		t.Errorf("provider calls = %d, want 0", f.provider.reconcileCalls)
+	}
+}
+
+func TestVerifyPayoutEmitsEventOnlyOnceWhenSucceeded(t *testing.T) {
+	f := newPayoutVerificationFixture(t)
+
+	if _, err := f.verify.Execute(context.Background(), f.payoutID); err != nil {
+		t.Fatalf("first verification: %v", err)
+	}
+	if len(f.outbox.events) != 1 {
+		t.Fatalf("outbox events after success = %d, want 1", len(f.outbox.events))
+	}
+
+	if _, err := f.verify.Execute(context.Background(), f.payoutID); err != nil {
+		t.Fatalf("repeated verification: %v", err)
+	}
+	if len(f.outbox.events) != 1 {
+		t.Fatalf("outbox events after repeated verification = %d, want 1", len(f.outbox.events))
+	}
+}
+
+func TestVerifyPayoutEmitsEventWhenFailed(t *testing.T) {
+	f := newPayoutVerificationFixture(t)
+	f.provider.reconcileResult.Status = enums.PayoutAttemptStatusFailed
+	f.provider.reconcileResult.FailureReason = "bank rejected transfer"
+
+	got, err := f.verify.Execute(context.Background(), f.payoutID)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if got.Status != enums.PayoutStatusFailed {
+		t.Fatalf("payout status = %q, want failed", got.Status)
+	}
+	if len(f.outbox.events) != 1 {
+		t.Fatalf("outbox events = %d, want 1", len(f.outbox.events))
 	}
 }

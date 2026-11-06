@@ -42,6 +42,7 @@ type InitiatePaymentOutput struct {
 type InitiatePaymentUseCase struct {
 	payments     ports.PaymentRepository
 	attempts     ports.PaymentAttemptRepository
+	outbox       ports.PaymentOutboxRepository
 	provider     ports.PaymentProvider
 	uow          ports.UnitOfWork
 	providerName string
@@ -51,11 +52,12 @@ type InitiatePaymentUseCase struct {
 func NewInitiatePaymentUseCase(
 	payments ports.PaymentRepository,
 	attempts ports.PaymentAttemptRepository,
+	outbox ports.PaymentOutboxRepository,
 	provider ports.PaymentProvider,
 	uow ports.UnitOfWork,
 	providerName string,
 ) (*InitiatePaymentUseCase, error) {
-	if payments == nil || attempts == nil || provider == nil || uow == nil {
+	if payments == nil || attempts == nil || outbox == nil || provider == nil || uow == nil {
 		return nil, fmt.Errorf("payment initiation dependencies are required")
 	}
 	if strings.TrimSpace(providerName) == "" {
@@ -64,6 +66,7 @@ func NewInitiatePaymentUseCase(
 	return &InitiatePaymentUseCase{
 		payments:     payments,
 		attempts:     attempts,
+		outbox:       outbox,
 		provider:     provider,
 		uow:          uow,
 		providerName: providerName,
@@ -257,6 +260,9 @@ func (uc *InitiatePaymentUseCase) Execute(
 		}
 		if err := uc.attempts.Save(txCtx, attempt); err != nil {
 			return fmt.Errorf("save payment attempt result: %w", err)
+		}
+		if err := enqueuePaymentStatusChanged(txCtx, uc.outbox, payment); err != nil {
+			return fmt.Errorf("enqueue payment status event: %w", err)
 		}
 		return nil
 	})

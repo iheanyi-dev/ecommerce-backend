@@ -23,6 +23,11 @@ func NewRouter(
 	updateStoreHandler http.Handler,
 	changeStoreImageHandler http.Handler,
 	changeStorePlanHandler http.Handler,
+	subscribeHandler http.Handler,
+	listBillingPlansHandler http.Handler,
+	getBillingPlanHandler http.Handler,
+	listStoreSubscriptionsHandler http.Handler,
+	getStoreSubscriptionHandler http.Handler,
 	changeStoreStatusHandler http.Handler,
 	addStoreKnowledgeHandler http.Handler,
 	chatHandler http.Handler,
@@ -32,6 +37,7 @@ func NewRouter(
 	addShippingHandler http.Handler,
 	markOrderSentHandler http.Handler,
 	cancelStoreOrderHandler http.Handler,
+	initiatePayoutHandler http.Handler,
 	serviceAuthenticationMiddleware *middleware.ServiceAuthenticationMiddleware,
 	requestObservabilityMiddleware *middleware.RequestObservabilityMiddleware,
 	tracingMiddleware *middleware.TracingMiddleware,
@@ -43,6 +49,14 @@ func NewRouter(
 	mux.Handle(
 		"GET /api/v1/stores",
 		listStoresHandler,
+	)
+	mux.Handle(
+		"GET /api/v1/stores/plans",
+		listBillingPlansHandler,
+	)
+	mux.Handle(
+		"GET /api/v1/stores/plans/{id}",
+		getBillingPlanHandler,
 	)
 	mux.Handle(
 		"GET /api/v1/stores/{id}",
@@ -75,6 +89,18 @@ func NewRouter(
 		middleware.RequireAuthentication(changeStorePlanHandler),
 	)
 	mux.Handle(
+		"POST /api/v1/stores/{id}/subscribe",
+		middleware.RequireAuthentication(subscribeHandler),
+	)
+	mux.Handle(
+		"GET /api/v1/stores/{id}/billing/subscriptions",
+		middleware.RequireAuthentication(listStoreSubscriptionsHandler),
+	)
+	mux.Handle(
+		"GET /api/v1/stores/{id}/billing/subscriptions/{subscriptionID}",
+		middleware.RequireAuthentication(getStoreSubscriptionHandler),
+	)
+	mux.Handle(
 		"POST /api/v1/stores/{id}/knowledge",
 		middleware.RequireAuthentication(addStoreKnowledgeHandler),
 	)
@@ -92,6 +118,7 @@ func NewRouter(
 	mux.Handle("POST /api/v1/stores/owner/orders/{orderID}/shipping", middleware.RequireAuthentication(addShippingHandler))
 	mux.Handle("POST /api/v1/stores/owner/orders/{orderID}/sent", middleware.RequireAuthentication(markOrderSentHandler))
 	mux.Handle("POST /api/v1/stores/owner/orders/{orderID}/cancel", middleware.RequireAuthentication(cancelStoreOrderHandler))
+	mux.Handle("POST /api/v1/stores/owner/payouts", middleware.RequireAuthentication(initiatePayoutHandler))
 
 	// Subscription/Billing-controlled lifecycle operation.
 	//

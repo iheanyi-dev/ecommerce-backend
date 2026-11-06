@@ -80,3 +80,10 @@ func FromDetails(details *use_cases.OrderDetails) OrderResponse {
 		Products: products, CreatedAt: order.CreatedAt, UpdatedAt: order.UpdatedAt,
 	}
 }
+
+// InitiatePaymentResponse contains the checkout details returned to the customer.
+type InitiatePaymentResponse struct {
+	PaymentID   string `json:"payment_id"`
+	AttemptID   string `json:"attempt_id"`
+	CheckoutURL string `json:"checkout_url"`
+}

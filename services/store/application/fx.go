@@ -51,8 +51,38 @@ var Module = fx.Module(
 		),
 
 		fx.Annotate(
+			use_cases.NewSubscribeUseCase,
+			fx.As(new(ports.SubscribeService)),
+		),
+
+		fx.Annotate(
+			use_cases.NewListBillingPlansUseCase,
+			fx.As(new(ports.ListBillingPlansService)),
+		),
+
+		fx.Annotate(
+			use_cases.NewGetBillingPlanUseCase,
+			fx.As(new(ports.GetBillingPlanService)),
+		),
+
+		fx.Annotate(
+			use_cases.NewListStoreSubscriptionsUseCase,
+			fx.As(new(ports.ListStoreSubscriptionsService)),
+		),
+
+		fx.Annotate(
+			use_cases.NewGetStoreSubscriptionUseCase,
+			fx.As(new(ports.GetStoreSubscriptionService)),
+		),
+
+		fx.Annotate(
 			use_cases.NewChangeStorePlanUseCase,
 			fx.As(new(ports.ChangeStorePlanService)),
+		),
+
+		fx.Annotate(
+			use_cases.NewUpdateAfterSubscriptionUseCase,
+			fx.As(new(ports.UpdateAfterSubscriptionService)),
 		),
 
 		fx.Annotate(
@@ -80,5 +110,6 @@ var Module = fx.Module(
 		fx.Annotate(use_cases.NewAddShippingUseCase, fx.As(new(ports.AddShippingService))),
 		fx.Annotate(use_cases.NewMarkOrderSentUseCase, fx.As(new(ports.MarkOrderSentService))),
 		fx.Annotate(use_cases.NewCancelStoreOrderUseCase, fx.As(new(ports.CancelStoreOrderService))),
+		fx.Annotate(use_cases.NewInitiatePayoutUseCase, fx.As(new(ports.InitiatePayoutService))),
 	),
 )

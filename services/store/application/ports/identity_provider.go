@@ -6,6 +6,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// IdentityUser contains the identity information Store needs from Identity.
+type IdentityUser struct {
+	ID    uuid.UUID
+	Email string
+}
+
 // IdentityProvider exposes the Identity capabilities required by the Store
 // application layer.
 //
@@ -13,6 +19,9 @@ import (
 // concrete Identity Service client or communication technology. Infrastructure
 // provides the implementation.
 type IdentityProvider interface {
+	// GetUser retrieves a user's identity information from the Identity Service.
+	GetUser(ctx context.Context, userID uuid.UUID) (*IdentityUser, error)
+
 	// IsVendor determines whether the supplied user currently has vendor
 	// status in the Identity Service.
 	IsVendor(ctx context.Context, userID uuid.UUID) (bool, error)

@@ -31,5 +31,8 @@ var Module = fx.Module(
 			fx.As(new(ports.PayoutAttemptRepository)),
 		),
 	),
+	fx.Provide(
+		fx.Annotate(NewPaymentOutboxRepository, fx.As(new(ports.PaymentOutboxRepository))),
+	),
 	fx.Invoke(RegisterMigrations),
 )

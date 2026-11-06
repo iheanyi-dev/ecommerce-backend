@@ -141,9 +141,43 @@ func (u *fakeUOW) WithinTransaction(ctx context.Context, fn func(context.Context
 	return fn(ctx)
 }
 
+// fakeOutbox records events enqueued by payment use cases.
+type fakeOutbox struct {
+	events []ports.PaymentOutboxEvent
+	err    error
+}
+
+func (o *fakeOutbox) Create(
+	_ context.Context,
+	eventID, _, _, _, _ string,
+	payload []byte,
+) error {
+	if o.err != nil {
+		return o.err
+	}
+	o.events = append(o.events, ports.PaymentOutboxEvent{
+		ID:      eventID,
+		Payload: append([]byte(nil), payload...),
+	})
+	return nil
+}
+
+func (o *fakeOutbox) GetPending(context.Context, int32) ([]ports.PaymentOutboxEvent, error) {
+	return nil, nil
+}
+
+func (o *fakeOutbox) MarkPublished(context.Context, string) error {
+	return nil
+}
+
+func (o *fakeOutbox) RecordFailure(context.Context, string, error) error {
+	return nil
+}
+
 type fixture struct {
 	payments *paymentRepo
 	attempts *attemptRepo
+	outbox   *fakeOutbox
 	provider *fakeProvider
 	uow      *fakeUOW
 	uc       *use_cases.InitiatePaymentUseCase
@@ -160,6 +194,7 @@ func newFixture(t *testing.T) *fixture {
 
 	payments := newPaymentRepo()
 	attempts := newAttemptRepo()
+	outbox := &fakeOutbox{}
 	provider := &fakeProvider{
 		checkoutResult: ports.CheckoutResult{
 			ProviderReference: "provider-ref-001",
@@ -176,7 +211,7 @@ func newFixture(t *testing.T) *fixture {
 	uow := &fakeUOW{}
 
 	uc, err := use_cases.NewInitiatePaymentUseCase(
-		payments, attempts, provider, uow, "test-provider",
+		payments, attempts, outbox, provider, uow, "test-provider",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -185,6 +220,7 @@ func newFixture(t *testing.T) *fixture {
 	return &fixture{
 		payments: payments,
 		attempts: attempts,
+		outbox:   outbox,
 		provider: provider,
 		uow:      uow,
 		uc:       uc,

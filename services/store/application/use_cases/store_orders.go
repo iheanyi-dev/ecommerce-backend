@@ -52,7 +52,7 @@ func NewGetStoreOrderUseCase(owner ports.GetStoreByOwnerService, client ports.Or
 
 func (uc *GetStoreOrderUseCase) Execute(ctx context.Context, orderID uuid.UUID) (*dto.OrderOutput, error) {
 	if orderID == uuid.Nil {
-		return nil, fmt.Errorf("order ID is required")
+		return nil, fmt.Errorf("%w: order ID is required", applicationerrors.ErrInvalidPayoutRequest)
 	}
 	storeID, err := uc.ownedStore(ctx)
 	if err != nil {
@@ -113,4 +113,49 @@ func (uc *CancelStoreOrderUseCase) Execute(ctx context.Context, orderID uuid.UUI
 		return err
 	}
 	return uc.client.CancelStoreOrder(ctx, storeID, orderID)
+}
+
+// InitiatePayoutUseCase initiates a payout for an order owned by the
+// authenticated store owner.
+type InitiatePayoutUseCase struct {
+	storeOrdersBase
+}
+
+// NewInitiatePayoutUseCase creates the payout use case.
+func NewInitiatePayoutUseCase(
+	owner ports.GetStoreByOwnerService,
+	client ports.OrderClient,
+) *InitiatePayoutUseCase {
+	return &InitiatePayoutUseCase{
+		storeOrdersBase: storeOrdersBase{
+			owner:  owner,
+			client: client,
+		},
+	}
+}
+
+// Execute resolves the authenticated owner's store before requesting a payout.
+func (uc *InitiatePayoutUseCase) Execute(
+	ctx context.Context,
+	orderID uuid.UUID,
+	beneficiary ports.PayoutBeneficiary,
+) (*dto.InitiatePayoutOutput, error) {
+	if orderID == uuid.Nil {
+		return nil, fmt.Errorf("%w: order ID is required", applicationerrors.ErrInvalidPayoutRequest)
+	}
+
+	if beneficiary.AccountName == "" ||
+		beneficiary.AccountNumber == "" ||
+		beneficiary.BankCode == "" ||
+		beneficiary.BankName == "" ||
+		beneficiary.CountryCode == "" {
+		return nil, fmt.Errorf("%w: complete beneficiary details are required", applicationerrors.ErrInvalidPayoutRequest)
+	}
+
+	storeID, err := uc.ownedStore(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return uc.client.InitiatePayout(ctx, storeID, orderID, beneficiary)
 }

@@ -24,14 +24,14 @@ func NewRouter(
 		middleware.RequireAuthentication(http.HandlerFunc(h.AddShipping)))
 	mux.Handle("POST /api/v1/orders/{id}/shipping/reject",
 		middleware.RequireAuthentication(http.HandlerFunc(h.RejectShipping)))
-	mux.Handle("POST /api/v1/orders/{id}/paid",
-		http.HandlerFunc(h.MarkPaid))
 	mux.Handle("POST /api/v1/orders/{id}/cancel",
 		middleware.RequireAuthentication(http.HandlerFunc(h.CancelOrder)))
 	mux.Handle("POST /api/v1/orders/{id}/sent",
 		middleware.RequireAuthentication(http.HandlerFunc(h.MarkSent)))
 	mux.Handle("POST /api/v1/orders/{id}/received",
 		middleware.RequireAuthentication(http.HandlerFunc(h.ConfirmReceipt)))
+	mux.Handle("POST /api/v1/orders/{id}/payment",
+		middleware.RequireAuthentication(http.HandlerFunc(h.InitiatePayment)))
 
 	// Request ID -> service authentication -> tracing -> observability
 	// -> identity propagation -> route authentication.

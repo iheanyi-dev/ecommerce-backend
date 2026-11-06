@@ -526,7 +526,7 @@ func newAuthenticationUser(t *testing.T) *user.User {
 
 	// Newly created users start in pending verification.
 	// Authentication tests require an active account.
-	if err := authenticatedUser.Activate(); err != nil {
+	if err := authenticatedUser.VerifyEmail(); err != nil {
 		t.Fatalf("failed to activate test user: %v", err)
 	}
 

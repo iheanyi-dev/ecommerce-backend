@@ -352,7 +352,7 @@ func TestUser_PromoteToVendor_CannotBeRepeated(t *testing.T) {
 	}
 }
 
-func TestUser_Activate_FromPendingVerification(t *testing.T) {
+func TestUser_VerifyEmail_FromPendingVerification(t *testing.T) {
 	t.Parallel()
 
 	newUser := newTestUser(t)
@@ -364,7 +364,7 @@ func TestUser_Activate_FromPendingVerification(t *testing.T) {
 		)
 	}
 
-	err := newUser.Activate()
+	err := newUser.VerifyEmail()
 	if err != nil {
 		t.Fatalf("expected activation to succeed, got: %v", err)
 	}
@@ -383,7 +383,7 @@ func TestUser_Suspend_FromActive(t *testing.T) {
 
 	newUser := newTestUser(t)
 
-	if err := newUser.Activate(); err != nil {
+	if err := newUser.VerifyEmail(); err != nil {
 		t.Fatalf("failed to activate user: %v", err)
 	}
 
@@ -406,7 +406,7 @@ func TestUser_Deactivate_FromActive(t *testing.T) {
 
 	newUser := newTestUser(t)
 
-	if err := newUser.Activate(); err != nil {
+	if err := newUser.VerifyEmail(); err != nil {
 		t.Fatalf("failed to activate user: %v", err)
 	}
 
@@ -459,7 +459,7 @@ func TestUser_CannotSuspendSuspendedUser(t *testing.T) {
 
 	newUser := newTestUser(t)
 
-	if err := newUser.Activate(); err != nil {
+	if err := newUser.VerifyEmail(); err != nil {
 		t.Fatalf("failed to activate user: %v", err)
 	}
 
@@ -474,5 +474,45 @@ func TestUser_CannotSuspendSuspendedUser(t *testing.T) {
 			"expected ErrInvalidStatusTransition, got %v",
 			err,
 		)
+	}
+}
+
+func TestUser_Activate_FromSuspended(t *testing.T) {
+	t.Parallel()
+
+	newUser := newTestUser(t)
+
+	if err := newUser.VerifyEmail(); err != nil {
+		t.Fatalf("failed to verify user email: %v", err)
+	}
+
+	if err := newUser.Suspend(); err != nil {
+		t.Fatalf("failed to suspend user: %v", err)
+	}
+
+	err := newUser.Activate()
+	if err != nil {
+		t.Fatalf("expected suspended user activation to succeed, got: %v", err)
+	}
+
+	if newUser.Status() != user.StatusActive {
+		t.Fatalf("expected status %q, got %q", user.StatusActive, newUser.Status())
+	}
+}
+
+func TestUser_Activate_FromPendingVerification_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	newUser := newTestUser(t)
+
+	err := newUser.Activate()
+
+	if err != domain_errors.ErrInvalidStatusTransition {
+		t.Fatalf("expected ErrInvalidStatusTransition, got %v", err)
+	}
+
+	if newUser.Status() != user.StatusPendingVerification {
+		t.Fatalf("expected status to remain %q, got %q",
+			user.StatusPendingVerification, newUser.Status())
 	}
 }

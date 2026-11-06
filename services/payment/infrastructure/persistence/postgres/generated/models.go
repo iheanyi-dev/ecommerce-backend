@@ -38,6 +38,19 @@ type PaymentAttempt struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PaymentOutbox struct {
+	EventID          pgtype.UUID        `json:"event_id"`
+	EventType        string             `json:"event_type"`
+	Payload          []byte             `json:"payload"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	PublishedAt      pgtype.Timestamptz `json:"published_at"`
+	Attempts         int32              `json:"attempts"`
+	LastError        pgtype.Text        `json:"last_error"`
+	AggregateType    string             `json:"aggregate_type"`
+	AggregateID      pgtype.UUID        `json:"aggregate_id"`
+	DeduplicationKey string             `json:"deduplication_key"`
+}
+
 type Payout struct {
 	ID                           pgtype.UUID        `json:"id"`
 	AttemptID                    pgtype.UUID        `json:"attempt_id"`

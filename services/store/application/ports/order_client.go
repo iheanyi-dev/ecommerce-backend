@@ -13,4 +13,5 @@ type OrderClient interface {
 	AddShipping(ctx context.Context, storeID, orderID uuid.UUID, shippingAmount int64) error
 	MarkSent(ctx context.Context, storeID, orderID uuid.UUID) error
 	CancelStoreOrder(ctx context.Context, storeID, orderID uuid.UUID) error
+	InitiatePayout(ctx context.Context, storeID, orderID uuid.UUID, beneficiary PayoutBeneficiary) (*dto.InitiatePayoutOutput, error)
 }
