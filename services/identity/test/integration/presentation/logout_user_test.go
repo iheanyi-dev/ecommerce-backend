@@ -108,6 +108,8 @@ func newLogoutIntegrationRouter(
 		nil,
 		nil,
 		nil,
+
+		nil,
 	)
 }
 

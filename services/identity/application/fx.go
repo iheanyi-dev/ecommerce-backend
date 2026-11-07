@@ -5,6 +5,7 @@ import (
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/ports"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/application/use_cases"
+	"github.com/iheanyi-dev/ecommerce-backend/services/identity/shared/config"
 )
 
 // Module provides application-layer dependencies.
@@ -41,13 +42,15 @@ var Module = fx.Module(
 				tokenService ports.TokenService,
 				logger ports.Logger,
 				metrics ports.Metrics,
+				requestActivation *use_cases.RequestActivationUseCase,
 			) *use_cases.AuthenticateUserUseCase {
-				return use_cases.NewAuthenticateUserUseCase(
+				return provideAuthenticateUserUseCase(
 					userRepository,
 					passwordHasher,
 					tokenService,
 					logger,
 					metrics,
+					requestActivation,
 				)
 			},
 			fx.As(new(ports.AuthenticateUserService)),
@@ -163,6 +166,28 @@ var Module = fx.Module(
 			},
 			fx.As(new(ports.ChangePasswordService)),
 		),
+
+		// RequestActivationUseCase issues and emails account activation links.
+		func(
+			userRepository ports.UserRepository,
+			tokenRepository ports.ActivationTokenRepository,
+			emailSender ports.ActivationEmailSender,
+			cfg *config.Config,
+		) *use_cases.RequestActivationUseCase {
+			return use_cases.NewRequestActivationUseCase(
+				userRepository,
+				tokenRepository,
+				emailSender,
+				cfg.ActivationURL,
+				cfg.ActivationTokenTTL,
+			)
+		},
+
+		// ResendActivationUseCase reuses the activation issuance workflow.
+		use_cases.NewResendActivationUseCase,
+
+		// VerifyEmailUseCase atomically verifies and activates an account.
+		use_cases.NewVerifyEmailUseCase,
 
 		// PromoteUserToVendorUseCase coordinates vendor-role promotion.
 		fx.Annotate(

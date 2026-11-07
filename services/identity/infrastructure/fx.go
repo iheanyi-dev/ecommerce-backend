@@ -89,4 +89,5 @@ var Module = fx.Module(
 		postgres.RegisterPoolLifecycle,
 		migrations.RegisterLifecycle,
 	),
+	activationInfrastructureModule,
 )

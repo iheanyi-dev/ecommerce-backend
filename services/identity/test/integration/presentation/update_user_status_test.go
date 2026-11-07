@@ -85,6 +85,8 @@ func TestUpdateUserStatusIntegration(t *testing.T) {
 		nil,
 		nil,
 		nil,
+
+		nil,
 	)
 
 	email := "status-" + uuid.New().String() + "@example.com"

@@ -84,6 +84,8 @@ func newRefreshIntegrationRouter(
 		nil,
 		nil,
 		nil,
+
+		nil,
 	)
 }
 

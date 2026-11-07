@@ -149,6 +149,8 @@ func newRegistrationIntegrationRouter(
 		nil,
 		nil,
 		nil,
+
+		nil,
 	)
 }
 

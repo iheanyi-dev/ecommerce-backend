@@ -110,6 +110,8 @@ func newLoginIntegrationRouter(
 		nil,
 		nil,
 		nil,
+
+		nil,
 	)
 
 }

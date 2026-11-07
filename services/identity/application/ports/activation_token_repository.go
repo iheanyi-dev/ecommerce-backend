@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/activation"
 	"github.com/iheanyi-dev/ecommerce-backend/services/identity/domain/user"
@@ -12,13 +13,10 @@ type ActivationTokenRepository interface {
 	// Create persists a new activation token.
 	Create(ctx context.Context, token *activation.Token) error
 
-	// FindByHash retrieves an activation token using its hash.
-	FindByHash(ctx context.Context, tokenHash string) (*activation.Token, error)
-
-	// Consume atomically marks an unconsumed token as consumed.
-	// Implementations must reject tokens already consumed or expired.
-	Consume(ctx context.Context, token *activation.Token) error
-
-	// DeleteByUserID invalidates all outstanding activation tokens for a user.
+	// DeleteByUserID invalidates all activation tokens belonging to a user.
 	DeleteByUserID(ctx context.Context, userID user.UserID) error
+
+	// ConsumeAndActivate atomically consumes a valid token and activates
+	// its pending user account. Both changes must commit or roll back together.
+	ConsumeAndActivate(ctx context.Context, tokenHash string, at time.Time) error
 }

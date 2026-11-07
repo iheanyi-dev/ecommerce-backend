@@ -41,8 +41,17 @@ func NewRouter(
 	tracingMiddleware *middleware.TracingMiddleware,
 	serviceAuthenticationMiddleware *middleware.ServiceAuthenticationMiddleware,
 	requestIDMiddleware *middleware.RequestIDMiddleware,
+
+	activationHandler *handlers.ActivationHandler,
 ) http.Handler {
 	mux := http.NewServeMux()
+
+	// Public account activation endpoints.
+	if activationHandler != nil {
+		mux.HandleFunc("POST /api/v1/users/activation/request", activationHandler.Request)
+		mux.HandleFunc("POST /api/v1/users/activation/resend", activationHandler.Resend)
+		mux.HandleFunc("POST /api/v1/users/activation/verify", activationHandler.Verify)
+	}
 
 	// ---------------------------------------------------------------------
 	// Public endpoints

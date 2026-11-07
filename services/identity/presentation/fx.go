@@ -67,5 +67,6 @@ var Module = fx.Module(
 		// NewRouter receives middleware dependencies explicitly;
 		// dependencies are not constructed internally by the router.
 		NewRouter,
-	),
+
+		handlers.NewActivationHandler),
 )

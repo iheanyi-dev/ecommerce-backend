@@ -22,11 +22,12 @@ import (
 //   - recording authentication metrics
 //   - returning the authenticated user's identity
 type AuthenticateUserUseCase struct {
-	userRepository ports.UserRepository
-	passwordHasher ports.PasswordHasher
-	tokenService   ports.TokenService
-	logger         ports.Logger
-	metrics        ports.Metrics
+	userRepository    ports.UserRepository
+	passwordHasher    ports.PasswordHasher
+	tokenService      ports.TokenService
+	logger            ports.Logger
+	metrics           ports.Metrics
+	requestActivation *RequestActivationUseCase
 }
 
 // NewAuthenticateUserUseCase creates the authentication use case.
@@ -34,6 +35,14 @@ type AuthenticateUserUseCase struct {
 // Dependencies are supplied through application ports, keeping the use
 // case independent from PostgreSQL, bcrypt, JWT, HTTP, infrastructure,
 // and concrete logging or metrics libraries.
+
+// SetRequestActivationUseCase configures activation email delivery for pending users.
+func (u *AuthenticateUserUseCase) SetRequestActivationUseCase(
+	requestActivation *RequestActivationUseCase,
+) {
+	u.requestActivation = requestActivation
+}
+
 func NewAuthenticateUserUseCase(
 	userRepository ports.UserRepository,
 	passwordHasher ports.PasswordHasher,
@@ -117,6 +126,11 @@ func (u *AuthenticateUserUseCase) Authenticate(
 
 	// Only active accounts may authenticate.
 	if authenticatedUser.Status() != user.StatusActive {
+		if authenticatedUser.Status() == user.StatusPendingVerification && u.requestActivation != nil {
+			// Activation delivery is best-effort; pending users cannot authenticate.
+			_ = u.requestActivation.Execute(ctx, authenticatedUser.Email().String())
+		}
+
 		u.logAuthenticationEvent(ctx, ports.LogEvent{
 			Event:           "auth.login.user_inactive",
 			Operation:       "login",

@@ -28,12 +28,21 @@ type Config struct {
 	JWTIssuer         string
 	JWTAccessTokenTTL time.Duration
 
+	// Account activation configuration.
+	ActivationURL      string
+	ActivationTokenTTL time.Duration
+
 	// Service authentication configuration.
 	//
 	// ServiceAuthName identifies the trusted internal caller.
 	// ServiceAuthSecret is shared only between trusted services.
 	ServiceAuthName   string
 	ServiceAuthSecret string
+	SMTPHost          string
+	SMTPPort          string
+	SMTPUsername      string
+	SMTPPassword      string
+	SMTPFrom          string
 }
 
 func Load() (*Config, error) {
@@ -52,6 +61,22 @@ func Load() (*Config, error) {
 		)
 	}
 
+	activationTokenTTL, err := time.ParseDuration(
+		getEnv("ACTIVATION_TOKEN_TTL", "24h"),
+	)
+	if err != nil || activationTokenTTL <= 0 {
+		return nil, fmt.Errorf("ACTIVATION_TOKEN_TTL must be a positive duration")
+	}
+
+	activationURL := getEnv(
+		"ACTIVATION_URL",
+		"http://localhost:3000/activate",
+	)
+	parsedActivationURL, err := url.Parse(activationURL)
+	if err != nil || parsedActivationURL.Scheme == "" || parsedActivationURL.Host == "" {
+		return nil, fmt.Errorf("ACTIVATION_URL must be an absolute URL")
+	}
+
 	cfg := &Config{
 		AppEnv:   getEnv("APP_ENV", "development"),
 		AppPort:  getEnv("APP_PORT", "8080"),
@@ -64,12 +89,20 @@ func Load() (*Config, error) {
 		DatabaseName:     os.Getenv("DATABASE_NAME"),
 		DatabaseSSLMode:  getEnv("DATABASE_SSL_MODE", "disable"),
 
-		JWTSecret:         os.Getenv("JWT_SECRET"),
-		JWTIssuer:         os.Getenv("JWT_ISSUER"),
-		JWTAccessTokenTTL: jwtAccessTokenTTL,
+		JWTSecret:          os.Getenv("JWT_SECRET"),
+		JWTIssuer:          os.Getenv("JWT_ISSUER"),
+		JWTAccessTokenTTL:  jwtAccessTokenTTL,
+		ActivationURL:      activationURL,
+		ActivationTokenTTL: activationTokenTTL,
 
 		ServiceAuthName:   os.Getenv("SERVICE_AUTH_NAME"),
 		ServiceAuthSecret: os.Getenv("SERVICE_AUTH_SECRET"),
+
+		SMTPHost:     os.Getenv("SMTP_HOST"),
+		SMTPPort:     getEnv("SMTP_PORT", "587"),
+		SMTPUsername: os.Getenv("SMTP_USERNAME"),
+		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
+		SMTPFrom:     os.Getenv("SMTP_FROM"),
 	}
 
 	if cfg.DatabaseUser == "" {

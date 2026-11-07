@@ -96,3 +96,9 @@ var ErrPasswordMissingNumber = errors.New(
 var ErrPasswordMissingSpecialCharacter = errors.New(
 	"password must contain at least one special character",
 )
+
+// Activation errors.
+
+var ErrInvalidActivationToken = errors.New("invalid or expired activation token")
+
+var ErrActivationTokenPersistence = errors.New("activation token persistence failed")
