@@ -26,7 +26,7 @@ use crate::{
 pub struct QdrantStoreEmbeddingRepository {
     client: Qdrant,
     collection_name: String,
-    runtime: tokio::runtime::Runtime,
+    runtime: Option<tokio::runtime::Runtime>,
 }
 
 impl QdrantStoreEmbeddingRepository {
@@ -40,9 +40,11 @@ impl QdrantStoreEmbeddingRepository {
         Ok(Self {
             client,
             collection_name,
-            runtime: tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?,
+            runtime: Some(
+                tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()?,
+            ),
         })
     }
 }
@@ -61,14 +63,18 @@ impl StoreEmbeddingRepository for QdrantStoreEmbeddingRepository {
             payload,
         );
 
-        self.runtime.block_on(async {
-            self.client
-                .upsert_points(
-                    UpsertPointsBuilder::new(self.collection_name.clone(), vec![point]).wait(true),
-                )
-                .await?;
-            Ok(())
-        })
+        self.runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(async {
+                self.client
+                    .upsert_points(
+                        UpsertPointsBuilder::new(self.collection_name.clone(), vec![point])
+                            .wait(true),
+                    )
+                    .await?;
+                Ok(())
+            })
     }
 
     fn delete(&self, store_id: Uuid) -> PortResult<()> {
@@ -79,16 +85,19 @@ impl StoreEmbeddingRepository for QdrantStoreEmbeddingRepository {
                 }],
             });
 
-        self.runtime.block_on(async {
-            self.client
-                .delete_points(
-                    DeletePointsBuilder::new(self.collection_name.clone())
-                        .points(selector)
-                        .wait(true),
-                )
-                .await?;
-            Ok(())
-        })
+        self.runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(async {
+                self.client
+                    .delete_points(
+                        DeletePointsBuilder::new(self.collection_name.clone())
+                            .points(selector)
+                            .wait(true),
+                    )
+                    .await?;
+                Ok(())
+            })
     }
 
     fn search(
@@ -101,18 +110,22 @@ impl StoreEmbeddingRepository for QdrantStoreEmbeddingRepository {
             return Err(invalid_input("top_k must be a positive integer"));
         }
 
-        let response = self.runtime.block_on(async {
-            self.client
-                .query(
-                    QueryPointsBuilder::new(self.collection_name.clone())
-                        .query(query_embedding.vector().to_vec())
-                        .limit(top_k as u64)
-                        .offset(offset as u64)
-                        .with_payload(true)
-                        .with_vectors(true),
-                )
-                .await
-        })?;
+        let response = self
+            .runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(async {
+                self.client
+                    .query(
+                        QueryPointsBuilder::new(self.collection_name.clone())
+                            .query(query_embedding.vector().to_vec())
+                            .limit(top_k as u64)
+                            .offset(offset as u64)
+                            .with_payload(true)
+                            .with_vectors(true),
+                    )
+                    .await
+            })?;
 
         response
             .result
@@ -215,5 +228,16 @@ mod tests {
             repository.search(&query, 0, 0).unwrap_err().to_string(),
             "top_k must be a positive integer"
         );
+    }
+}
+
+// Runtime shutdown must happen outside any asynchronous Tokio context.
+impl Drop for QdrantStoreEmbeddingRepository {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.runtime.take() {
+            let _ = std::thread::Builder::new()
+                .name("embedding-runtime-shutdown".to_owned())
+                .spawn(move || drop(runtime));
+        }
     }
 }

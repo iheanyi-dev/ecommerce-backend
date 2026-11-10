@@ -10,7 +10,7 @@ pub struct EmbeddingModelManifest {
 
 /// Selected multilingual E5-small model.
 pub const MULTILINGUAL_E5_SMALL_MODEL_ID: &str = "intfloat/multilingual-e5-small";
-pub const MULTILINGUAL_E5_SMALL_REVISION: &str = "e4ce9877abf3edfe10b0d82785e83bdcb973e22e";
+pub const MULTILINGUAL_E5_SMALL_REVISION: &str = "614241f622f53c4eeff9890bdc4f31cfecc418b3";
 pub const MULTILINGUAL_E5_SMALL_DIMENSION: usize = 384;
 
 impl EmbeddingModelManifest {

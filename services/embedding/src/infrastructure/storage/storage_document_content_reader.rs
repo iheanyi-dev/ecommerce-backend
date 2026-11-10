@@ -31,7 +31,7 @@ struct GetPrivateObjectResponse {
 
 /// Reads private documents from the Storage gRPC service.
 pub struct StorageDocumentContentReader {
-    runtime: tokio::runtime::Runtime,
+    runtime: Option<tokio::runtime::Runtime>,
     channel: Channel,
     service_name: String,
     service_secret: String,
@@ -59,7 +59,7 @@ impl StorageDocumentContentReader {
         let channel = runtime.block_on(endpoint.connect())?;
 
         Ok(Self {
-            runtime,
+            runtime: Some(runtime),
             channel,
             service_name: service_name.to_owned(),
             service_secret: service_secret.to_owned(),
@@ -120,7 +120,10 @@ impl StorageDocumentContentReader {
 
 impl DocumentContentReader for StorageDocumentContentReader {
     fn read(&self, reference: &StorageReference) -> PortResult<String> {
-        self.runtime.block_on(self.read_async(reference))
+        self.runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(self.read_async(reference))
     }
 }
 
@@ -228,5 +231,16 @@ mod tests {
                 .to_string()
                 .contains("Could not extract text")
         );
+    }
+}
+
+// Runtime shutdown must happen outside any asynchronous Tokio context.
+impl Drop for StorageDocumentContentReader {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.runtime.take() {
+            let _ = std::thread::Builder::new()
+                .name("embedding-runtime-shutdown".to_owned())
+                .spawn(move || drop(runtime));
+        }
     }
 }

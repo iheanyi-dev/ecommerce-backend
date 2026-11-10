@@ -37,7 +37,7 @@ use crate::{
 pub struct QdrantKnowledgeChunkRepository {
     client: Qdrant,
     collection_name: String,
-    runtime: tokio::runtime::Runtime,
+    runtime: Option<tokio::runtime::Runtime>,
 }
 
 impl QdrantKnowledgeChunkRepository {
@@ -55,7 +55,7 @@ impl QdrantKnowledgeChunkRepository {
         Ok(Self {
             client,
             collection_name,
-            runtime,
+            runtime: Some(runtime),
         })
     }
 
@@ -192,38 +192,46 @@ impl KnowledgeChunkRepository for QdrantKnowledgeChunkRepository {
 
         let existing_ids = self
             .runtime
+            .as_ref()
+            .expect("runtime already shut down")
             .block_on(self.get_point_ids_for_knowledge(knowledge_id))?;
 
         // Upsert before deleting stale points so a failed upsert does not
         // remove the currently persisted chunks.
-        self.runtime.block_on(async {
-            self.client
-                .upsert_points(
-                    UpsertPointsBuilder::new(self.collection_name.clone(), points).wait(true),
-                )
-                .await?;
+        self.runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(async {
+                self.client
+                    .upsert_points(
+                        UpsertPointsBuilder::new(self.collection_name.clone(), points).wait(true),
+                    )
+                    .await?;
 
-            let stale_ids = existing_ids
-                .difference(&replacement_ids)
-                .copied()
-                .collect::<Vec<_>>();
+                let stale_ids = existing_ids
+                    .difference(&replacement_ids)
+                    .copied()
+                    .collect::<Vec<_>>();
 
-            self.delete_point_ids(stale_ids).await
-        })
+                self.delete_point_ids(stale_ids).await
+            })
     }
 
     fn delete_by_knowledge_id(&self, knowledge_id: Uuid) -> PortResult<()> {
-        self.runtime.block_on(async {
-            self.client
-                .delete_points(
-                    DeletePointsBuilder::new(self.collection_name.clone())
-                        .points(Self::knowledge_filter(knowledge_id))
-                        .wait(true),
-                )
-                .await?;
+        self.runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(async {
+                self.client
+                    .delete_points(
+                        DeletePointsBuilder::new(self.collection_name.clone())
+                            .points(Self::knowledge_filter(knowledge_id))
+                            .wait(true),
+                    )
+                    .await?;
 
-            Ok(())
-        })
+                Ok(())
+            })
     }
 
     fn search(
@@ -237,19 +245,23 @@ impl KnowledgeChunkRepository for QdrantKnowledgeChunkRepository {
             return Err(invalid_input("top_k must be a positive integer"));
         }
 
-        let response = self.runtime.block_on(async {
-            self.client
-                .query(
-                    QueryPointsBuilder::new(self.collection_name.clone())
-                        .query(query_embedding.vector().to_vec())
-                        .filter(Self::store_filter(store_id))
-                        .limit(top_k as u64)
-                        .offset(offset as u64)
-                        .with_payload(true)
-                        .with_vectors(true),
-                )
-                .await
-        })?;
+        let response = self
+            .runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(async {
+                self.client
+                    .query(
+                        QueryPointsBuilder::new(self.collection_name.clone())
+                            .query(query_embedding.vector().to_vec())
+                            .filter(Self::store_filter(store_id))
+                            .limit(top_k as u64)
+                            .offset(offset as u64)
+                            .with_payload(true)
+                            .with_vectors(true),
+                    )
+                    .await
+            })?;
 
         response
             .result
@@ -402,5 +414,16 @@ mod tests {
         };
 
         assert_eq!(uuid_from_point_id(point_id), None);
+    }
+}
+
+// Runtime shutdown must happen outside any asynchronous Tokio context.
+impl Drop for QdrantKnowledgeChunkRepository {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.runtime.take() {
+            let _ = std::thread::Builder::new()
+                .name("embedding-runtime-shutdown".to_owned())
+                .spawn(move || drop(runtime));
+        }
     }
 }

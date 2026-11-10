@@ -26,7 +26,7 @@ use crate::{
 pub struct QdrantProductEmbeddingRepository {
     client: Qdrant,
     collection_name: String,
-    runtime: tokio::runtime::Runtime,
+    runtime: Option<tokio::runtime::Runtime>,
 }
 
 impl QdrantProductEmbeddingRepository {
@@ -40,9 +40,11 @@ impl QdrantProductEmbeddingRepository {
         Ok(Self {
             client,
             collection_name,
-            runtime: tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()?,
+            runtime: Some(
+                tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()?,
+            ),
         })
     }
 
@@ -69,14 +71,18 @@ impl ProductEmbeddingRepository for QdrantProductEmbeddingRepository {
             payload,
         );
 
-        self.runtime.block_on(async {
-            self.client
-                .upsert_points(
-                    UpsertPointsBuilder::new(self.collection_name.clone(), vec![point]).wait(true),
-                )
-                .await?;
-            Ok(())
-        })
+        self.runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(async {
+                self.client
+                    .upsert_points(
+                        UpsertPointsBuilder::new(self.collection_name.clone(), vec![point])
+                            .wait(true),
+                    )
+                    .await?;
+                Ok(())
+            })
     }
 
     fn delete(&self, product_id: Uuid) -> PortResult<()> {
@@ -87,29 +93,35 @@ impl ProductEmbeddingRepository for QdrantProductEmbeddingRepository {
                 }],
             });
 
-        self.runtime.block_on(async {
-            self.client
-                .delete_points(
-                    DeletePointsBuilder::new(self.collection_name.clone())
-                        .points(selector)
-                        .wait(true),
-                )
-                .await?;
-            Ok(())
-        })
+        self.runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(async {
+                self.client
+                    .delete_points(
+                        DeletePointsBuilder::new(self.collection_name.clone())
+                            .points(selector)
+                            .wait(true),
+                    )
+                    .await?;
+                Ok(())
+            })
     }
 
     fn delete_by_store_id(&self, store_id: Uuid) -> PortResult<()> {
-        self.runtime.block_on(async {
-            self.client
-                .delete_points(
-                    DeletePointsBuilder::new(self.collection_name.clone())
-                        .points(Self::store_filter(store_id))
-                        .wait(true),
-                )
-                .await?;
-            Ok(())
-        })
+        self.runtime
+            .as_ref()
+            .expect("runtime already shut down")
+            .block_on(async {
+                self.client
+                    .delete_points(
+                        DeletePointsBuilder::new(self.collection_name.clone())
+                            .points(Self::store_filter(store_id))
+                            .wait(true),
+                    )
+                    .await?;
+                Ok(())
+            })
     }
 
     fn search(
@@ -136,6 +148,8 @@ impl ProductEmbeddingRepository for QdrantProductEmbeddingRepository {
 
         let response = self
             .runtime
+            .as_ref()
+            .expect("runtime already shut down")
             .block_on(async { self.client.query(request).await })?;
 
         response
@@ -254,5 +268,16 @@ mod tests {
                 .to_string(),
             "top_k must be a positive integer"
         );
+    }
+}
+
+// Runtime shutdown must happen outside any asynchronous Tokio context.
+impl Drop for QdrantProductEmbeddingRepository {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.runtime.take() {
+            let _ = std::thread::Builder::new()
+                .name("embedding-runtime-shutdown".to_owned())
+                .spawn(move || drop(runtime));
+        }
     }
 }
