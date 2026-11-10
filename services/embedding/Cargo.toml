@@ -19,6 +19,3 @@ tonic = { version = "0.14", features = ["transport"] }
 tonic-prost = "0.14"
 prost = "0.14"
 pdf-extract = "0.10"
-
-[dev-dependencies]
-lopdf = "0.47.0"

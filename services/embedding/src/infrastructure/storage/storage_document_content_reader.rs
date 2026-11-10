@@ -175,7 +175,6 @@ fn invalid_data(message: impl ToString) -> Box<dyn Error + Send + Sync> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lopdf::dictionary;
 
     #[test]
     fn extracts_utf8_text() {
@@ -190,53 +189,11 @@ mod tests {
 
     #[test]
     fn extracts_pdf_text() {
-        let mut document = lopdf::Document::with_version("1.5");
-        let pages_id = document.new_object_id();
-        let page_id = document.new_object_id();
-        let content_id = document.add_object(lopdf::Stream::new(
-            dictionary! {},
-            b"BT /F1 12 Tf 72 720 Td (Knowledge document) Tj ET".to_vec(),
-        ));
-        let font_id = document.add_object(dictionary! {
-            "Type" => "Font",
-            "Subtype" => "Type1",
-            "BaseFont" => "Helvetica",
-        });
-
-        document.objects.insert(
-            pages_id,
-            dictionary! {
-                "Type" => "Pages",
-                "Kids" => vec![page_id.into()],
-                "Count" => 1,
-            }
-            .into(),
-        );
-        document.objects.insert(
-            page_id,
-            dictionary! {
-                "Type" => "Page",
-                "Parent" => pages_id,
-                "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
-                "Resources" => dictionary! {
-                    "Font" => dictionary! { "F1" => font_id },
-                },
-                "Contents" => content_id,
-            }
-            .into(),
-        );
-        document.trailer.set(
-            "Root",
-            dictionary! {
-                "Type" => "Catalog",
-                "Pages" => pages_id,
-            },
+        let result = extract_document_text(
+            "application/pdf",
+            include_bytes!("../../../tests/fixtures/knowledge.pdf"),
         );
 
-        let mut bytes = Vec::new();
-        document.save_to(&mut bytes).unwrap();
-
-        let result = extract_document_text("application/pdf", &bytes);
         assert!(result.unwrap().contains("Knowledge document"));
     }
 
