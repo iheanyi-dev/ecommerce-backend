@@ -3,8 +3,15 @@
 # services/store/.env
 
 # Recommendation Service local environment
-services/recommendation-python/.env
+#services/recommendation-python/.env
 services/embedding-python/.cache
 storage-data
 # Payment service local environment
-services/payment/.env
+#services/payment/.env
+
+services/embedding/target
+.cache
+target/*
+
+
+services/embedding/.cache

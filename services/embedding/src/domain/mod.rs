@@ -1,0 +1,5 @@
+//! Core domain model and business rules.
+
+pub mod entities;
+pub mod errors;
+pub mod value_objects;
