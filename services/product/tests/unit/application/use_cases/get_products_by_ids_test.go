@@ -85,7 +85,7 @@ func TestGetProductsByIDs(t *testing.T) {
 			}
 			logger := &loggerFake{}
 			metrics := &metricsFake{}
-			useCase := appusecases.NewGetProductsByIDs(repository, logger, metrics)
+			useCase := appusecases.NewGetProductsByIDs(repository, logger, metrics, nil)
 
 			got, err := useCase.Execute(context.Background(), tt.ids)
 

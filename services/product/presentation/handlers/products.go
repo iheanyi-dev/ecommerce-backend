@@ -22,7 +22,7 @@ type CreateProductUseCase interface {
 }
 
 type GetProductUseCase interface {
-	Execute(context.Context, string) (*entities.Product, error)
+	Execute(context.Context, string) (use_cases.ProductResult, error)
 }
 
 type UpdateProductUseCase interface {
@@ -31,6 +31,14 @@ type UpdateProductUseCase interface {
 
 type ChangeProductImageUseCase interface {
 	Execute(context.Context, use_cases.ChangeProductImageInput) (*entities.Product, error)
+}
+
+type ChangeProductVideoUseCase interface {
+	Execute(context.Context, use_cases.ChangeProductVideoInput) (*entities.Product, error)
+}
+
+type RemoveProductVideoUseCase interface {
+	Execute(context.Context, use_cases.RemoveProductVideoInput) error
 }
 
 type DeleteProductUseCase interface {
@@ -55,6 +63,8 @@ type ListMyProductsUseCase interface {
 
 type ProductUseCases struct {
 	ChangeImage ChangeProductImageUseCase
+	ChangeVideo ChangeProductVideoUseCase
+	RemoveVideo RemoveProductVideoUseCase
 	Create      CreateProductUseCase
 	Get         GetProductUseCase
 	Update      UpdateProductUseCase
@@ -74,19 +84,25 @@ func NewProductHandler(uc ProductUseCases) *ProductHandler {
 }
 
 type productResponse struct {
-	ID          string                 `json:"id"`
-	StoreID     string                 `json:"store_id"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Price       int64                  `json:"price"`
-	Currency    string                 `json:"currency"`
-	Quantity    int64                  `json:"quantity"`
-	Images      []productImageResponse `json:"images"`
-	CreatedAt   interface{}            `json:"created_at"`
-	UpdatedAt   interface{}            `json:"updated_at"`
+	ID           string                 `json:"id"`
+	StoreID      string                 `json:"store_id"`
+	Name         string                 `json:"name"`
+	Description  string                 `json:"description"`
+	Price        int64                  `json:"price"`
+	Currency     string                 `json:"currency"`
+	Quantity     int64                  `json:"quantity"`
+	Images       []productImageResponse `json:"images"`
+	Video        *productVideoResponse  `json:"video,omitempty"`
+	CreatedAt    interface{}            `json:"created_at"`
+	UpdatedAt    interface{}            `json:"updated_at"`
+	HasPromotion bool                   `json:"has_promotion"`
 }
 
 type productImageResponse struct {
+	StorageReference string `json:"storage_reference"`
+}
+
+type productVideoResponse struct {
 	StorageReference string `json:"storage_reference"`
 }
 
@@ -99,6 +115,11 @@ func toProductResponse(product *entities.Product) productResponse {
 		})
 	}
 
+	var videoResponse *productVideoResponse
+	if video := product.Video(); video != nil {
+		videoResponse = &productVideoResponse{StorageReference: video.StorageReference}
+	}
+
 	return productResponse{
 		ID:          product.ID(),
 		StoreID:     product.StoreID(),
@@ -108,9 +129,16 @@ func toProductResponse(product *entities.Product) productResponse {
 		Currency:    product.Price().Currency(),
 		Quantity:    product.Quantity(),
 		Images:      imageResponses,
+		Video:       videoResponse,
 		CreatedAt:   product.CreatedAt(),
 		UpdatedAt:   product.UpdatedAt(),
 	}
+}
+
+func toProductResultResponse(result use_cases.ProductResult) productResponse {
+	response := toProductResponse(result.Product)
+	response.HasPromotion = result.HasPromotion
+	return response
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
@@ -196,7 +224,7 @@ func (h *ProductHandler) Get(w http.ResponseWriter, r *http.Request) {
 		presentationerrors.Write(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toProductResponse(product))
+	writeJSON(w, http.StatusOK, toProductResultResponse(product))
 }
 
 type updateProductRequest struct {
@@ -295,8 +323,8 @@ type productPageResponse struct {
 func toProductPageResponse(page use_cases.ProductPage) productPageResponse {
 	products := make([]productResponse, 0, len(page.Products))
 	for _, product := range page.Products {
-		if product != nil {
-			products = append(products, toProductResponse(product))
+		if product.Product != nil {
+			products = append(products, toProductResultResponse(product))
 		}
 	}
 	return productPageResponse{
@@ -500,4 +528,95 @@ func (h *ProductHandler) ChangeImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, toProductResponse(product))
+}
+
+// ChangeVideo uploads or replaces the product's optional short video.
+// The request must be multipart/form-data with a "video" file field.
+func (h *ProductHandler) ChangeVideo(w http.ResponseWriter, r *http.Request) {
+	ownerID, ok := authenticatedOwnerID(r)
+	if !ok {
+		presentationerrors.Write(w, use_cases.ErrInvalidProductOwner)
+		return
+	}
+
+	// Short videos are larger than images; cap the complete multipart request.
+	r.Body = http.MaxBytesReader(w, r.Body, 100<<20)
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "video upload too large"})
+			return
+		}
+		presentationerrors.Write(w, use_cases.ErrInvalidProductVideo)
+		return
+	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
+
+	file, fileHeader, err := r.FormFile("video")
+	if err != nil {
+		presentationerrors.Write(w, use_cases.ErrInvalidProductVideo)
+		return
+	}
+	defer file.Close()
+
+	header, err := io.ReadAll(io.LimitReader(file, 512))
+	if err != nil || len(header) < 12 {
+		presentationerrors.Write(w, use_cases.ErrInvalidProductVideo)
+		return
+	}
+
+	contentType := strings.ToLower(strings.TrimSpace(strings.Split(fileHeader.Header.Get("Content-Type"), ";")[0]))
+	valid := false
+
+	switch {
+	case len(header) >= 12 && string(header[4:8]) == "ftyp":
+		brand := string(header[8:12])
+		switch {
+		case brand == "qt  " && contentType == "video/quicktime":
+			valid = true
+		case brand != "qt  " && contentType == "video/mp4":
+			valid = true
+		}
+	case len(header) >= 4 && bytes.Equal(header[:4], []byte{0x1a, 0x45, 0xdf, 0xa3}):
+		valid = contentType == "video/webm"
+	}
+
+	if !valid {
+		presentationerrors.Write(w, use_cases.ErrInvalidProductVideo)
+		return
+	}
+
+	product, err := h.uc.ChangeVideo.Execute(r.Context(), use_cases.ChangeProductVideoInput{
+		OwnerID:     ownerID,
+		ProductID:   strings.TrimSpace(r.PathValue("id")),
+		ContentType: contentType,
+		Content:     io.MultiReader(bytes.NewReader(header), file),
+	})
+	if err != nil {
+		presentationerrors.Write(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, toProductResponse(product))
+}
+
+// RemoveVideo removes the product's optional video.
+func (h *ProductHandler) RemoveVideo(w http.ResponseWriter, r *http.Request) {
+	ownerID, ok := authenticatedOwnerID(r)
+	if !ok {
+		presentationerrors.Write(w, use_cases.ErrInvalidProductOwner)
+		return
+	}
+
+	if err := h.uc.RemoveVideo.Execute(r.Context(), use_cases.RemoveProductVideoInput{
+		OwnerID:   ownerID,
+		ProductID: strings.TrimSpace(r.PathValue("id")),
+	}); err != nil {
+		presentationerrors.Write(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

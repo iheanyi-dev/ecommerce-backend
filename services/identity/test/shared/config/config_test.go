@@ -15,6 +15,8 @@ import (
 //
 // These are test-only values and must never be used as production secrets.
 func setConfigTestEnvironment(t *testing.T) {
+	t.Setenv("KAFKA_BROKERS", "localhost:9092")
+	t.Setenv("NOTIFICATION_EMAIL_EVENTS_TOPIC", "notification.email.events")
 	t.Helper()
 
 	t.Setenv("JWT_SECRET", "test-secret")

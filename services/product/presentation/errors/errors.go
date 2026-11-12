@@ -20,6 +20,10 @@ func Write(w http.ResponseWriter, err error) {
 		status = http.StatusNotFound
 		message = "product not found"
 
+	case errors.Is(err, domainerrors.ErrVideoNotFound):
+		status = http.StatusNotFound
+		message = "product video not found"
+
 	case errors.Is(err, appusecases.ErrProductOwnerStoreNotFound):
 		status = http.StatusNotFound
 		message = "store not found"
@@ -35,6 +39,8 @@ func Write(w http.ResponseWriter, err error) {
 		errors.Is(err, appusecases.ErrInvalidProductUpdate),
 		errors.Is(err, appusecases.ErrInvalidProductDeletion),
 		errors.Is(err, appusecases.ErrInvalidProductImage),
+		errors.Is(err, appusecases.ErrInvalidProductVideo),
+		errors.Is(err, domainerrors.ErrInvalidVideo),
 		errors.Is(err, appusecases.ErrInvalidProductIDs),
 		errors.Is(err, domainerrors.ErrInvalidProduct),
 		errors.Is(err, domainerrors.ErrInvalidImage),

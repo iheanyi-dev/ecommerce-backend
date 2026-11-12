@@ -103,6 +103,11 @@ func (uc *DeleteProduct) Execute(ctx context.Context, input DeleteProductInput) 
 				uc.record(ctx, "product.delete.image_cleanup_failed", "storage")
 			}
 		}
+		if video := product.Video(); video != nil {
+			if err := uc.storage.DeleteObject(ctx, video.StorageReference); err != nil {
+				uc.record(ctx, "product.delete.video_cleanup_failed", "storage")
+			}
+		}
 	}
 
 	uc.record(ctx, "product.delete.succeeded", "")

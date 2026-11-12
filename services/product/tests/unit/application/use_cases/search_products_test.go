@@ -135,7 +135,7 @@ func TestSearchProductsReturnsProductEntitiesAndForwardsFilters(t *testing.T) {
 		total:    17,
 	}
 	store := &searchProductsStoreFake{activeIDs: []string{"store-active"}}
-	search := appusecases.NewSearchProducts(repository, store, nil, nil)
+	search := appusecases.NewSearchProducts(repository, store, nil, nil, nil)
 
 	page, err := search.Execute(context.Background(), appusecases.SearchProductsInput{
 		Query:       "  headphones  ",
@@ -171,7 +171,7 @@ func TestSearchProductsReturnsProductEntitiesAndForwardsFilters(t *testing.T) {
 	if page.Total != 17 || page.Limit != 10 || page.Offset != 5 {
 		t.Errorf("unexpected page metadata: %+v", page)
 	}
-	if len(page.Products) != 1 || page.Products[0] != product {
+	if len(page.Products) != 1 || page.Products[0].Product != product {
 		t.Fatal("SearchProducts must return the original Product entity")
 	}
 	if store.calls != 1 {
@@ -188,13 +188,13 @@ func TestSearchProductsExcludesProductsFromInactiveStores(t *testing.T) {
 		total:    2,
 	}
 	store := &searchProductsStoreFake{activeIDs: []string{"store-active"}}
-	search := appusecases.NewSearchProducts(repository, store, nil, nil)
+	search := appusecases.NewSearchProducts(repository, store, nil, nil, nil)
 
 	page, err := search.Execute(context.Background(), appusecases.SearchProductsInput{Query: "product"})
 	if err != nil {
 		t.Fatalf("SearchProducts() error = %v", err)
 	}
-	if len(page.Products) != 1 || page.Products[0] != activeProduct {
+	if len(page.Products) != 1 || page.Products[0].Product != activeProduct {
 		t.Fatalf("products = %v, want only the active-store product", page.Products)
 	}
 }
@@ -202,7 +202,7 @@ func TestSearchProductsExcludesProductsFromInactiveStores(t *testing.T) {
 func TestSearchProductsRejectsBlankQueryWithoutDependencies(t *testing.T) {
 	repository := &searchProductsRepositoryFake{}
 	store := &searchProductsStoreFake{}
-	search := appusecases.NewSearchProducts(repository, store, nil, nil)
+	search := appusecases.NewSearchProducts(repository, store, nil, nil, nil)
 
 	_, err := search.Execute(context.Background(), appusecases.SearchProductsInput{Query: " \t "})
 	if !errors.Is(err, appusecases.ErrInvalidMarketplaceProductSearch) {
@@ -218,7 +218,7 @@ func TestSearchProductsPropagatesRepositoryAndStoreErrors(t *testing.T) {
 		wantErr := errors.New("database unavailable")
 		repository := &searchProductsRepositoryFake{err: wantErr}
 		store := &searchProductsStoreFake{}
-		search := appusecases.NewSearchProducts(repository, store, nil, nil)
+		search := appusecases.NewSearchProducts(repository, store, nil, nil, nil)
 
 		_, err := search.Execute(context.Background(), appusecases.SearchProductsInput{Query: "phone"})
 		if !errors.Is(err, wantErr) {
@@ -236,7 +236,7 @@ func TestSearchProductsPropagatesRepositoryAndStoreErrors(t *testing.T) {
 			total:    1,
 		}
 		store := &searchProductsStoreFake{err: wantErr}
-		search := appusecases.NewSearchProducts(repository, store, nil, nil)
+		search := appusecases.NewSearchProducts(repository, store, nil, nil, nil)
 
 		_, err := search.Execute(context.Background(), appusecases.SearchProductsInput{Query: "phone"})
 		if !errors.Is(err, wantErr) {

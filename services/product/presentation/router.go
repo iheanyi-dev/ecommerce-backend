@@ -27,6 +27,8 @@ func NewRouter(
 	mux.HandleFunc("GET /api/v1/products/{id}", handler.Get)
 	mux.HandleFunc("PATCH /api/v1/products/{id}", handler.Update)
 	mux.HandleFunc("PUT /api/v1/products/{id}/images", handler.ChangeImage)
+	mux.HandleFunc("PUT /api/v1/products/{id}/video", handler.ChangeVideo)
+	mux.HandleFunc("DELETE /api/v1/products/{id}/video", handler.RemoveVideo)
 	mux.HandleFunc("DELETE /api/v1/products/{id}", handler.Delete)
 
 	// Reject malformed or incomplete propagated identities, while allowing

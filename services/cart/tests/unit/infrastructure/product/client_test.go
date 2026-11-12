@@ -57,13 +57,14 @@ func TestGetProductsByIDsMapsSnapshotsAndAuthentication(t *testing.T) {
 		response: &productv1.GetProductsByIDsResponse{
 			Products: []*productv1.ProductSnapshot{
 				{
-					ProductId:   productID.String(),
-					StoreId:     storeID.String(),
-					Name:        "Keyboard",
-					Description: "Mechanical keyboard",
-					PriceMinor:  125000,
-					Currency:    "NGN",
-					Quantity:    7,
+					ProductId:    productID.String(),
+					StoreId:      storeID.String(),
+					Name:         "Keyboard",
+					Description:  "Mechanical keyboard",
+					PriceMinor:   125000,
+					Currency:     "NGN",
+					Quantity:     7,
+					HasPromotion: true,
 				},
 			},
 		},
@@ -83,21 +84,23 @@ func TestGetProductsByIDsMapsSnapshotsAndAuthentication(t *testing.T) {
 	}
 
 	want := struct {
-		ID          uuid.UUID
-		StoreID     uuid.UUID
-		Name        string
-		Description string
-		PriceMinor  int64
-		Currency    string
-		Quantity    int64
+		ID           uuid.UUID
+		StoreID      uuid.UUID
+		Name         string
+		Description  string
+		PriceMinor   int64
+		Currency     string
+		Quantity     int64
+		HasPromotion bool
 	}{
-		ID:          productID,
-		StoreID:     storeID,
-		Name:        "Keyboard",
-		Description: "Mechanical keyboard",
-		PriceMinor:  125000,
-		Currency:    "NGN",
-		Quantity:    7,
+		ID:           productID,
+		StoreID:      storeID,
+		Name:         "Keyboard",
+		Description:  "Mechanical keyboard",
+		PriceMinor:   125000,
+		Currency:     "NGN",
+		Quantity:     7,
+		HasPromotion: true,
 	}
 
 	if got[0].ID != want.ID ||
@@ -106,7 +109,8 @@ func TestGetProductsByIDsMapsSnapshotsAndAuthentication(t *testing.T) {
 		got[0].Description != want.Description ||
 		got[0].PriceMinor != want.PriceMinor ||
 		got[0].Currency != want.Currency ||
-		got[0].Quantity != want.Quantity {
+		got[0].Quantity != want.Quantity ||
+		got[0].HasPromotion != want.HasPromotion {
 		t.Fatalf("snapshot = %+v, want %+v", got[0], want)
 	}
 

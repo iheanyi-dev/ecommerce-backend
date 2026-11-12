@@ -18,9 +18,10 @@ var ErrInvalidProductIDs = errors.New("invalid product IDs")
 // GetProductsByIDs retrieves multiple products for internal consumers such as
 // cart and checkout. It does not enforce public store-availability rules.
 type GetProductsByIDs struct {
-	products ports.ProductRepository
-	logger   ports.Logger
-	metrics  ports.Metrics
+	products   ports.ProductRepository
+	promotions ports.ProductPromotionRepository
+	logger     ports.Logger
+	metrics    ports.Metrics
 }
 
 // NewGetProductsByIDs constructs the bulk product retrieval use case.
@@ -28,11 +29,13 @@ func NewGetProductsByIDs(
 	products ports.ProductRepository,
 	logger ports.Logger,
 	metrics ports.Metrics,
+	promotions ports.ProductPromotionRepository,
 ) *GetProductsByIDs {
 	return &GetProductsByIDs{
-		products: products,
-		logger:   logger,
-		metrics:  metrics,
+		products:   products,
+		promotions: promotions,
+		logger:     logger,
+		metrics:    metrics,
 	}
 }
 
@@ -44,7 +47,7 @@ func NewGetProductsByIDs(
 func (uc *GetProductsByIDs) Execute(
 	ctx context.Context,
 	productIDs []string,
-) ([]*entities.Product, error) {
+) ([]ProductResult, error) {
 	if len(productIDs) == 0 {
 		uc.record(ctx, "product.get_by_ids.validation_failed", "validation")
 		return nil, ErrInvalidProductIDs
@@ -82,8 +85,14 @@ func (uc *GetProductsByIDs) Execute(
 		ordered = append(ordered, product)
 	}
 
+	results, err := loadProductResults(ctx, uc.promotions, ordered)
+	if err != nil {
+		uc.record(ctx, "product.get_by_ids.promotion_lookup_failed", "dependency")
+		return nil, err
+	}
+
 	uc.record(ctx, "product.get_by_ids.succeeded", "")
-	return ordered, nil
+	return results, nil
 }
 
 // record keeps logging and metrics best-effort. Labels exclude product IDs.

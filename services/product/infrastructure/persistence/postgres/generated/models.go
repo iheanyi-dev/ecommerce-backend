@@ -9,19 +9,30 @@ import (
 )
 
 type Product struct {
-	ID          pgtype.UUID        `json:"id"`
-	StoreID     pgtype.UUID        `json:"store_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	PriceAmount int64              `json:"price_amount"`
-	Currency    string             `json:"currency"`
-	Quantity    int64              `json:"quantity"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID                    pgtype.UUID        `json:"id"`
+	StoreID               pgtype.UUID        `json:"store_id"`
+	Name                  string             `json:"name"`
+	Description           string             `json:"description"`
+	PriceAmount           int64              `json:"price_amount"`
+	Currency              string             `json:"currency"`
+	Quantity              int64              `json:"quantity"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	VideoStorageReference pgtype.Text        `json:"video_storage_reference"`
 }
 
 type ProductImage struct {
 	ProductID        pgtype.UUID `json:"product_id"`
 	Position         int16       `json:"position"`
 	StorageReference string      `json:"storage_reference"`
+}
+
+type ProductPromotionIndex struct {
+	ID          pgtype.UUID        `json:"id"`
+	StoreID     pgtype.UUID        `json:"store_id"`
+	ProductID   pgtype.UUID        `json:"product_id"`
+	PromotionID pgtype.UUID        `json:"promotion_id"`
+	Status      string             `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }

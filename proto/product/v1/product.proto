@@ -45,6 +45,7 @@ message Product {
   string currency = 5;
   string product_url = 6;
   bool available = 7;
+  bool has_promotion = 8;
 }
 
 message CountProductsByStoreRequest {
@@ -75,4 +76,5 @@ message ProductSnapshot {
 
   // Current stock quantity, not the customer's requested cart quantity.
   int64 quantity = 7;
+  bool has_promotion = 8;
 }

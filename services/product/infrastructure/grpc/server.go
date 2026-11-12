@@ -7,7 +7,6 @@ import (
 
 	productv1 "github.com/iheanyi-dev/ecommerce-backend/proto/product/v1"
 	"github.com/iheanyi-dev/ecommerce-backend/services/product/application/use_cases"
-	"github.com/iheanyi-dev/ecommerce-backend/services/product/domain/entities"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -24,7 +23,7 @@ type productCountUseCase interface {
 }
 
 type productGetProductsByIDsForCartUseCase interface {
-	Execute(ctx context.Context, productIDs []string) ([]*entities.Product, error)
+	Execute(ctx context.Context, productIDs []string) ([]use_cases.ProductResult, error)
 }
 
 // Server exposes Product's internal service-to-service API.
@@ -101,12 +100,13 @@ func (s *Server) SearchProducts(
 	}
 	for _, result := range results {
 		response.Products = append(response.Products, &productv1.Product{
-			ProductId:   result.ProductID,
-			Name:        result.Name,
-			Description: result.Description,
-			Price:       result.Price,
-			Currency:    result.Currency,
-			Available:   result.Available,
+			ProductId:    result.ProductID,
+			Name:         result.Name,
+			Description:  result.Description,
+			Price:        result.Price,
+			Currency:     result.Currency,
+			Available:    result.Available,
+			HasPromotion: result.HasPromotion,
 			// No canonical product URL is defined by the current contract.
 			ProductUrl: "",
 		})
@@ -162,17 +162,18 @@ func (s *Server) GetProductsByIDs(
 		Products: make([]*productv1.ProductSnapshot, 0, len(products)),
 	}
 	for _, product := range products {
-		if product == nil {
+		if product.Product == nil {
 			return nil, status.Error(codes.Internal, "product lookup returned an invalid product")
 		}
 		response.Products = append(response.Products, &productv1.ProductSnapshot{
-			ProductId:   product.ID(),
-			StoreId:     product.StoreID(),
-			Name:        product.Name(),
-			Description: product.Description(),
-			PriceMinor:  product.Price().Amount(),
-			Currency:    product.Price().Currency(),
-			Quantity:    product.Quantity(),
+			ProductId:    product.ID(),
+			StoreId:      product.StoreID(),
+			Name:         product.Name(),
+			Description:  product.Description(),
+			PriceMinor:   product.Price().Amount(),
+			Currency:     product.Price().Currency(),
+			Quantity:     product.Quantity(),
+			HasPromotion: product.HasPromotion,
 		})
 	}
 

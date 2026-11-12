@@ -11,6 +11,39 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addProductPromotion = `-- name: AddProductPromotion :exec
+
+INSERT INTO product_promotion_index (
+    store_id,
+    product_id,
+    promotion_id,
+    status
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4
+)
+`
+
+type AddProductPromotionParams struct {
+	StoreID     pgtype.UUID `json:"store_id"`
+	ProductID   pgtype.UUID `json:"product_id"`
+	PromotionID pgtype.UUID `json:"promotion_id"`
+	Status      string      `json:"status"`
+}
+
+// Product promotion availability projection.
+func (q *Queries) AddProductPromotion(ctx context.Context, arg AddProductPromotionParams) error {
+	_, err := q.db.Exec(ctx, addProductPromotion,
+		arg.StoreID,
+		arg.ProductID,
+		arg.PromotionID,
+		arg.Status,
+	)
+	return err
+}
+
 const countMarketplaceProducts = `-- name: CountMarketplaceProducts :one
 SELECT COUNT(*)::bigint
 FROM products
@@ -82,24 +115,26 @@ func (q *Queries) CountProductsByStore(ctx context.Context, storeID pgtype.UUID)
 const createProduct = `-- name: CreateProduct :exec
 INSERT INTO products (
     id, store_id, name, description, price_amount, currency,
-    quantity, created_at, updated_at
+    quantity, video_storage_reference, created_at, updated_at
 ) VALUES (
     $1, $2, $3, $4,
     $5, $6, $7,
-    $8, $9
+    $8,
+    $9, $10
 )
 `
 
 type CreateProductParams struct {
-	ID          pgtype.UUID        `json:"id"`
-	StoreID     pgtype.UUID        `json:"store_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	PriceAmount int64              `json:"price_amount"`
-	Currency    string             `json:"currency"`
-	Quantity    int64              `json:"quantity"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID                    pgtype.UUID        `json:"id"`
+	StoreID               pgtype.UUID        `json:"store_id"`
+	Name                  string             `json:"name"`
+	Description           string             `json:"description"`
+	PriceAmount           int64              `json:"price_amount"`
+	Currency              string             `json:"currency"`
+	Quantity              int64              `json:"quantity"`
+	VideoStorageReference pgtype.Text        `json:"video_storage_reference"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 }
 
 func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) error {
@@ -111,6 +146,7 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) er
 		arg.PriceAmount,
 		arg.Currency,
 		arg.Quantity,
+		arg.VideoStorageReference,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -158,7 +194,7 @@ func (q *Queries) DeleteProductImages(ctx context.Context, productID pgtype.UUID
 }
 
 const getProductByID = `-- name: GetProductByID :one
-SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at
+SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at, video_storage_reference
 FROM products
 WHERE id = $1
 `
@@ -176,6 +212,7 @@ func (q *Queries) GetProductByID(ctx context.Context, id pgtype.UUID) (Product, 
 		&i.Quantity,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.VideoStorageReference,
 	)
 	return i, err
 }
@@ -235,7 +272,7 @@ func (q *Queries) GetProductImagesByProductIDs(ctx context.Context, productIds [
 }
 
 const getProductsByIDs = `-- name: GetProductsByIDs :many
-SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at
+SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at, video_storage_reference
 FROM products
 WHERE id = ANY($1::uuid[])
 ORDER BY id
@@ -261,6 +298,7 @@ func (q *Queries) GetProductsByIDs(ctx context.Context, productIds []pgtype.UUID
 			&i.Quantity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.VideoStorageReference,
 		); err != nil {
 			return nil, err
 		}
@@ -273,7 +311,7 @@ func (q *Queries) GetProductsByIDs(ctx context.Context, productIds []pgtype.UUID
 }
 
 const listMarketplaceProducts = `-- name: ListMarketplaceProducts :many
-SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at
+SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at, video_storage_reference
 FROM products
 WHERE (
     $1::text = ''
@@ -358,6 +396,7 @@ func (q *Queries) ListMarketplaceProducts(ctx context.Context, arg ListMarketpla
 			&i.Quantity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.VideoStorageReference,
 		); err != nil {
 			return nil, err
 		}
@@ -370,7 +409,7 @@ func (q *Queries) ListMarketplaceProducts(ctx context.Context, arg ListMarketpla
 }
 
 const listProductsByStore = `-- name: ListProductsByStore :many
-SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at
+SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at, video_storage_reference
 FROM products
 WHERE store_id = $1
 ORDER BY created_at DESC, id DESC
@@ -403,6 +442,7 @@ func (q *Queries) ListProductsByStore(ctx context.Context, arg ListProductsBySto
 			&i.Quantity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.VideoStorageReference,
 		); err != nil {
 			return nil, err
 		}
@@ -414,8 +454,51 @@ func (q *Queries) ListProductsByStore(ctx context.Context, arg ListProductsBySto
 	return items, nil
 }
 
+const productHasPromotion = `-- name: ProductHasPromotion :one
+SELECT EXISTS (
+    SELECT 1
+    FROM product_promotion_index
+    WHERE store_id = $1
+      AND (
+          product_id IS NULL
+          OR product_id = $2
+      )
+)
+`
+
+type ProductHasPromotionParams struct {
+	StoreID   pgtype.UUID `json:"store_id"`
+	ProductID pgtype.UUID `json:"product_id"`
+}
+
+// Includes upcoming and active promotions; status is intentionally not filtered.
+// A product lookup also includes store-wide promotions.
+// A nil product_id checks only store-wide promotions.
+func (q *Queries) ProductHasPromotion(ctx context.Context, arg ProductHasPromotionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, productHasPromotion, arg.StoreID, arg.ProductID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const removeProductPromotion = `-- name: RemoveProductPromotion :exec
+DELETE FROM product_promotion_index
+WHERE store_id = $1
+  AND promotion_id = $2
+`
+
+type RemoveProductPromotionParams struct {
+	StoreID     pgtype.UUID `json:"store_id"`
+	PromotionID pgtype.UUID `json:"promotion_id"`
+}
+
+func (q *Queries) RemoveProductPromotion(ctx context.Context, arg RemoveProductPromotionParams) error {
+	_, err := q.db.Exec(ctx, removeProductPromotion, arg.StoreID, arg.PromotionID)
+	return err
+}
+
 const searchProductsByStore = `-- name: SearchProductsByStore :many
-SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at
+SELECT id, store_id, name, description, price_amount, currency, quantity, created_at, updated_at, video_storage_reference
 FROM products
 WHERE store_id = $1
 AND (
@@ -502,6 +585,7 @@ func (q *Queries) SearchProductsByStore(ctx context.Context, arg SearchProductsB
 			&i.Quantity,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.VideoStorageReference,
 		); err != nil {
 			return nil, err
 		}
@@ -521,19 +605,21 @@ SET store_id = $1,
     price_amount = $4,
     currency = $5,
     quantity = $6,
-    updated_at = $7
-WHERE id = $8
+    video_storage_reference = $7,
+    updated_at = $8
+WHERE id = $9
 `
 
 type UpdateProductParams struct {
-	StoreID     pgtype.UUID        `json:"store_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	PriceAmount int64              `json:"price_amount"`
-	Currency    string             `json:"currency"`
-	Quantity    int64              `json:"quantity"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	ID          pgtype.UUID        `json:"id"`
+	StoreID               pgtype.UUID        `json:"store_id"`
+	Name                  string             `json:"name"`
+	Description           string             `json:"description"`
+	PriceAmount           int64              `json:"price_amount"`
+	Currency              string             `json:"currency"`
+	Quantity              int64              `json:"quantity"`
+	VideoStorageReference pgtype.Text        `json:"video_storage_reference"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	ID                    pgtype.UUID        `json:"id"`
 }
 
 func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) error {
@@ -544,8 +630,28 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) er
 		arg.PriceAmount,
 		arg.Currency,
 		arg.Quantity,
+		arg.VideoStorageReference,
 		arg.UpdatedAt,
 		arg.ID,
 	)
+	return err
+}
+
+const updateProductPromotion = `-- name: UpdateProductPromotion :exec
+UPDATE product_promotion_index
+SET status = $1,
+    updated_at = NOW()
+WHERE store_id = $2
+  AND promotion_id = $3
+`
+
+type UpdateProductPromotionParams struct {
+	Status      string      `json:"status"`
+	StoreID     pgtype.UUID `json:"store_id"`
+	PromotionID pgtype.UUID `json:"promotion_id"`
+}
+
+func (q *Queries) UpdateProductPromotion(ctx context.Context, arg UpdateProductPromotionParams) error {
+	_, err := q.db.Exec(ctx, updateProductPromotion, arg.Status, arg.StoreID, arg.PromotionID)
 	return err
 }

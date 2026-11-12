@@ -10,4 +10,8 @@ var (
 	ErrDuplicateImage     = errors.New("product image reference already exists")
 	ErrImageNotFound      = errors.New("product image not found")
 	ErrInvalidImageOrder  = errors.New("invalid product image order")
+
+	ErrInvalidVideo   = errors.New("invalid product video reference")
+	ErrDuplicateVideo = errors.New("product video reference already exists")
+	ErrVideoNotFound  = errors.New("product video not found")
 )

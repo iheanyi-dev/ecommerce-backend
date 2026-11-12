@@ -14,9 +14,10 @@ import (
 // GetProductsByIDsForCart retrieves existing products for Cart.
 // Missing products are omitted; repository failures remain errors.
 type GetProductsByIDsForCart struct {
-	products ports.ProductRepository
-	logger   ports.Logger
-	metrics  ports.Metrics
+	products   ports.ProductRepository
+	promotions ports.ProductPromotionRepository
+	logger     ports.Logger
+	metrics    ports.Metrics
 }
 
 // NewGetProductsByIDsForCart constructs the Cart-specific bulk lookup.
@@ -24,11 +25,13 @@ func NewGetProductsByIDsForCart(
 	products ports.ProductRepository,
 	logger ports.Logger,
 	metrics ports.Metrics,
+	promotions ports.ProductPromotionRepository,
 ) *GetProductsByIDsForCart {
 	return &GetProductsByIDsForCart{
-		products: products,
-		logger:   logger,
-		metrics:  metrics,
+		products:   products,
+		promotions: promotions,
+		logger:     logger,
+		metrics:    metrics,
 	}
 }
 
@@ -36,7 +39,7 @@ func NewGetProductsByIDsForCart(
 func (uc *GetProductsByIDsForCart) Execute(
 	ctx context.Context,
 	productIDs []string,
-) ([]*entities.Product, error) {
+) ([]ProductResult, error) {
 	if len(productIDs) == 0 {
 		uc.record(ctx, "product.get_by_ids_for_cart.validation_failed", "validation")
 		return nil, ErrInvalidProductIDs
@@ -69,13 +72,19 @@ func (uc *GetProductsByIDsForCart) Execute(
 		}
 	}
 
+	results, err := loadProductResults(ctx, uc.promotions, ordered)
+	if err != nil {
+		uc.record(ctx, "product.get_by_ids_for_cart.promotion_lookup_failed", "dependency")
+		return nil, err
+	}
+
 	event := "product.get_by_ids_for_cart.succeeded"
 	if len(ordered) < len(productIDs) {
 		event = "product.get_by_ids_for_cart.missing_products_omitted"
 	}
 	uc.record(ctx, event, "")
 
-	return ordered, nil
+	return results, nil
 }
 
 func (uc *GetProductsByIDsForCart) record(

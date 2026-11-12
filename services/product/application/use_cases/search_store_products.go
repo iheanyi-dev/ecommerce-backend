@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/product/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/product/domain/entities"
 	"github.com/iheanyi-dev/ecommerce-backend/services/product/domain/valueobjects"
 )
 
@@ -29,20 +28,22 @@ type SearchStoreProductsInput struct {
 
 // SearchStoreProductResult contains customer-safe product data for Chat.
 type SearchStoreProductResult struct {
-	ProductID   string
-	Name        string
-	Description string
-	Price       string
-	Currency    string
-	Available   bool
+	ProductID    string
+	Name         string
+	Description  string
+	Price        string
+	Currency     string
+	Available    bool
+	HasPromotion bool
 }
 
 // SearchStoreProducts searches a single store's catalogue.
 type SearchStoreProducts struct {
-	products ports.ProductRepository
-	store    ports.StoreClient
-	logger   ports.Logger
-	metrics  ports.Metrics
+	products   ports.ProductRepository
+	store      ports.StoreClient
+	promotions ports.ProductPromotionRepository
+	logger     ports.Logger
+	metrics    ports.Metrics
 }
 
 func NewSearchStoreProducts(
@@ -50,12 +51,14 @@ func NewSearchStoreProducts(
 	store ports.StoreClient,
 	logger ports.Logger,
 	metrics ports.Metrics,
+	promotions ports.ProductPromotionRepository,
 ) *SearchStoreProducts {
 	return &SearchStoreProducts{
-		products: products,
-		store:    store,
-		logger:   logger,
-		metrics:  metrics,
+		products:   products,
+		store:      store,
+		promotions: promotions,
+		logger:     logger,
+		metrics:    metrics,
 	}
 }
 
@@ -137,13 +140,23 @@ func (uc *SearchStoreProducts) Execute(
 			continue
 		}
 		price := product.Price()
+		hasPromotion := false
+		if uc.promotions != nil {
+			productID := product.ID()
+			hasPromotion, err = uc.promotions.Exists(ctx, storeID, &productID)
+			if err != nil {
+				uc.record(ctx, "product.search.promotion_lookup_failed", "dependency")
+				return nil, fmt.Errorf("check product promotion availability: %w", err)
+			}
+		}
 		results = append(results, SearchStoreProductResult{
-			ProductID:   product.ID(),
-			Name:        product.Name(),
-			Description: product.Description(),
-			Price:       formatSearchPrice(price),
-			Currency:    price.Currency(),
-			Available:   product.Quantity() > 0,
+			ProductID:    product.ID(),
+			Name:         product.Name(),
+			Description:  product.Description(),
+			Price:        formatSearchPrice(price),
+			Currency:     price.Currency(),
+			Available:    product.Quantity() > 0,
+			HasPromotion: hasPromotion,
 		})
 	}
 
@@ -250,6 +263,3 @@ func (uc *SearchStoreProducts) record(ctx context.Context, event, failure string
 		})
 	}
 }
-
-// Compile-time guard against accidentally losing the intended entity contract.
-var _ *entities.Product

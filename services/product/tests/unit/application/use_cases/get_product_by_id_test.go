@@ -297,7 +297,7 @@ func TestGetProductByID(t *testing.T) {
 			logger := &loggerFake{}
 			metrics := &metricsFake{}
 
-			useCase := appusecases.NewGetProductByID(repository, store, logger, metrics)
+			useCase := appusecases.NewGetProductByID(repository, store, logger, metrics, nil)
 			got, err := useCase.Execute(context.Background(), "product-456")
 
 			if tt.wantErr == nil && err != nil {
@@ -306,8 +306,8 @@ func TestGetProductByID(t *testing.T) {
 			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
 				t.Fatalf("Execute() error = %v, want error wrapping %v", err, tt.wantErr)
 			}
-			if (got != nil) != tt.wantProduct {
-				t.Fatalf("Execute() returned product = %v, want product present = %v", got != nil, tt.wantProduct)
+			if (got.Product != nil) != tt.wantProduct {
+				t.Fatalf("Execute() returned product = %v, want product present = %v", got.Product != nil, tt.wantProduct)
 			}
 			if repository.gotID != "product-456" {
 				t.Errorf("repository received product ID %q", repository.gotID)
@@ -353,12 +353,12 @@ func TestGetProductByIDObservabilityFailuresDoNotChangeResult(t *testing.T) {
 	logger := &loggerFake{err: errors.New("logger unavailable")}
 	metrics := &metricsFake{err: errors.New("metrics unavailable")}
 
-	useCase := appusecases.NewGetProductByID(repository, store, logger, metrics)
+	useCase := appusecases.NewGetProductByID(repository, store, logger, metrics, nil)
 	got, err := useCase.Execute(context.Background(), product.ID())
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if got != product {
+	if got.Product != product {
 		t.Fatal("Execute() did not return the retrieved product")
 	}
 	if len(logger.events) != 1 {

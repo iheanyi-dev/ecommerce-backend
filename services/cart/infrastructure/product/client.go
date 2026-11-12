@@ -137,13 +137,14 @@ func (c *Client) GetProductsByIDs(
 		}
 
 		snapshots = append(snapshots, ports.ProductSnapshot{
-			ID:          productID,
-			StoreID:     storeID,
-			Name:        item.GetName(),
-			Description: item.GetDescription(),
-			PriceMinor:  item.GetPriceMinor(),
-			Currency:    item.GetCurrency(),
-			Quantity:    item.GetQuantity(),
+			ID:           productID,
+			StoreID:      storeID,
+			Name:         item.GetName(),
+			Description:  item.GetDescription(),
+			PriceMinor:   item.GetPriceMinor(),
+			Currency:     item.GetCurrency(),
+			Quantity:     item.GetQuantity(),
+			HasPromotion: item.GetHasPromotion(),
 		})
 	}
 

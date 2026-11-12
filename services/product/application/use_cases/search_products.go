@@ -37,9 +37,10 @@ func NewSearchProducts(
 	store ports.StoreClient,
 	logger ports.Logger,
 	metrics ports.Metrics,
+	promotions ports.ProductPromotionRepository,
 ) *SearchProducts {
 	return &SearchProducts{
-		listing: NewListProducts(products, store, logger, metrics),
+		listing: NewListProducts(products, store, logger, metrics, promotions),
 	}
 }
 

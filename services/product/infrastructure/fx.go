@@ -31,6 +31,10 @@ var Module = fx.Module(
 			postgres.NewProductRepository,
 			fx.As(new(ports.ProductRepository)),
 		),
+		fx.Annotate(
+			postgres.NewProductPromotionRepository,
+			fx.As(new(ports.ProductPromotionRepository)),
+		),
 		migrations.NewMigrationRunner,
 		fx.Annotate(storage.NewClient, fx.As(new(ports.StorageClient))),
 		fx.Annotate(storeinfra.NewClient, fx.As(new(ports.StoreClient))),

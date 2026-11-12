@@ -10,10 +10,11 @@ import (
 
 // ListProductsByStore lists publicly visible products for an active store.
 type ListProductsByStore struct {
-	products ports.ProductRepository
-	store    ports.StoreClient
-	logger   ports.Logger
-	metrics  ports.Metrics
+	products   ports.ProductRepository
+	promotions ports.ProductPromotionRepository
+	store      ports.StoreClient
+	logger     ports.Logger
+	metrics    ports.Metrics
 }
 
 func NewListProductsByStore(
@@ -21,9 +22,11 @@ func NewListProductsByStore(
 	store ports.StoreClient,
 	logger ports.Logger,
 	metrics ports.Metrics,
+	promotions ports.ProductPromotionRepository,
 ) *ListProductsByStore {
 	return &ListProductsByStore{
-		products: products, store: store, logger: logger, metrics: metrics,
+		products: products, promotions: promotions,
+		store: store, logger: logger, metrics: metrics,
 	}
 }
 
@@ -58,7 +61,13 @@ func (uc *ListProductsByStore) Execute(
 	}
 
 	uc.record(ctx, "product.list_by_store.succeeded", "")
-	return ProductPage{Products: products, Total: total, Limit: limit, Offset: offset}, nil
+	results, err := loadProductResults(ctx, uc.promotions, products)
+	if err != nil {
+		uc.record(ctx, "product.list_by_store.promotion_lookup_failed", "dependency")
+		return ProductPage{}, err
+	}
+
+	return ProductPage{Products: results, Total: total, Limit: limit, Offset: offset}, nil
 }
 
 func (uc *ListProductsByStore) record(ctx context.Context, event, failure string) {

@@ -14,6 +14,8 @@ var Module = fx.Module(
 		use_cases.NewGetProductByID,
 		use_cases.NewUpdateProduct,
 		use_cases.NewChangeProductImage,
+		use_cases.NewChangeProductVideo,
+		use_cases.NewRemoveProductVideo,
 		use_cases.NewDeleteProduct,
 		use_cases.NewListProducts,
 		use_cases.NewSearchProducts,

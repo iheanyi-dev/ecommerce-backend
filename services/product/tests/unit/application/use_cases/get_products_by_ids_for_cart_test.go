@@ -77,7 +77,7 @@ func TestGetProductsByIDsForCart(t *testing.T) {
 				productsByIDs: tt.repositoryResult,
 				getByIDsErr:   tt.repositoryErr,
 			}
-			useCase := appusecases.NewGetProductsByIDsForCart(repository, nil, nil)
+			useCase := appusecases.NewGetProductsByIDsForCart(repository, nil, nil, nil)
 
 			got, err := useCase.Execute(context.Background(), tt.ids)
 

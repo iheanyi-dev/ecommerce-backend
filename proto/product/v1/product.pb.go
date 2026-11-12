@@ -221,6 +221,7 @@ type Product struct {
 	Currency      string                 `protobuf:"bytes,5,opt,name=currency,proto3" json:"currency,omitempty"`
 	ProductUrl    string                 `protobuf:"bytes,6,opt,name=product_url,json=productUrl,proto3" json:"product_url,omitempty"`
 	Available     bool                   `protobuf:"varint,7,opt,name=available,proto3" json:"available,omitempty"`
+	HasPromotion  bool                   `protobuf:"varint,8,opt,name=has_promotion,json=hasPromotion,proto3" json:"has_promotion,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -300,6 +301,13 @@ func (x *Product) GetProductUrl() string {
 func (x *Product) GetAvailable() bool {
 	if x != nil {
 		return x.Available
+	}
+	return false
+}
+
+func (x *Product) GetHasPromotion() bool {
+	if x != nil {
+		return x.HasPromotion
 	}
 	return false
 }
@@ -491,6 +499,7 @@ type ProductSnapshot struct {
 	Currency   string `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
 	// Current stock quantity, not the customer's requested cart quantity.
 	Quantity      int64 `protobuf:"varint,7,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	HasPromotion  bool  `protobuf:"varint,8,opt,name=has_promotion,json=hasPromotion,proto3" json:"has_promotion,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -574,6 +583,13 @@ func (x *ProductSnapshot) GetQuantity() int64 {
 	return 0
 }
 
+func (x *ProductSnapshot) GetHasPromotion() bool {
+	if x != nil {
+		return x.HasPromotion
+	}
+	return false
+}
+
 var File_proto_product_v1_product_proto protoreflect.FileDescriptor
 
 const file_proto_product_v1_product_proto_rawDesc = "" +
@@ -599,7 +615,7 @@ const file_proto_product_v1_product_proto_rawDesc = "" +
 	"\x14_max_price_inclusiveB\x11\n" +
 	"\x0f_available_only\"I\n" +
 	"\x16SearchProductsResponse\x12/\n" +
-	"\bproducts\x18\x01 \x03(\v2\x13.product.v1.ProductR\bproducts\"\xcf\x01\n" +
+	"\bproducts\x18\x01 \x03(\v2\x13.product.v1.ProductR\bproducts\"\xf4\x01\n" +
 	"\aProduct\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\tR\tproductId\x12\x12\n" +
@@ -609,7 +625,8 @@ const file_proto_product_v1_product_proto_rawDesc = "" +
 	"\bcurrency\x18\x05 \x01(\tR\bcurrency\x12\x1f\n" +
 	"\vproduct_url\x18\x06 \x01(\tR\n" +
 	"productUrl\x12\x1c\n" +
-	"\tavailable\x18\a \x01(\bR\tavailable\"8\n" +
+	"\tavailable\x18\a \x01(\bR\tavailable\x12#\n" +
+	"\rhas_promotion\x18\b \x01(\bR\fhasPromotion\"8\n" +
 	"\x1bCountProductsByStoreRequest\x12\x19\n" +
 	"\bstore_id\x18\x01 \x01(\tR\astoreId\"4\n" +
 	"\x1cCountProductsByStoreResponse\x12\x14\n" +
@@ -618,7 +635,7 @@ const file_proto_product_v1_product_proto_rawDesc = "" +
 	"\vproduct_ids\x18\x01 \x03(\tR\n" +
 	"productIds\"S\n" +
 	"\x18GetProductsByIDsResponse\x127\n" +
-	"\bproducts\x18\x01 \x03(\v2\x1b.product.v1.ProductSnapshotR\bproducts\"\xda\x01\n" +
+	"\bproducts\x18\x01 \x03(\v2\x1b.product.v1.ProductSnapshotR\bproducts\"\xff\x01\n" +
 	"\x0fProductSnapshot\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\tR\tproductId\x12\x19\n" +
@@ -628,7 +645,8 @@ const file_proto_product_v1_product_proto_rawDesc = "" +
 	"\vprice_minor\x18\x05 \x01(\x03R\n" +
 	"priceMinor\x12\x1a\n" +
 	"\bcurrency\x18\x06 \x01(\tR\bcurrency\x12\x1a\n" +
-	"\bquantity\x18\a \x01(\x03R\bquantity2\xb3\x02\n" +
+	"\bquantity\x18\a \x01(\x03R\bquantity\x12#\n" +
+	"\rhas_promotion\x18\b \x01(\bR\fhasPromotion2\xb3\x02\n" +
 	"\x0eProductService\x12W\n" +
 	"\x0eSearchProducts\x12!.product.v1.SearchProductsRequest\x1a\".product.v1.SearchProductsResponse\x12i\n" +
 	"\x14CountProductsByStore\x12'.product.v1.CountProductsByStoreRequest\x1a(.product.v1.CountProductsByStoreResponse\x12]\n" +

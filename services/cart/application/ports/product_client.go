@@ -12,13 +12,14 @@ import (
 // Quantity is the current stock quantity in the Product service, not the
 // customer's requested cart quantity.
 type ProductSnapshot struct {
-	ID          uuid.UUID
-	StoreID     uuid.UUID
-	Name        string
-	Description string
-	PriceMinor  int64
-	Currency    string
-	Quantity    int64
+	ID           uuid.UUID
+	StoreID      uuid.UUID
+	Name         string
+	Description  string
+	PriceMinor   int64
+	Currency     string
+	Quantity     int64
+	HasPromotion bool
 }
 
 // ProductClient retrieves current product information from the Product

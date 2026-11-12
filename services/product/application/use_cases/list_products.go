@@ -35,10 +35,11 @@ type ListProductsInput struct {
 // ListProducts browses products and removes products from inactive stores.
 // It does not fetch replacement products when filtering shortens the page.
 type ListProducts struct {
-	products ports.ProductRepository
-	store    ports.StoreClient
-	logger   ports.Logger
-	metrics  ports.Metrics
+	products   ports.ProductRepository
+	promotions ports.ProductPromotionRepository
+	store      ports.StoreClient
+	logger     ports.Logger
+	metrics    ports.Metrics
 }
 
 func NewListProducts(
@@ -46,8 +47,9 @@ func NewListProducts(
 	store ports.StoreClient,
 	logger ports.Logger,
 	metrics ports.Metrics,
+	promotions ports.ProductPromotionRepository,
 ) *ListProducts {
-	return &ListProducts{products: products, store: store, logger: logger, metrics: metrics}
+	return &ListProducts{products: products, promotions: promotions, store: store, logger: logger, metrics: metrics}
 }
 
 func (uc *ListProducts) Execute(ctx context.Context, input ListProductsInput) (ProductPage, error) {
@@ -120,9 +122,15 @@ func (uc *ListProducts) Execute(ctx context.Context, input ListProductsInput) (P
 		}
 	}
 
+	results, err := loadProductResults(ctx, uc.promotions, filtered)
+	if err != nil {
+		uc.record(ctx, "product.list.promotion_lookup_failed", "dependency")
+		return ProductPage{}, err
+	}
+
 	uc.record(ctx, "product.list.succeeded", "")
 	return ProductPage{
-		Products: filtered,
+		Products: results,
 		// This is the repository's candidate total, before active-store filtering.
 		// An accurate eligible total requires a separate infrastructure query.
 		Total: total, Limit: limit, Offset: offset,

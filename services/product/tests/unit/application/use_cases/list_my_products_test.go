@@ -34,7 +34,7 @@ func TestListMyProducts(t *testing.T) {
 				products: []*entities.Product{product}, total: 1, listByStoreErr: tt.listErr,
 			}
 			store := &storeClientFake{ownerStoreID: tt.storeID, ownerLookupErr: tt.lookupErr}
-			uc := appusecases.NewListMyProducts(repository, store, &loggerFake{}, &metricsFake{})
+			uc := appusecases.NewListMyProducts(repository, store, &loggerFake{}, &metricsFake{}, nil)
 			page, err := uc.Execute(context.Background(), tt.ownerID, 10, 0)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("Execute() error = %v, wantErr %v", err, tt.wantErr)

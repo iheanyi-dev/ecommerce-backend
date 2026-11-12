@@ -11,10 +11,11 @@ import (
 // ListMyProducts lists products owned by the authenticated vendor, regardless
 // of whether the vendor's store is currently active.
 type ListMyProducts struct {
-	products ports.ProductRepository
-	store    ports.StoreClient
-	logger   ports.Logger
-	metrics  ports.Metrics
+	products   ports.ProductRepository
+	promotions ports.ProductPromotionRepository
+	store      ports.StoreClient
+	logger     ports.Logger
+	metrics    ports.Metrics
 }
 
 func NewListMyProducts(
@@ -22,9 +23,11 @@ func NewListMyProducts(
 	store ports.StoreClient,
 	logger ports.Logger,
 	metrics ports.Metrics,
+	promotions ports.ProductPromotionRepository,
 ) *ListMyProducts {
 	return &ListMyProducts{
-		products: products, store: store, logger: logger, metrics: metrics,
+		products: products, promotions: promotions,
+		store: store, logger: logger, metrics: metrics,
 	}
 }
 
@@ -59,7 +62,13 @@ func (uc *ListMyProducts) Execute(
 	}
 
 	uc.record(ctx, "product.list_my_products.succeeded", "")
-	return ProductPage{Products: products, Total: total, Limit: limit, Offset: offset}, nil
+	results, err := loadProductResults(ctx, uc.promotions, products)
+	if err != nil {
+		uc.record(ctx, "product.list_my_products.promotion_lookup_failed", "dependency")
+		return ProductPage{}, err
+	}
+
+	return ProductPage{Products: results, Total: total, Limit: limit, Offset: offset}, nil
 }
 
 func (uc *ListMyProducts) record(ctx context.Context, event, failure string) {

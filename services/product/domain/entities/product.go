@@ -19,6 +19,11 @@ type ProductImage struct {
 	StorageReference string
 }
 
+// ProductVideo is a reference to a video managed by the Storage Service.
+type ProductVideo struct {
+	StorageReference string
+}
+
 // Product is the aggregate root for a marketplace product.
 //
 // Its image slice order determines image display order. The first image,
@@ -31,6 +36,7 @@ type Product struct {
 	price       valueobjects.Money
 	quantity    int64
 	images      []ProductImage
+	video       *ProductVideo
 	createdAt   time.Time
 	updatedAt   time.Time
 }
@@ -90,6 +96,7 @@ func ReconstituteProduct(
 	price valueobjects.Money,
 	quantity int64,
 	images []ProductImage,
+	video *ProductVideo,
 	createdAt, updatedAt time.Time,
 ) (*Product, error) {
 	id = strings.TrimSpace(id)
@@ -124,9 +131,19 @@ func ReconstituteProduct(
 		restoredImages = append(restoredImages, ProductImage{StorageReference: reference})
 	}
 
+	var restoredVideo *ProductVideo
+	if video != nil {
+		reference := strings.TrimSpace(video.StorageReference)
+		if reference == "" {
+			return nil, domainerrors.ErrInvalidVideo
+		}
+		restoredVideo = &ProductVideo{StorageReference: reference}
+	}
+
 	return &Product{
 		id: id, storeID: storeID, name: name, description: description,
 		price: price, quantity: quantity, images: restoredImages,
+		video:     restoredVideo,
 		createdAt: createdAt.UTC(), updatedAt: updatedAt.UTC(),
 	}, nil
 }
@@ -170,6 +187,39 @@ func (p *Product) Images() []ProductImage {
 	images := make([]ProductImage, len(p.images))
 	copy(images, p.images)
 	return images
+}
+
+// Video returns a copy of the product video reference, if present.
+func (p *Product) Video() *ProductVideo {
+	if p.video == nil {
+		return nil
+	}
+	video := *p.video
+	return &video
+}
+
+// SetVideo sets or replaces the product video reference.
+func (p *Product) SetVideo(reference string) error {
+	reference = strings.TrimSpace(reference)
+	if reference == "" {
+		return domainerrors.ErrInvalidVideo
+	}
+	if p.video != nil && p.video.StorageReference == reference {
+		return nil
+	}
+	p.video = &ProductVideo{StorageReference: reference}
+	p.touch()
+	return nil
+}
+
+// RemoveVideo removes the product video reference.
+func (p *Product) RemoveVideo() error {
+	if p.video == nil {
+		return domainerrors.ErrVideoNotFound
+	}
+	p.video = nil
+	p.touch()
+	return nil
 }
 
 // CreatedAt returns the product creation time.

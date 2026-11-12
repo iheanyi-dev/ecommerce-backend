@@ -1,11 +1,12 @@
-// services/identity/shared/config/config.go
-
 package config
 
 import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -23,42 +24,34 @@ type Config struct {
 	DatabaseName     string
 	DatabaseSSLMode  string
 
-	// JWT configuration.
 	JWTSecret         string
 	JWTIssuer         string
 	JWTAccessTokenTTL time.Duration
 
-	// Account activation configuration.
 	ActivationURL      string
 	ActivationTokenTTL time.Duration
 
-	// Service authentication configuration.
-	//
-	// ServiceAuthName identifies the trusted internal caller.
-	// ServiceAuthSecret is shared only between trusted services.
 	ServiceAuthName   string
 	ServiceAuthSecret string
-	SMTPHost          string
-	SMTPPort          string
-	SMTPUsername      string
-	SMTPPassword      string
-	SMTPFrom          string
+
+	KafkaBrokers           []string
+	NotificationEmailTopic string
 }
 
 func Load() (*Config, error) {
-	// Load .env for local development.
-	// In Docker/production, environment variables can be supplied
-	// directly by the runtime.
-	_ = godotenv.Load("services/identity/.env")
+	// Resolve the service .env relative to this source file so loading
+	// works regardless of the process working directory.
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if ok {
+		envPath := filepath.Join(filepath.Dir(sourceFile), "../../.env")
+		_ = godotenv.Load(envPath)
+	}
 
 	jwtAccessTokenTTL, err := time.ParseDuration(
 		os.Getenv("JWT_ACCESS_TOKEN_TTL"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"invalid JWT_ACCESS_TOKEN_TTL: %w",
-			err,
-		)
+		return nil, fmt.Errorf("invalid JWT_ACCESS_TOKEN_TTL: %w", err)
 	}
 
 	activationTokenTTL, err := time.ParseDuration(
@@ -98,31 +91,30 @@ func Load() (*Config, error) {
 		ServiceAuthName:   os.Getenv("SERVICE_AUTH_NAME"),
 		ServiceAuthSecret: os.Getenv("SERVICE_AUTH_SECRET"),
 
-		SMTPHost:     os.Getenv("SMTP_HOST"),
-		SMTPPort:     getEnv("SMTP_PORT", "587"),
-		SMTPUsername: os.Getenv("SMTP_USERNAME"),
-		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
-		SMTPFrom:     os.Getenv("SMTP_FROM"),
+		KafkaBrokers:           parseBrokers(os.Getenv("KAFKA_BROKERS")),
+		NotificationEmailTopic: strings.TrimSpace(os.Getenv("NOTIFICATION_EMAIL_EVENTS_TOPIC")),
 	}
 
 	if cfg.DatabaseUser == "" {
 		return nil, fmt.Errorf("DATABASE_USER is required")
 	}
-
 	if cfg.DatabasePassword == "" {
 		return nil, fmt.Errorf("DATABASE_PASSWORD is required")
 	}
-
 	if cfg.DatabaseName == "" {
 		return nil, fmt.Errorf("DATABASE_NAME is required")
 	}
-
 	if cfg.ServiceAuthName == "" {
 		return nil, fmt.Errorf("SERVICE_AUTH_NAME is required")
 	}
-
 	if cfg.ServiceAuthSecret == "" {
 		return nil, fmt.Errorf("SERVICE_AUTH_SECRET is required")
+	}
+	if len(cfg.KafkaBrokers) == 0 {
+		return nil, fmt.Errorf("at least one KAFKA_BROKERS entry is required")
+	}
+	if cfg.NotificationEmailTopic == "" {
+		return nil, fmt.Errorf("NOTIFICATION_EMAIL_EVENTS_TOPIC is required")
 	}
 
 	return cfg, nil
@@ -131,16 +123,9 @@ func Load() (*Config, error) {
 func (c *Config) DatabaseURL() string {
 	u := &url.URL{
 		Scheme: "postgres",
-		User: url.UserPassword(
-			c.DatabaseUser,
-			c.DatabasePassword,
-		),
-		Host: fmt.Sprintf(
-			"%s:%s",
-			c.DatabaseHost,
-			c.DatabasePort,
-		),
-		Path: c.DatabaseName,
+		User:   url.UserPassword(c.DatabaseUser, c.DatabasePassword),
+		Host:   fmt.Sprintf("%s:%s", c.DatabaseHost, c.DatabasePort),
+		Path:   c.DatabaseName,
 	}
 
 	query := u.Query()
@@ -152,10 +137,18 @@ func (c *Config) DatabaseURL() string {
 
 func getEnv(key string, fallback string) string {
 	value := os.Getenv(key)
-
 	if value == "" {
 		return fallback
 	}
-
 	return value
+}
+
+func parseBrokers(value string) []string {
+	var brokers []string
+	for _, broker := range strings.Split(value, ",") {
+		if broker = strings.TrimSpace(broker); broker != "" {
+			brokers = append(brokers, broker)
+		}
+	}
+	return brokers
 }

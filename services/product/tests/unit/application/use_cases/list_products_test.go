@@ -21,7 +21,7 @@ func TestListProductsFiltersInactiveStoresAndForwardsFilters(t *testing.T) {
 		products: []*entities.Product{activeProduct, inactiveProduct}, total: 2,
 	}
 	store := &storeClientFake{activeStoreIDs: []string{activeProduct.StoreID()}}
-	uc := appusecases.NewListProducts(repository, store, &loggerFake{}, &metricsFake{})
+	uc := appusecases.NewListProducts(repository, store, &loggerFake{}, &metricsFake{}, nil)
 
 	minPrice, err := valueobjects.NewMoney(100000, "NGN")
 	if err != nil {
@@ -72,7 +72,7 @@ func TestListProductsRejectsInvalidFilters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repository := &productRepositoryFake{}
-			uc := appusecases.NewListProducts(repository, &storeClientFake{}, &loggerFake{}, &metricsFake{})
+			uc := appusecases.NewListProducts(repository, &storeClientFake{}, &loggerFake{}, &metricsFake{}, nil)
 			if _, err := uc.Execute(context.Background(), tt.input); err == nil {
 				t.Fatal("Execute() error = nil, want validation error")
 			}
@@ -90,7 +90,7 @@ func TestListProductsPropagatesRepositoryAndStoreFilterErrors(t *testing.T) {
 
 	t.Run("repository error", func(t *testing.T) {
 		repository := &productRepositoryFake{listProductsErr: repositoryErr}
-		uc := appusecases.NewListProducts(repository, &storeClientFake{}, &loggerFake{}, &metricsFake{})
+		uc := appusecases.NewListProducts(repository, &storeClientFake{}, &loggerFake{}, &metricsFake{}, nil)
 		if _, err := uc.Execute(context.Background(), appusecases.ListProductsInput{Limit: 10}); !errors.Is(err, repositoryErr) {
 			t.Fatalf("Execute() error = %v, want repository error", err)
 		}
@@ -98,7 +98,7 @@ func TestListProductsPropagatesRepositoryAndStoreFilterErrors(t *testing.T) {
 	t.Run("store filter error", func(t *testing.T) {
 		repository := &productRepositoryFake{products: []*entities.Product{product}, total: 1}
 		store := &storeClientFake{filterActiveErr: storeErr}
-		uc := appusecases.NewListProducts(repository, store, &loggerFake{}, &metricsFake{})
+		uc := appusecases.NewListProducts(repository, store, &loggerFake{}, &metricsFake{}, nil)
 		if _, err := uc.Execute(context.Background(), appusecases.ListProductsInput{Limit: 10}); !errors.Is(err, storeErr) {
 			t.Fatalf("Execute() error = %v, want store filter error", err)
 		}

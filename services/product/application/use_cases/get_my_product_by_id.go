@@ -6,16 +6,16 @@ import (
 	"fmt"
 
 	"github.com/iheanyi-dev/ecommerce-backend/services/product/application/ports"
-	"github.com/iheanyi-dev/ecommerce-backend/services/product/domain/entities"
 )
 
 // GetMyProductByID retrieves a product only when it belongs to the
 // authenticated vendor's store.
 type GetMyProductByID struct {
-	products ports.ProductRepository
-	store    ports.StoreClient
-	logger   ports.Logger
-	metrics  ports.Metrics
+	products   ports.ProductRepository
+	promotions ports.ProductPromotionRepository
+	store      ports.StoreClient
+	logger     ports.Logger
+	metrics    ports.Metrics
 }
 
 // NewGetMyProductByID constructs the vendor-owned product retrieval use case.
@@ -24,12 +24,14 @@ func NewGetMyProductByID(
 	store ports.StoreClient,
 	logger ports.Logger,
 	metrics ports.Metrics,
+	promotions ports.ProductPromotionRepository,
 ) *GetMyProductByID {
 	return &GetMyProductByID{
-		products: products,
-		store:    store,
-		logger:   logger,
-		metrics:  metrics,
+		products:   products,
+		promotions: promotions,
+		store:      store,
+		logger:     logger,
+		metrics:    metrics,
 	}
 }
 
@@ -42,33 +44,43 @@ func (uc *GetMyProductByID) Execute(
 	ctx context.Context,
 	ownerID string,
 	productID string,
-) (*entities.Product, error) {
+) (ProductResult, error) {
 	storeID, err := uc.store.GetStoreIDByOwnerID(ctx, ownerID)
 	if err != nil {
 		uc.record(ctx, "product.get_my_product_by_id.store_lookup_failed", "store")
-		return nil, fmt.Errorf("get store for product owner: %w", err)
+		return ProductResult{}, fmt.Errorf("get store for product owner: %w", err)
 	}
 	if storeID == "" {
 		uc.record(ctx, "product.get_my_product_by_id.not_found", "")
-		return nil, ErrProductNotFound
+		return ProductResult{}, ErrProductNotFound
 	}
 
 	product, err := uc.products.GetByID(ctx, productID)
 	if err != nil {
 		uc.record(ctx, "product.get_my_product_by_id.repository_failed", "persistence")
-		return nil, fmt.Errorf("get vendor product by ID: %w", err)
+		return ProductResult{}, fmt.Errorf("get vendor product by ID: %w", err)
 	}
 	if product == nil {
 		uc.record(ctx, "product.get_my_product_by_id.not_found", "")
-		return nil, ErrProductNotFound
+		return ProductResult{}, ErrProductNotFound
 	}
 	if product.StoreID() != storeID {
 		uc.record(ctx, "product.get_my_product_by_id.ownership_mismatch", "")
-		return nil, ErrProductNotFound
+		return ProductResult{}, ErrProductNotFound
+	}
+
+	hasPromotion := false
+	if uc.promotions != nil {
+		id := product.ID()
+		hasPromotion, err = uc.promotions.Exists(ctx, product.StoreID(), &id)
+		if err != nil {
+			uc.record(ctx, "product.get_my_product_by_id.promotion_lookup_failed", "dependency")
+			return ProductResult{}, fmt.Errorf("check product promotion availability: %w", err)
+		}
 	}
 
 	uc.record(ctx, "product.get_my_product_by_id.succeeded", "")
-	return product, nil
+	return ProductResult{Product: product, HasPromotion: hasPromotion}, nil
 }
 
 // record keeps logging and metrics best-effort. Labels exclude owner, store,

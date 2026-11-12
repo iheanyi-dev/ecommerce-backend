@@ -20,7 +20,7 @@ import (
 	generated "github.com/iheanyi-dev/ecommerce-backend/services/product/infrastructure/persistence/postgres/generated"
 )
 
-// ProductRepository persists Product aggregates and their ordered image references.
+// ProductRepository persists Product aggregates, ordered images, and an optional video reference.
 type ProductRepository struct {
 	pool    *pgxpool.Pool
 	queries *generated.Queries
@@ -33,7 +33,7 @@ func NewProductRepository(pool *pgxpool.Pool, queries *generated.Queries) *Produ
 
 var _ ports.ProductRepository = (*ProductRepository)(nil)
 
-// Create atomically inserts the product and its ordered image references.
+// Create atomically inserts the product, its images, and its optional video reference.
 func (r *ProductRepository) Create(ctx context.Context, product *entities.Product) error {
 	if product == nil {
 		return errors.New("create product: product cannot be nil")
@@ -56,15 +56,16 @@ func (r *ProductRepository) Create(ctx context.Context, product *entities.Produc
 
 	q := r.queries.WithTx(tx)
 	err = q.CreateProduct(ctx, generated.CreateProductParams{
-		ID:          toUUID(id),
-		StoreID:     toUUID(storeID),
-		Name:        product.Name(),
-		Description: product.Description(),
-		PriceAmount: product.Price().Amount(),
-		Currency:    product.Price().Currency(),
-		Quantity:    product.Quantity(),
-		CreatedAt:   toTimestamp(product.CreatedAt()),
-		UpdatedAt:   toTimestamp(product.UpdatedAt()),
+		ID:                    toUUID(id),
+		StoreID:               toUUID(storeID),
+		Name:                  product.Name(),
+		Description:           product.Description(),
+		PriceAmount:           product.Price().Amount(),
+		Currency:              product.Price().Currency(),
+		Quantity:              product.Quantity(),
+		VideoStorageReference: toVideoReference(product.Video()),
+		CreatedAt:             toTimestamp(product.CreatedAt()),
+		UpdatedAt:             toTimestamp(product.UpdatedAt()),
 	})
 	if err != nil {
 		return translateWriteError("create product", err)
@@ -157,7 +158,7 @@ func (r *ProductRepository) GetByIDs(ctx context.Context, productIDs []string) (
 	return products, nil
 }
 
-// Update atomically updates product fields and replaces its ordered image list.
+// Update atomically updates product fields, images, and its optional video reference.
 func (r *ProductRepository) Update(ctx context.Context, product *entities.Product) error {
 	if product == nil {
 		return errors.New("update product: product cannot be nil")
@@ -187,14 +188,15 @@ func (r *ProductRepository) Update(ctx context.Context, product *entities.Produc
 	}
 
 	err = q.UpdateProduct(ctx, generated.UpdateProductParams{
-		StoreID:     toUUID(storeID),
-		Name:        product.Name(),
-		Description: product.Description(),
-		PriceAmount: product.Price().Amount(),
-		Currency:    product.Price().Currency(),
-		Quantity:    product.Quantity(),
-		UpdatedAt:   toTimestamp(product.UpdatedAt()),
-		ID:          toUUID(id),
+		StoreID:               toUUID(storeID),
+		Name:                  product.Name(),
+		Description:           product.Description(),
+		PriceAmount:           product.Price().Amount(),
+		Currency:              product.Price().Currency(),
+		Quantity:              product.Quantity(),
+		VideoStorageReference: toVideoReference(product.Video()),
+		UpdatedAt:             toTimestamp(product.UpdatedAt()),
+		ID:                    toUUID(id),
 	})
 	if err != nil {
 		return translateWriteError("update product", err)
@@ -406,6 +408,11 @@ func fromRow(row generated.Product, imageRows []generated.ProductImage) (*entiti
 		return nil, fmt.Errorf("reconstitute product price: %w", err)
 	}
 
+	var video *entities.ProductVideo
+	if row.VideoStorageReference.Valid {
+		video = &entities.ProductVideo{StorageReference: row.VideoStorageReference.String}
+	}
+
 	images := make([]entities.ProductImage, 0, len(imageRows))
 	for _, image := range imageRows {
 		images = append(images, entities.ProductImage{
@@ -417,7 +424,7 @@ func fromRow(row generated.Product, imageRows []generated.ProductImage) (*entiti
 		uuid.UUID(row.ID.Bytes).String(),
 		uuid.UUID(row.StoreID.Bytes).String(),
 		row.Name, row.Description, price, row.Quantity,
-		images, row.CreatedAt.Time, row.UpdatedAt.Time,
+		images, video, row.CreatedAt.Time, row.UpdatedAt.Time,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("reconstitute product aggregate: %w", err)
@@ -440,6 +447,13 @@ func insertImages(
 		}
 	}
 	return nil
+}
+
+func toVideoReference(video *entities.ProductVideo) pgtype.Text {
+	if video == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: video.StorageReference, Valid: true}
 }
 
 func parseUUID(value string) (uuid.UUID, error) {

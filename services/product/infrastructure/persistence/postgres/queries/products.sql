@@ -1,10 +1,11 @@
 -- name: CreateProduct :exec
 INSERT INTO products (
     id, store_id, name, description, price_amount, currency,
-    quantity, created_at, updated_at
+    quantity, video_storage_reference, created_at, updated_at
 ) VALUES (
     sqlc.arg(id), sqlc.arg(store_id), sqlc.arg(name), sqlc.arg(description),
     sqlc.arg(price_amount), sqlc.arg(currency), sqlc.arg(quantity),
+    sqlc.narg(video_storage_reference),
     sqlc.arg(created_at), sqlc.arg(updated_at)
 );
 
@@ -28,6 +29,7 @@ SET store_id = sqlc.arg(store_id),
     price_amount = sqlc.arg(price_amount),
     currency = sqlc.arg(currency),
     quantity = sqlc.arg(quantity),
+    video_storage_reference = sqlc.narg(video_storage_reference),
     updated_at = sqlc.arg(updated_at)
 WHERE id = sqlc.arg(id);
 
@@ -181,4 +183,45 @@ VALUES (
     sqlc.arg(product_id),
     sqlc.arg(position),
     sqlc.arg(storage_reference)
+);
+
+-- Product promotion availability projection.
+
+-- name: AddProductPromotion :exec
+INSERT INTO product_promotion_index (
+    store_id,
+    product_id,
+    promotion_id,
+    status
+) VALUES (
+    sqlc.arg(store_id),
+    sqlc.narg(product_id),
+    sqlc.arg(promotion_id),
+    sqlc.arg(status)
+);
+
+-- name: UpdateProductPromotion :exec
+UPDATE product_promotion_index
+SET status = sqlc.arg(status),
+    updated_at = NOW()
+WHERE store_id = sqlc.arg(store_id)
+  AND promotion_id = sqlc.arg(promotion_id);
+
+-- name: RemoveProductPromotion :exec
+DELETE FROM product_promotion_index
+WHERE store_id = sqlc.arg(store_id)
+  AND promotion_id = sqlc.arg(promotion_id);
+
+-- Includes upcoming and active promotions; status is intentionally not filtered.
+-- A product lookup also includes store-wide promotions.
+-- A nil product_id checks only store-wide promotions.
+-- name: ProductHasPromotion :one
+SELECT EXISTS (
+    SELECT 1
+    FROM product_promotion_index
+    WHERE store_id = sqlc.arg(store_id)
+      AND (
+          product_id IS NULL
+          OR product_id = sqlc.narg(product_id)
+      )
 );
