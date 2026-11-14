@@ -10,22 +10,24 @@ import (
 
 // Config contains configuration owned by the Product service.
 type Config struct {
-	AppEnv                string
-	AppPort               string
-	GRPCPort              string
-	GRPCServiceAuthName   string
-	GRPCServiceAuthSecret string
-	DatabaseHost          string
-	DatabasePort          string
-	DatabaseUser          string
-	DatabasePassword      string
-	DatabaseName          string
-	DatabaseSSLMode       string
-	StorageServiceAddr    string
-	StoreServiceAddr      string
-	KafkaBrokers          string
-	ServiceAuthName       string
-	ServiceAuthSecret     string
+	AppEnv                 string
+	AppPort                string
+	GRPCPort               string
+	GRPCServiceAuthName    string
+	GRPCServiceAuthSecret  string
+	DatabaseHost           string
+	DatabasePort           string
+	DatabaseUser           string
+	DatabasePassword       string
+	DatabaseName           string
+	DatabaseSSLMode        string
+	StorageServiceAddr     string
+	StoreServiceAddr       string
+	KafkaBrokers           string
+	PromotionEventsTopic   string
+	PromotionConsumerGroup string
+	ServiceAuthName        string
+	ServiceAuthSecret      string
 }
 
 // ErrMissingAppPort indicates the HTTP listener port was not configured.
@@ -37,22 +39,28 @@ func Load() (*Config, error) {
 	_ = godotenv.Load("services/product/.env")
 
 	cfg := &Config{
-		AppEnv:                getEnv("APP_ENV", "development"),
-		AppPort:               getEnv("APP_PORT", "8083"),
-		GRPCPort:              getEnv("GRPC_PORT", "9091"),
-		GRPCServiceAuthName:   getEnv("GRPC_SERVICE_AUTH_NAME", "store"),
-		GRPCServiceAuthSecret: os.Getenv("GRPC_SERVICE_AUTH_SECRET"),
-		DatabaseHost:          getEnv("DATABASE_HOST", "localhost"),
-		DatabasePort:          getEnv("DATABASE_PORT", "5432"),
-		DatabaseUser:          os.Getenv("DATABASE_USER"),
-		DatabasePassword:      os.Getenv("DATABASE_PASSWORD"),
-		DatabaseName:          os.Getenv("DATABASE_NAME"),
-		DatabaseSSLMode:       getEnv("DATABASE_SSL_MODE", "disable"),
-		StorageServiceAddr:    os.Getenv("STORAGE_SERVICE_ADDR"),
-		StoreServiceAddr:      os.Getenv("STORE_SERVICE_ADDR"),
-		KafkaBrokers:          getEnv("KAFKA_BROKERS", "localhost:19092"),
-		ServiceAuthName:       os.Getenv("SERVICE_AUTH_NAME"),
-		ServiceAuthSecret:     os.Getenv("SERVICE_AUTH_SECRET"),
+		AppEnv:                 getEnv("APP_ENV", "development"),
+		AppPort:                getEnv("APP_PORT", "8083"),
+		GRPCPort:               getEnv("GRPC_PORT", "9091"),
+		GRPCServiceAuthName:    getEnv("GRPC_SERVICE_AUTH_NAME", "store"),
+		GRPCServiceAuthSecret:  os.Getenv("GRPC_SERVICE_AUTH_SECRET"),
+		DatabaseHost:           getEnv("DATABASE_HOST", "localhost"),
+		DatabasePort:           getEnv("DATABASE_PORT", "5432"),
+		DatabaseUser:           os.Getenv("DATABASE_USER"),
+		DatabasePassword:       os.Getenv("DATABASE_PASSWORD"),
+		DatabaseName:           os.Getenv("DATABASE_NAME"),
+		DatabaseSSLMode:        getEnv("DATABASE_SSL_MODE", "disable"),
+		StorageServiceAddr:     os.Getenv("STORAGE_SERVICE_ADDR"),
+		StoreServiceAddr:       os.Getenv("STORE_SERVICE_ADDR"),
+		KafkaBrokers:           getEnv("KAFKA_BROKERS", "localhost:19092"),
+		PromotionEventsTopic:   getEnv("PROMOTION_EVENTS_TOPIC", "promotion.events"),
+		PromotionConsumerGroup: getEnv("PRODUCT_PROMOTION_CONSUMER_GROUP", "product-promotion-consumer"),
+		ServiceAuthName:        os.Getenv("SERVICE_AUTH_NAME"),
+		ServiceAuthSecret:      os.Getenv("SERVICE_AUTH_SECRET"),
+	}
+
+	if cfg.PromotionEventsTopic == "" || cfg.PromotionConsumerGroup == "" {
+		return nil, fmt.Errorf("PROMOTION_EVENTS_TOPIC and PRODUCT_PROMOTION_CONSUMER_GROUP are required")
 	}
 
 	if cfg.DatabaseUser == "" {

@@ -40,11 +40,14 @@ var Module = fx.Module(
 		fx.Annotate(storeinfra.NewClient, fx.As(new(ports.StoreClient))),
 		fx.Annotate(kafkainfra.NewClient, fx.As(new(kafkainfra.MessagePublisher))),
 		fx.Annotate(kafkainfra.NewEmbeddingDispatcher, fx.As(new(ports.EmbeddingDispatcher))),
+		kafkainfra.NewPromotionEventHandler,
+		kafkainfra.NewPromotionEventConsumer,
 	),
 	fx.Provide(productgrpc.NewServerWithCartLookup),
 	fx.Invoke(
 		registerPoolLifecycle,
 		migrations.RegisterLifecycle,
+		func(*kafkainfra.PromotionEventConsumer) {},
 	),
 )
 

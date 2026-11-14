@@ -24,5 +24,8 @@ var Module = fx.Module(
 		use_cases.NewGetProductsByIDsForCart,
 		use_cases.NewListProductsByStore,
 		use_cases.NewListMyProducts,
+		use_cases.NewAddProductPromotion,
+		use_cases.NewUpdateProductPromotion,
+		use_cases.NewRemoveProductPromotion,
 	),
 )

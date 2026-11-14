@@ -16,7 +16,8 @@ import (
 func serviceRouter(order *proxy.OrderProxy, payment *proxy.PaymentProxy) http.Handler {
 	return gatewayhttp.NewRouter(
 		handlers.NewHealthHandler(),
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil,
 		order,
 		payment,
 	)

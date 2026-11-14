@@ -38,6 +38,7 @@ func NewRouter(
 	storeProxy *proxy.StoreProxy,
 	storageProxy *proxy.StorageProxy,
 	recommendationProxy *proxy.RecommendationProxy,
+	promotionProxy *proxy.PromotionProxy,
 	requestIDMiddleware *middleware.RequestIDMiddleware,
 	requestObservabilityMiddleware *middleware.RequestObservabilityMiddleware,
 	identityPropagationMiddleware *middleware.IdentityPropagationMiddleware,
@@ -86,6 +87,12 @@ func NewRouter(
 	// validated client identity when available.
 	mux.Handle("/api/v1/recommendations", recommendationProxy)
 	mux.Handle("/api/v1/recommendations/", recommendationProxy)
+
+	// Promotion owns the Promotion API namespace. The proxy supplies
+	// trusted service credentials while identity propagation forwards
+	// validated customer identity when available.
+	mux.Handle("/api/v1/promotions", promotionProxy)
+	mux.Handle("/api/v1/promotions/", promotionProxy)
 
 	// Storage exposes only its public-object HTTP endpoint through the
 	// Gateway. Storage itself remains internal-only and validates the

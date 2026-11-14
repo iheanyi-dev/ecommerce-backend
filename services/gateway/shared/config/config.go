@@ -67,6 +67,11 @@ type Config struct {
 	// Gateway-to-Recommendation service authentication.
 	RecommendationServiceSecret string
 
+	// Promotion service connection and service-authentication credentials.
+	PromotionServiceURL    string
+	PromotionServiceName   string
+	PromotionServiceSecret string
+
 	// Product service connection and service-authentication credentials.
 	ProductServiceURL    string
 	ProductServiceName   string
@@ -152,6 +157,18 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	promotionServiceURL := getEnv(
+		"PROMOTION_SERVICE_URL",
+		"http://localhost:8096",
+	)
+
+	if err := validateServiceURL(
+		"PROMOTION_SERVICE_URL",
+		promotionServiceURL,
+	); err != nil {
+		return nil, err
+	}
+
 	productServiceURL := getEnv(
 		"PRODUCT_SERVICE_URL",
 		"http://localhost:8083",
@@ -199,6 +216,9 @@ func Load() (*Config, error) {
 		RecommendationServiceURL:    recommendationServiceURL,
 		RecommendationServiceName:   os.Getenv("RECOMMENDATION_SERVICE_NAME"),
 		RecommendationServiceSecret: os.Getenv("RECOMMENDATION_SERVICE_SECRET"),
+		PromotionServiceURL:         promotionServiceURL,
+		PromotionServiceName:        getEnv("PROMOTION_SERVICE_NAME", "promotion"),
+		PromotionServiceSecret:      os.Getenv("PROMOTION_SERVICE_SECRET"),
 		ProductServiceURL:           productServiceURL,
 		ProductServiceName:          os.Getenv("PRODUCT_SERVICE_NAME"),
 		ProductServiceSecret:        os.Getenv("PRODUCT_SERVICE_SECRET"),
@@ -244,6 +264,14 @@ func Load() (*Config, error) {
 
 	if cfg.RecommendationServiceSecret == "" {
 		return nil, fmt.Errorf("RECOMMENDATION_SERVICE_SECRET is required")
+	}
+
+	if strings.TrimSpace(cfg.PromotionServiceName) == "" {
+		return nil, fmt.Errorf("PROMOTION_SERVICE_NAME is required")
+	}
+
+	if cfg.PromotionServiceSecret == "" {
+		return nil, fmt.Errorf("PROMOTION_SERVICE_SECRET is required")
 	}
 
 	if cfg.ProductServiceName == "" {

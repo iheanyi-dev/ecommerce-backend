@@ -40,6 +40,7 @@ var Module = fx.Module(
 		newStoreProxy,
 		newStorageProxy,
 		newRecommendationProxy,
+		newPromotionProxy,
 		newProductProxy,
 		newCartProxy,
 		newOrderProxy,
@@ -104,6 +105,15 @@ func newRecommendationProxy(cfg *config.Config) (*proxy.RecommendationProxy, err
 		cfg.RecommendationServiceURL,
 		cfg.RecommendationServiceName,
 		cfg.RecommendationServiceSecret,
+	)
+}
+
+// newPromotionProxy constructs the Gateway → Promotion reverse proxy.
+func newPromotionProxy(cfg *config.Config) (*proxy.PromotionProxy, error) {
+	return proxy.NewPromotionProxy(
+		cfg.PromotionServiceURL,
+		cfg.PromotionServiceName,
+		cfg.PromotionServiceSecret,
 	)
 }
 

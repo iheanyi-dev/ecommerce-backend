@@ -180,3 +180,70 @@ func TestPromotionCancel(t *testing.T) {
 		t.Fatalf("resume error = %v, want ErrPromotionCancelled", err)
 	}
 }
+
+func TestPromotionActivate(t *testing.T) {
+	promotion := newTestPromotion(t, nil, nil)
+
+	if err := promotion.Activate(promotion.StartsAt().Add(-time.Second)); !errors.Is(err, domainerrors.ErrPromotionNotActive) {
+		t.Fatalf("error = %v, want ErrPromotionNotActive", err)
+	}
+
+	now := promotion.StartsAt()
+	if err := promotion.Activate(now); err != nil {
+		t.Fatal(err)
+	}
+	if err := promotion.Activate(now); !errors.Is(err, domainerrors.ErrPromotionAlreadyActive) {
+		t.Fatalf("error = %v, want ErrPromotionAlreadyActive", err)
+	}
+}
+
+func TestPromotionExpire(t *testing.T) {
+	promotion := newTestPromotion(t, nil, nil)
+	now := promotion.EndsAt()
+
+	if err := promotion.Expire(now.Add(-time.Second)); !errors.Is(err, domainerrors.ErrPromotionNotExpired) {
+		t.Fatalf("error = %v, want ErrPromotionNotExpired", err)
+	}
+	if err := promotion.Expire(now); err != nil {
+		t.Fatal(err)
+	}
+	if got := promotion.StatusAt(now); got != entities.PromotionExpired {
+		t.Fatalf("status = %q, want expired", got)
+	}
+	if err := promotion.Expire(now); !errors.Is(err, domainerrors.ErrPromotionAlreadyExpired) {
+		t.Fatalf("error = %v, want ErrPromotionAlreadyExpired", err)
+	}
+}
+
+func TestPromotionRenew(t *testing.T) {
+	promotion := newTestPromotion(t, nil, nil)
+	originalID := promotion.ID()
+	now := promotion.EndsAt()
+
+	if err := promotion.Renew(now, now.Add(24*time.Hour), now); err != nil {
+		t.Fatal(err)
+	}
+
+	if promotion.ID() != originalID {
+		t.Fatal("renewal must retain the original promotion ID")
+	}
+	if !promotion.StartsAt().Equal(now) {
+		t.Fatalf("start = %v, want %v", promotion.StartsAt(), now)
+	}
+	if !promotion.EndsAt().Equal(now.Add(24 * time.Hour)) {
+		t.Fatalf("end = %v, want %v", promotion.EndsAt(), now.Add(24*time.Hour))
+	}
+	if got := promotion.StatusAt(now); got != entities.PromotionActive {
+		t.Fatalf("status = %q, want active", got)
+	}
+}
+
+func TestPromotionCannotRenewBeforeExpiry(t *testing.T) {
+	promotion := newTestPromotion(t, nil, nil)
+	now := promotion.StartsAt().Add(time.Hour)
+
+	err := promotion.Renew(now, now.Add(24*time.Hour), now)
+	if !errors.Is(err, domainerrors.ErrPromotionNotExpired) {
+		t.Fatalf("error = %v, want ErrPromotionNotExpired", err)
+	}
+}
